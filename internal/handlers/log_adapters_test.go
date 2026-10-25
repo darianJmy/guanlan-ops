@@ -29,7 +29,7 @@ func adapterConfig(kind string) string {
 		cfg.LevelField = "log.level"
 		cfg.TraceIDField = "trace.id"
 	}
-	encoded, _ := json.Marshal(map[string]any{"log_query": cfg, "custom_headers": map[string]string{"X-Tenant": "prod"}})
+	encoded, _ := json.Marshal(map[string]any{"database": cfg.Database, "log_query": cfg, "custom_headers": map[string]string{"X-Tenant": "prod"}})
 	return string(encoded)
 }
 

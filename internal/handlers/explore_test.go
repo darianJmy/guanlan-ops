@@ -47,13 +47,13 @@ func TestExploreQueriesAndPermissions(t *testing.T) {
 			return
 		}
 		body, _ := io.ReadAll(r.Body)
-		if r.Method != "POST" || !strings.HasPrefix(string(body), "SELECT * FROM (\n") || !strings.Contains(string(body), "LIMIT 500 FORMAT JSON") || r.URL.Query().Get("readonly") != "1" || r.URL.Query().Get("param_from") != "1792800000" || r.URL.Query().Get("param_to") != "1792803600" {
+		if r.Method != "POST" || !strings.HasPrefix(string(body), "SELECT * FROM (\n") || !strings.Contains(string(body), "LIMIT 500 FORMAT JSON") || r.URL.Query().Get("database") != "logs" || r.URL.Query().Get("readonly") != "1" || r.URL.Query().Get("param_from") != "1792800000" || r.URL.Query().Get("param_to") != "1792803600" {
 			t.Errorf("incorrect SQL envelope: %s %s", r.URL, body)
 		}
 		fmt.Fprint(w, result)
 	}))
 	defer server.Close()
-	ch := models.Datasource{Name: "sql", Type: "clickhouse", URL: server.URL, Status: 1, AuthType: "bearer", AuthConfig: `{"token":"secret"}`}
+	ch := models.Datasource{Name: "sql", Type: "clickhouse", Config: `{"database":"logs"}`, URL: server.URL, Status: 1, AuthType: "bearer", AuthConfig: `{"token":"secret"}`}
 	if err := validateDatasourceConnection(ch); err != nil {
 		t.Fatal("SQL-only connection rejected:", err)
 	}
@@ -130,5 +130,20 @@ func TestExploreQueriesAndPermissions(t *testing.T) {
 	w = call("GET", "/sources", nil)
 	if strings.Contains(w.Body.String(), `"type":"clickhouse"`) {
 		t.Fatal("SQL-only source visible without SQL permission")
+	}
+}
+
+func TestClickHouseDatabaseRequired(t *testing.T) {
+	req := CreateDatasourceWithTunnelReq{Name: "ch", Type: "clickhouse", URL: "http://localhost:8123", AuthType: "none", Status: 1, Config: `{}`}
+	if normalizeDatasourceReq(&req, nil) == nil {
+		t.Fatal("missing database accepted")
+	}
+	req.Config = `{"database":"logs"}`
+	if err := normalizeDatasourceReq(&req, nil); err != nil {
+		t.Fatal(err)
+	}
+	name, err := clickHouseDatabase(req.Config)
+	if err != nil || name != "logs" {
+		t.Fatalf("database: %s %v", name, err)
 	}
 }

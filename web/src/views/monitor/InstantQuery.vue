@@ -6,11 +6,7 @@
           v-model="selectedDS"
           class="datasource-select"
           aria-label="指标数据源"
-          multiple
           filterable
-          collapse-tags
-          collapse-tags-tooltip
-          :max-collapse-tags="1"
           placeholder="选择数据源"
         >
           <el-option v-for="ds in datasources" :key="ds.id" :label="ds.name" :value="ds.id" />
@@ -47,7 +43,7 @@
             spellcheck="false"
           />
           <el-tooltip content="浏览全部指标" placement="top">
-            <button type="button" class="metrics-explorer-button" aria-label="浏览全部指标" :disabled="!selectedDS.length" @click="openMetricsExplorer">
+            <button type="button" class="metrics-explorer-button" aria-label="浏览全部指标" :disabled="!selectedDS" @click="openMetricsExplorer">
               <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path fill="currentColor" d="M512 256C512 397.4 397.4 512 256 512C114.6 512 0 397.4 0 256C0 114.6 114.6 0 256 0C397.4 0 512 114.6 512 256zM266.3 48.25L232.5 73.6C227.2 77.63 224 83.95 224 90.67V99.72C224 106.5 229.5 112 236.3 112C238.7 112 241.1 111.3 243.1 109.9L284.9 82.06C286.9 80.72 289.3 80 291.7 80H292.7C298.9 80 304 85.07 304 91.31C304 94.31 302.8 97.19 300.7 99.31L280.8 119.2C275 124.1 267.9 129.4 260.2 131.9L233.6 140.8C227.9 142.7 224 148.1 224 154.2C224 157.9 222.5 161.5 219.9 164.1L201.9 182.1C195.6 188.4 192 197.1 192 206.1V210.3C192 226.7 205.6 240 221.9 240C232.9 240 243.1 233.8 248 224L252 215.9C254.5 211.1 259.4 208 264.8 208C269.4 208 273.6 210.1 276.3 213.7L292.6 235.5C294.7 238.3 298.1 240 301.7 240C310.1 240 315.6 231.1 311.8 223.6L310.7 221.3C307.1 214.3 310.7 205.8 318.1 203.3L339.3 196.2C346.9 193.7 352 186.6 352 178.6C352 168.3 360.3 160 370.6 160H400C408.8 160 416 167.2 416 176C416 184.8 408.8 192 400 192H379.3C372.1 192 365.1 194.9 360 200L355.3 204.7C353.2 206.8 352 209.7 352 212.7C352 218.9 357.1 224 363.3 224H374.6C380.6 224 386.4 226.4 390.6 230.6L397.2 237.2C398.1 238.1 400 241.4 400 244C400 246.6 398.1 249 397.2 250.8L389.7 258.3C386 261.1 384 266.9 384 272C384 277.1 386 282 389.7 285.7L408 304C418.2 314.2 432.1 320 446.6 320H453.1C460.5 299.8 464 278.3 464 256C464 144.6 376.4 53.64 266.3 48.25V48.25zM438.4 356.1C434.7 353.5 430.2 352 425.4 352C419.4 352 413.6 349.6 409.4 345.4L395.1 331.1C388.3 324.3 377.9 320 367.1 320C357.4 320 347.9 316.5 340.5 310.2L313.1 287.4C302.4 277.5 287.6 271.1 272.3 271.1H251.4C238.7 271.1 226.4 275.7 215.9 282.7L188.5 301C170.7 312.9 160 332.9 160 354.3V357.5C160 374.5 166.7 390.7 178.7 402.7L194.7 418.7C203.2 427.2 214.7 432 226.7 432H248C261.3 432 272 442.7 272 456C272 458.5 272.4 461 273.1 463.3C344.5 457.5 405.6 415.7 438.4 356.1L438.4 356.1zM164.7 100.7L132.7 132.7C126.4 138.9 126.4 149.1 132.7 155.3C138.9 161.6 149.1 161.6 155.3 155.3L187.3 123.3C193.6 117.1 193.6 106.9 187.3 100.7C181.1 94.44 170.9 94.44 164.7 100.7V100.7z" /></svg>
             </button>
           </el-tooltip>
@@ -111,7 +107,6 @@
             <button type="button" class="eval-arrow" title="增加 30 分钟" aria-label="增加 30 分钟" @click="shiftEvalTime(1)"><svg viewBox="0 0 320 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M96 480c-8.188 0-16.38-3.125-22.62-9.375c-12.5-12.5-12.5-32.75 0-45.25L242.8 256L73.38 86.63c-12.5-12.5-12.5-32.75 0-45.25s32.75-12.5 45.25 0l192 192c12.5 12.5 12.5 32.75 0 45.25l-192 192C112.4 476.9 104.2 480 96 480z" /></svg></button>
           </div>
         </div>
-        <div v-if="queryWarning" class="warning-box"><el-icon><WarningFilled /></el-icon>{{ queryWarning }}</div>
         <div v-if="error" class="error-box"><el-icon color="#F56C6C"><WarningFilled /></el-icon>{{ error }}</div>
         <el-table v-else-if="result" :data="tableRows" class="query-result-table" stripe size="small" max-height="55vh" style="width:100%">
           <el-table-column label="数据源" width="180" show-overflow-tooltip>
@@ -161,7 +156,6 @@
             <button type="button" title="Show stacked graph" aria-label="Show stacked graph" :class="{ active: graphStacked }" :aria-pressed="graphStacked" @click="graphStacked = true"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M64 400a16 16 0 0016 16h400a32 32 0 010 64H80a80 80 0 01-80-80V64a32 32 0 0164 0zm64-80v-84q0-12 8-22l79-90q24-24 48 1l40 47q17 20 36 1l21-21q24-24 47 2l65 77q8 9 8 21v68q0 32-32 32H160q-32 0-32-32z" /></svg></button>
           </div>
         </form>
-        <div v-if="queryWarning" class="warning-box"><el-icon><WarningFilled /></el-icon>{{ queryWarning }}</div>
         <div v-if="error" class="error-box"><el-icon color="#F56C6C"><WarningFilled /></el-icon>{{ error }}</div>
         <div v-else-if="chartSeries.length === 0" class="empty-chart">
           当前结果无可渲染的图表数据（请切换到范围查询模式）
@@ -203,34 +197,16 @@
       <el-pagination v-if="filteredMetrics.length > 100" v-model:current-page="metricsPage" :page-size="100" :total="filteredMetrics.length" layout="prev, pager, next" small />
     </el-dialog>
 
-    <el-drawer v-model="historyVisible" class="query-history-drawer" size="420px" append-to-body>
-      <template #header>
-        <div class="history-drawer-header">
-          <div class="standard-drawer-header"><DrawerBackButton @click="historyVisible = false" /><strong>历史查询</strong></div>
-          <el-button v-if="queryHistory.length" text type="danger" @click="clearQueryHistory">清空</el-button>
-        </div>
-      </template>
-      <div v-if="queryHistory.length" class="history-list">
-        <button v-for="item in queryHistory" :key="item.id" class="history-item" type="button" @click="restoreQuery(item)">
-          <span class="history-query">{{ item.query }}</span>
-          <span class="history-meta">
-            <el-tag size="small" effect="plain">{{ item.mode === 'graph' ? 'Graph' : 'Table' }}</el-tag>
-            <span>{{ item.datasource_name }}</span>
-            <time :datetime="item.created_at">{{ formatHistoryTime(item.created_at) }}</time>
-          </span>
-        </button>
-      </div>
-      <el-empty v-else description="暂无查询记录" :image-size="72" />
-    </el-drawer>
+    <QueryHistoryDrawer ref="historyDrawer" @select="restoreQuery" />
   </div>
 </template>
 
 <script setup>
 import { useThemeColors } from '../../theme/useThemeColors'
 const themeColors = useThemeColors()
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
+import QueryHistoryDrawer from '../../components/explore/QueryHistoryDrawer.vue'
 import { ref, reactive, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue'
-import { promInstantQuery, promRangeQuery, getPromDatasources, promMetadata, getPromQueryHistory, clearPromQueryHistory } from '../../api/prometheus'
+import { promInstantQuery, promRangeQuery, getPromDatasources, promMetadata } from '../../api/prometheus'
 import { ElMessage } from 'element-plus'
 import { WarningFilled } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
@@ -243,12 +219,11 @@ use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRender
 
 const props = defineProps({ source: { type: Object, default: null } })
 const datasources = ref(props.source ? [props.source] : [])
-const selectedDS = ref(props.source ? [props.source.id] : [])
+const selectedDS = ref(props.source?.id ?? null)
 const query = ref('')
 const loading = ref(false)
 const result = ref(null)
 const error = ref('')
-const queryWarning = ref('')
 const activeTab = ref('table')
 const execTime = ref('')
 const evalTime = ref('')
@@ -275,26 +250,17 @@ async function loadExplorerMetrics() {
   const current = ++metricsRequestID
   metricsController = new AbortController()
   metricsLoading.value = true; metricsError.value = ''; explorerMetrics.value = []; metricsPage.value = 1
-  const ids = [...selectedDS.value]
-  if (!ids.length) { metricsLoading.value = false; metricsError.value = '请先选择指标数据源'; return }
-  const results = await Promise.allSettled(ids.map(id => promMetadata({ datasource_id: id, target: 'metrics' }, { signal: metricsController.signal, timeout: 35000 })))
-  if (current !== metricsRequestID) return
-  const names = [], failures = []
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled' && Array.isArray(result.value.data)) {
-      for (const item of result.value.data) if (typeof item === 'string') names.push(item)
-    }
-    else {
-      const name = datasources.value.find(item => item.id === ids[index])?.name || String(ids[index])
-      const reason = result.status === 'rejected'
-        ? (result.reason?.response?.data?.message || result.reason?.message || '请求失败')
-        : '指标接口返回格式不正确'
-      failures.push(`${name}：${reason}`)
-    }
-  })
-  explorerMetrics.value = [...new Set(names)].sort((a, b) => a.localeCompare(b))
-  if (failures.length) metricsError.value = `指标列表加载失败：${failures.join('；')}`
-  metricsLoading.value = false
+  if (!selectedDS.value) { metricsLoading.value = false; metricsError.value = '请先选择指标数据源'; return }
+  try {
+    const response = await promMetadata({ datasource_id: selectedDS.value, target: 'metrics' }, { signal: metricsController.signal, timeout: 35000 })
+    if (current !== metricsRequestID) return
+    if (!Array.isArray(response.data)) throw new Error('指标接口返回格式不正确')
+    explorerMetrics.value = [...new Set(response.data.filter(item => typeof item === 'string'))].sort((a, b) => a.localeCompare(b))
+  } catch (e) {
+    if (current === metricsRequestID) metricsError.value = `指标列表加载失败：${e?.response?.data?.message || e.message || '请求失败'}`
+  } finally {
+    if (current === metricsRequestID) metricsLoading.value = false
+  }
 }
 function chooseExplorerMetric(metric) {
   query.value = metric
@@ -302,55 +268,17 @@ function chooseExplorerMetric(metric) {
   metricsExplorerVisible.value = false
   nextTick(() => { inputRef.value?.focus(); inputRef.value?.setSelectionRange(metric.length, metric.length) })
 }
-watch(selectedDS, () => { closeMetricsExplorer(); explorerMetrics.value = []; if (metricsExplorerVisible.value) loadExplorerMetrics() }, { deep: true })
+watch(selectedDS, () => { closeMetricsExplorer(); explorerMetrics.value = []; if (metricsExplorerVisible.value) loadExplorerMetrics() })
 onBeforeUnmount(closeMetricsExplorer)
 
-const historyVisible = ref(false)
-const queryHistory = ref([])
-
-async function loadQueryHistory() {
-  try {
-    const res = await getPromQueryHistory()
-    queryHistory.value = res.data || []
-  } catch {}
-}
-
+const historyDrawer = ref(null)
+function openQueryHistory() { return historyDrawer.value?.openQueryHistory() }
 defineExpose({ openQueryHistory })
-
-async function openQueryHistory() {
-  historyVisible.value = true
-  await loadQueryHistory()
-}
-
 function restoreQuery(item) {
-  if (props.source && String(item.datasource_id) !== String(props.source.id)) {
-    ElMessage.warning('请先在顶部切换到该历史记录的数据源')
-    return
-  }
-  const datasourceExists = datasources.value.some(ds => String(ds.id) === String(item.datasource_id))
-  if (datasourceExists) selectedDS.value = [item.datasource_id]
-  else ElMessage.warning('该历史记录的数据源已不可用')
   query.value = item.query
-  activeTab.value = item.mode === 'graph' ? 'graph' : 'table'
-  historyVisible.value = false
   nextTick(() => inputRef.value?.focus())
 }
 
-async function clearQueryHistory() {
-  try {
-    await clearPromQueryHistory()
-    queryHistory.value = []
-    ElMessage.success('历史记录已清空')
-  } catch {}
-}
-
-function formatHistoryTime(value) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString('zh-CN', { hour12: false })
-}
-
-// Graph params
 const rangeOptions = ['1s', '10s', '1m', '5m', '15m', '30m', '1h', '2h', '6h', '12h', '1d', '2d', '7d', '30d', '90d', '1y']
 const graphRange = ref('1h')
 const graphEndTime = ref('')
@@ -364,9 +292,8 @@ onMounted(async () => {
   try {
     const res = props.source ? { data: [props.source] } : await getPromDatasources()
     datasources.value = res.data || []
-    if (datasources.value.length > 0) selectedDS.value = [datasources.value.find(item => item.id === props.source?.id)?.id || datasources.value[0].id]
+    if (datasources.value.length > 0) selectedDS.value = datasources.value.find(item => item.id === props.source?.id)?.id || datasources.value[0].id
   } catch {}
-  await loadQueryHistory()
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -409,23 +336,16 @@ function onInput() {
 
 function triggerSuggest(text, pos, el) {
   const { token, start, end, type, labelName } = parseTokenAt(text, pos)
-  if (!token || selectedDS.value.length === 0) { showSuggestions.value = false; return }
+  if (!token || !selectedDS.value) { showSuggestions.value = false; return }
   suggestType.value = type
   suggestToken.value = token
   replaceRange.value = { start, end }
   const posPx = cursorPixelPos(el, start)
   dropdownStyle.value = { top: (posPx.top + 22) + 'px', left: (posPx.left + 4) + 'px' }
   suggestLoading.value = true; showSuggestions.value = true; selectedIdx.value = 0; suggestions.value = []
-  const fetchers = selectedDS.value.map(dsId => type === 'label'
-    ? promMetadata({ datasource_id: dsId, target: 'labels' })
-    : type === 'value'
-      ? promMetadata({ datasource_id: dsId, target: 'label_values', label: labelName })
-      : promMetadata({ datasource_id: dsId, target: 'metrics' }))
-  Promise.allSettled(fetchers).then(results => {
-    const all = [...new Set(results.flatMap(item => item.status === 'fulfilled' ? (item.value?.data || []) : []))]
-    suggestions.value = fuzzySuggestions(all, token).slice(0, 30)
-    if (results.every(item => item.status === 'rejected')) showSuggestions.value = false
-  }).finally(() => { suggestLoading.value = false })
+  promMetadata({ datasource_id: selectedDS.value, target: type === 'label' ? 'labels' : type === 'value' ? 'label_values' : 'metrics', ...(type === 'value' ? { label: labelName } : {}) }).then(response => {
+    suggestions.value = fuzzySuggestions(response.data || [], token).slice(0, 30)
+  }).catch(() => { showSuggestions.value = false }).finally(() => { suggestLoading.value = false })
 }
 
 function fuzzySuggestions(values, token) {
@@ -639,23 +559,22 @@ function switchToGraph(forceExec = false) {
 }
 
 async function executeQuery() {
-  if (!query.value.trim() || selectedDS.value.length === 0) return
+  if (!query.value.trim() || !selectedDS.value) return
   if (activeTab.value === 'graph') {
     await executeRangeQuery()
   } else {
     await executeInstantQuery()
   }
-  await loadQueryHistory()
 }
 
 async function executeInstantQuery() {
   if (!validEvaluationTime()) return
-  if (!query.value.trim() || selectedDS.value.length === 0) return
+  if (!query.value.trim() || !selectedDS.value) return
   showSuggestions.value = false
-  loading.value = true; error.value = ''; queryWarning.value = ''; result.value = null
+  loading.value = true; error.value = ''; result.value = null
   const startTime = performance.now()
   try {
-    result.value = await querySelectedDatasources(dsId => promInstantQuery({ datasource_id: dsId, query: query.value, time: toPromTimestamp(evalTime.value) }))
+    result.value = await querySelectedDatasource(dsId => promInstantQuery({ datasource_id: dsId, query: query.value, time: toPromTimestamp(evalTime.value) }))
     resultMode.value = 'table'
   } catch (e) { error.value = e?.response?.data?.message || e?.message || '请求失败' }
   finally {
@@ -667,14 +586,14 @@ async function executeInstantQuery() {
 
 async function executeRangeQuery() {
   if (!validGraphParams()) return
-  if (!query.value.trim() || selectedDS.value.length === 0) return
-  loading.value = true; error.value = ''; queryWarning.value = ''; result.value = null
+  if (!query.value.trim() || !selectedDS.value) return
+  loading.value = true; error.value = ''; result.value = null
   const startTime = performance.now()
   try {
     ensureValidGraphStep()
     const end = graphEndTime.value || formatDateTime(new Date())
     const start = calcRangeStart(end, graphRange.value)
-    result.value = await querySelectedDatasources(dsId => promRangeQuery({
+    result.value = await querySelectedDatasource(dsId => promRangeQuery({
       datasource_id: dsId,
       query: query.value,
       start: toPromTimestamp(start),
@@ -729,32 +648,15 @@ function shiftGraphTime(direction) {
   onGraphParamChange()
 }
 
-async function querySelectedDatasources(queryFn) {
-  const datasourceIDs = [...selectedDS.value]
-  const names = new Map(datasources.value.map(item => [String(item.id), item.name]))
-  const outcomes = await Promise.all(datasourceIDs.map(async datasourceID => {
-    try {
-      return { datasourceID, datasourceName: names.get(String(datasourceID)) || `数据源 ${datasourceID}`, response: await queryFn(datasourceID) }
-    } catch (requestError) {
-      return { datasourceID, datasourceName: names.get(String(datasourceID)) || `数据源 ${datasourceID}`, error: requestError }
-    }
-  }))
-  const successful = outcomes.filter(item => item.response)
-  const failed = outcomes.filter(item => item.error)
-  if (successful.length === 0) {
-    throw new Error(failed.map(item => `${item.datasourceName}：${item.error?.message || '查询失败'}`).join('；') || '查询失败')
-  }
-  if (failed.length > 0) queryWarning.value = `${failed.map(item => item.datasourceName).join('、')} 查询失败，已展示其他数据源的结果`
-
+async function querySelectedDatasource(queryFn) {
+  const datasourceID = selectedDS.value
+  const datasourceName = datasources.value.find(item => item.id === datasourceID)?.name || `数据源 ${datasourceID}`
+  const response = await queryFn(datasourceID)
   return {
-    datasource_count: datasourceIDs.length,
+    ...response,
     data: {
-      resultType: successful[0].response?.data?.resultType,
-      result: successful.flatMap(item => (item.response?.data?.result || []).map(series => ({
-        ...series,
-        datasource_id: item.datasourceID,
-        datasource_name: item.datasourceName,
-      }))),
+      ...response.data,
+      result: (response.data?.result || []).map(series => ({ ...series, datasource_id: datasourceID, datasource_name: datasourceName })),
     },
   }
 }
@@ -776,7 +678,6 @@ const tableRows = computed(() => {
     return { datasourceName: r.datasource_name, element: values ? `${element}  (${values.length} 个点)` : element, value: val, displayValue: formatValue(val) }
   })
 })
-const hasMultiDatasourceResult = computed(() => (result.value?.datasource_count || 0) > 1)
 
 function formatValue(v) {
   if (v === undefined || v === null) return '-'
@@ -812,7 +713,7 @@ const chartSeries = computed(() => {
       : (r.values || []).map(([ts, val]) => [Number(ts) * 1000, Number(val)])
     const color = chartColors[index % chartColors.length]
     return {
-      name: `${hasMultiDatasourceResult.value ? `[${r.datasource_name}] ` : ''}${metricName}`,
+      name: metricName,
       datasourceName: r.datasource_name,
       metricName,
       type: 'line',
@@ -1094,9 +995,8 @@ const chartOption = computed(() => ({
 .eval-control :deep(.eval-picker .el-input__inner::placeholder) { color: var(--ops-muted); opacity: 1; }
 
 
-.error-box, .warning-box { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 6px; }
+.error-box { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 6px; }
 .error-box { color: var(--ops-danger); background: var(--el-color-danger-light-9); }
-.warning-box { margin-bottom: 8px; color: #b88230; background: var(--el-color-warning-light-9); }
 .query-alert {
   margin: 0 0 16px;
   padding: 12px 20px;
@@ -1218,70 +1118,6 @@ const chartOption = computed(() => ({
   line-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-:global(.query-history-drawer) {
-  width: min(420px, 92vw) !important;
-  border-radius: 0 !important;
-}
-.history-drawer-header {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-}
-.history-drawer-header strong {
-  color: var(--ops-text);
-  font-size: 16px;
-}
-.history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.history-item {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 9px;
-  padding: 12px 14px;
-  color: var(--ops-text);
-  text-align: left;
-  background: var(--ops-surface);
-  border: 1px solid var(--ops-border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border-color .16s ease, background .16s ease, box-shadow .16s ease;
-}
-.history-item:hover,
-.history-item:focus-visible {
-  outline: none;
-  border-color: #9fc8f7;
-  background: var(--ops-primary-soft);
-  box-shadow: 0 4px 12px rgba(64, 158, 255, .08);
-}
-.history-query {
-  overflow: hidden;
-  font: 13px/1.5 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.history-meta {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  color: var(--ops-muted);
-  font-size: 11px;
-}
-.history-meta > span:not(.el-tag) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.history-meta time {
-  margin-left: auto;
   white-space: nowrap;
 }
 

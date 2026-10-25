@@ -92,6 +92,7 @@ func SetupRouter() *gin.Engine {
 
 			auth.GET("/query/datasources", handlers.ExploreDatasources)
 			auth.POST("/query/sql", middleware.RequirePermission("query:sql"), handlers.QuerySQL)
+			auth.GET("/query/traces/metadata", middleware.RequirePermission("observability:traces"), handlers.TraceMetadata)
 			auth.POST("/query/traces", middleware.RequirePermission("observability:traces"), handlers.QueryTraces)
 			auth.GET("/query/logs/datasources", middleware.RequirePermission("observability:logs"), handlers.LogDatasources)
 			auth.POST("/query/logs", middleware.RequirePermission("observability:logs"), handlers.QueryLogs)

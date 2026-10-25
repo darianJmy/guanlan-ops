@@ -30,7 +30,7 @@ func mcpStatus() map[string]interface{} {
 	return mcpText("状态精确匹配；不填查询全部", 32)
 }
 func notificationTypeSchema() map[string]interface{} {
-	return mcpStringEnum("feishu", "dingding", "qywechat", "email")
+	return mcpStringEnum("feishu", "dingding", "qywechat", "email", "webhook")
 }
 
 func platformMCPQueries() []platformMCPQuery {
@@ -80,7 +80,7 @@ func platformMCPTools() []mcpTool {
 		{"create_datasource_group", "创建数据源分组", "datasource:create", "创建包含指定已启用指标数据源的数据源分组。先查询真实数据源 ID；不修改现有分组。", map[string]interface{}{"datasource_ids": mcpIDs("已启用的 Prometheus/VictoriaMetrics 实例 ID 列表")}, []string{"datasource_ids"}},
 		{"create_alert_rule_group", "创建告警规则组", "alert:rule:create", "创建空的告警规则组，不创建或启用告警规则。", nil, nil},
 		{"create_probe_rule_group", "创建拨测规则组", "inspection:create", "创建空的拨测规则组，不创建或执行拨测任务。", nil, nil},
-		{"create_notification_template", "创建通知模板", "notification:template:edit", "创建通知模板；正文必须由用户提供或用户明确要求生成。支持飞书、钉钉、企业微信和邮件，保存不发送消息。", map[string]interface{}{"type": notificationTypeSchema(), "content": mcpText("通知正文，使用平台支持的 Go 模板语法", 12000)}, []string{"type", "content"}},
+		{"create_notification_template", "创建通知模板", "notification:template:edit", "创建通知模板；正文必须由用户提供或用户明确要求生成。支持飞书、钉钉、企业微信、邮件和自定义 Webhook，保存不发送消息。", map[string]interface{}{"type": notificationTypeSchema(), "content": mcpText("通知正文，使用平台支持的 Go 模板语法", 12000)}, []string{"type", "content"}},
 		{"create_email_notification_channel", "创建邮件通知对象", "notification:channel:edit", "使用全局 SMTP 配置创建邮件通知对象；需要真实启用的邮件模板 ID 和用户指定的收件人。仅保存，不发送邮件。", map[string]interface{}{"template_id": mcpID("启用的邮件模板 ID"), "email_recipients": map[string]interface{}{"type": "array", "items": mcpText("收件人邮箱", 320), "minItems": 1, "maxItems": 100}}, []string{"template_id", "email_recipients"}},
 	} {
 		props := map[string]interface{}{"name": mcpText("用户指定的名称", 128), "description": mcpText("可选描述", 500)}

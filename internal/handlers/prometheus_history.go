@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const promQueryHistoryLimit = 20
+const promQueryHistoryLimit = 50
 
 func recordPromQueryHistory(c *gin.Context, datasource models.Datasource, query, mode string) error {
 	userID := currentUserID(c)

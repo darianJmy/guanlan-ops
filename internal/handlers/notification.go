@@ -159,7 +159,9 @@ func CreateNotificationChannel(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写通知对象名称")
 		return
 	}
-	if req.TemplateID == 0 {
+	if isCustomWebhook(req.Type) {
+		req.TemplateID = 0
+	} else if req.TemplateID == 0 {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择高级模板")
 		return
 	}
@@ -197,7 +199,9 @@ func UpdateNotificationChannel(c *gin.Context) {
 		resp.Error(c, http.StatusOK, resp.CodeNotFound, "通知对象不存在")
 		return
 	}
-	if req.TemplateID == 0 {
+	if isCustomWebhook(req.Type) {
+		req.TemplateID = 0
+	} else if req.TemplateID == 0 {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择高级模板")
 		return
 	}
@@ -368,8 +372,16 @@ func ShouldNotifyCertificateDomain(item models.CertificateDomain) (string, bool)
 }
 
 func sendNotificationToChannel(channel models.NotificationChannel, eventType, eventKey, title string, payload map[string]interface{}) error {
-	applyChannelTemplate(channel, payload)
-	applySystemNotificationEnvelope(payload)
+	// Keep channel-specific rendering from changing another recipient's event.
+	event := make(map[string]interface{}, len(payload))
+	for key, value := range payload {
+		event[key] = value
+	}
+	payload = event
+	if !isCustomWebhook(channel.Type) {
+		applyChannelTemplate(channel, payload)
+		applySystemNotificationEnvelope(payload)
+	}
 	if payloadTitle := notificationStringFromMap(payload, "title"); payloadTitle != "" {
 		title = payloadTitle
 	}
@@ -394,8 +406,10 @@ func sendNotificationToChannel(channel models.NotificationChannel, eventType, ev
 	return nil
 }
 
+func isCustomWebhook(kind string) bool { return kind == "webhook" || kind == "customhook" }
+
 func applyChannelTemplate(channel models.NotificationChannel, payload map[string]interface{}) {
-	if channel.TemplateID == 0 {
+	if isCustomWebhook(channel.Type) || channel.TemplateID == 0 {
 		return
 	}
 	var tpl models.NotificationTemplate

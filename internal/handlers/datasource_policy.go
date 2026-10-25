@@ -28,18 +28,21 @@ func validateDatasourceConnection(ds models.Datasource) error {
 	if authType == "" {
 		authType = "none"
 	}
-	if authType != "none" && authType != "basic" && authType != "bearer" {
-		return fmt.Errorf("当前数据源仅支持无认证、Basic Auth 或 Bearer Token")
+	if authType != "none" && authType != "basic" && authType != "bearer" && !(authType == "api_key" && ds.Type == "elasticsearch") {
+		return fmt.Errorf("当前数据源不支持此认证方式")
 	}
 	var auth DatasourceAuthConfig
 	if ds.AuthConfig != "" && json.Unmarshal([]byte(ds.AuthConfig), &auth) != nil {
 		return fmt.Errorf("认证配置格式不正确")
 	}
-	if authType == "basic" && (strings.TrimSpace(auth.Username) == "" || auth.Password == "") {
+	if authType == "basic" && (strings.TrimSpace(auth.Username) == "" || (ds.Type != "clickhouse" && auth.Password == "")) {
 		return fmt.Errorf("请填写 Basic Auth 用户名和密码")
 	}
 	if authType == "bearer" && strings.TrimSpace(auth.Token) == "" {
 		return fmt.Errorf("请填写 Bearer Token")
+	}
+	if authType == "api_key" && strings.TrimSpace(auth.Token) == "" {
+		return fmt.Errorf("请填写 API Key")
 	}
 	var config struct {
 		CustomHeaders map[string]string `json:"custom_headers"`
@@ -91,6 +94,17 @@ func normalizeDatasourceReq(req *CreateDatasourceWithTunnelReq, existing *models
 	}
 	if req.Status != 0 && req.Status != 1 {
 		return fmt.Errorf("实例状态不正确")
+	}
+	if req.Type == "clickhouse" {
+		var cfg struct {
+			Database string `json:"database"`
+		}
+		if json.Unmarshal([]byte(req.Config), &cfg) != nil || strings.TrimSpace(cfg.Database) == "" {
+			return fmt.Errorf("请填写数据库")
+		}
+		if _, err := clickHouseDatabase(req.Config); err != nil {
+			return err
+		}
 	}
 	if req.AuthType == "none" {
 		req.AuthConfig = ""

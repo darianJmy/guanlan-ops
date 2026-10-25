@@ -11,7 +11,7 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func TestTransportDecoratesWithoutMutatingCaller(t *testing.T) {
-	for _, auth := range []Auth{{Type: "basic", Username: "user", Password: "pass"}, {Type: "bearer", Token: "token"}} {
+	for _, auth := range []Auth{{Type: "basic", Username: "user", Password: "pass"}, {Type: "bearer", Token: "token"}, {Type: "api_key", Token: "encoded-key"}} {
 		req, _ := http.NewRequest("GET", "https://example.test", nil)
 		req.Header.Set("X-Original", "keep")
 		tr := Transport{Auth: auth, Headers: map[string]string{"X-Tenant": "tenant", "Authorization": "old"}, Base: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
@@ -22,6 +22,10 @@ func TestTransportDecoratesWithoutMutatingCaller(t *testing.T) {
 				u, p, ok := r.BasicAuth()
 				if !ok || u != "user" || p != "pass" {
 					t.Fatal("basic auth missing")
+				}
+			} else if auth.Type == "api_key" {
+				if r.Header.Get("Authorization") != "ApiKey encoded-key" {
+					t.Fatal("API key auth missing")
 				}
 			} else if r.Header.Get("Authorization") != "Bearer token" {
 				t.Fatal("bearer auth missing")

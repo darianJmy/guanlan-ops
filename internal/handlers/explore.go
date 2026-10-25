@@ -145,6 +145,11 @@ func queryClickHouseSQL(ctx context.Context, ds models.Datasource, req SQLQueryR
 		return result, err
 	}
 	params := url.Values{"readonly": {"1"}, "max_execution_time": {"25"}, "max_result_bytes": {"15000000"}, "result_overflow_mode": {"throw"}, "wait_end_of_query": {"1"}, "param_from": {strconv.FormatInt(req.Start.Unix(), 10)}, "param_to": {strconv.FormatInt(req.End.Unix(), 10)}}
+	databaseName, err := clickHouseDatabase(ds.Config)
+	if err != nil {
+		return result, err
+	}
+	params.Set("database", databaseName)
 	// Outer LIMIT bounds both ordinary and aggregate SELECTs. A newline ends a trailing SQL comment.
 	query := fmt.Sprintf("SELECT * FROM (\n%s\n) AS explore_result LIMIT %d FORMAT JSON", req.Query, req.Limit)
 	raw, err := doLogRequest(ctx, ds, http.MethodPost, strings.TrimRight(ds.URL, "/")+"/?"+params.Encode(), []byte(query), "text/plain; charset=utf-8")
@@ -221,25 +226,79 @@ type traceData struct {
 	TraceID   string      `json:"traceID"`
 	Spans     []traceSpan `json:"spans"`
 	Processes map[string]struct {
-		Service string `json:"serviceName"`
+		Service string           `json:"serviceName"`
+		Tags    []map[string]any `json:"tags"`
 	} `json:"processes"`
 }
 
 func QueryTraces(c *gin.Context) {
 	var req struct {
-		DatasourceID uint   `json:"datasource_id" binding:"required"`
-		TraceID      string `json:"trace_id" binding:"required"`
+		DatasourceID uint              `json:"datasource_id" binding:"required"`
+		TraceID      string            `json:"trace_id"`
+		Service      string            `json:"service"`
+		Operation    string            `json:"operation"`
+		Tags         map[string]string `json:"tags"`
+		Start        time.Time         `json:"start"`
+		End          time.Time         `json:"end"`
+		MinDuration  string            `json:"min_duration"`
+		MaxDuration  string            `json:"max_duration"`
+		Limit        int               `json:"limit"`
 	}
-	if c.ShouldBindJSON(&req) != nil || !regexp.MustCompile(`^(?:[a-fA-F0-9]{16}|[a-fA-F0-9]{32})$`).MatchString(req.TraceID) {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请输入 16 或 32 位十六进制 Trace ID")
+	if c.ShouldBindJSON(&req) != nil {
+		resp.Error(c, 400, resp.CodeBadRequest, "查询参数无效")
 		return
+	}
+	path := "/api/traces/" + req.TraceID
+	if req.TraceID != "" {
+		if !regexp.MustCompile(`^(?:[a-fA-F0-9]{16}|[a-fA-F0-9]{32})$`).MatchString(req.TraceID) {
+			resp.Error(c, 400, resp.CodeBadRequest, "请输入 16 或 32 位十六进制 Trace ID")
+			return
+		}
+	} else {
+		if req.Limit == 0 {
+			req.Limit = 20
+		}
+		if strings.TrimSpace(req.Service) == "" || len(req.Service) > 1024 || len(req.Operation) > 1024 || len(req.Tags) > 100 || req.Start.IsZero() || req.Start.Year() < 1970 || req.End.Year() > 2261 || !req.End.After(req.Start) || req.End.Sub(req.Start) > 31*24*time.Hour || req.Limit < 1 || req.Limit > 100 {
+			resp.Error(c, 400, resp.CodeBadRequest, "请选择服务和有效时间范围（最长 31 天），返回条数为 1–100")
+			return
+		}
+		durations := []time.Duration{0, 0}
+		for i, value := range []string{req.MinDuration, req.MaxDuration} {
+			if value != "" {
+				parsed, err := time.ParseDuration(value)
+				if err != nil || parsed < 0 {
+					resp.Error(c, 400, resp.CodeBadRequest, "耗时格式无效，例如 100ms、1.2s")
+					return
+				}
+				durations[i] = parsed
+			}
+		}
+		if req.MaxDuration != "" && durations[0] > durations[1] {
+			resp.Error(c, 400, resp.CodeBadRequest, "最小耗时不能大于最大耗时")
+			return
+		}
+		tags, _ := json.Marshal(req.Tags)
+		params := url.Values{"service": {req.Service}, "start": {strconv.FormatInt(req.Start.UnixMicro(), 10)}, "end": {strconv.FormatInt(req.End.UnixMicro(), 10)}, "limit": {strconv.Itoa(req.Limit)}}
+		if req.Operation != "" {
+			params.Set("operation", req.Operation)
+		}
+		if len(req.Tags) > 0 {
+			params.Set("tags", string(tags))
+		}
+		if req.MinDuration != "" {
+			params.Set("minDuration", req.MinDuration)
+		}
+		if req.MaxDuration != "" {
+			params.Set("maxDuration", req.MaxDuration)
+		}
+		path = "/api/traces?" + params.Encode()
 	}
 	var ds models.Datasource
 	if database.DB.Where("id = ? AND type = ? AND status = 1", req.DatasourceID, "jaeger").First(&ds).Error != nil {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Jaeger 数据源不存在或已禁用")
 		return
 	}
-	raw, err := doLogRequest(c.Request.Context(), ds, http.MethodGet, strings.TrimRight(ds.URL, "/")+"/api/traces/"+req.TraceID, nil, "")
+	raw, err := doLogRequest(c.Request.Context(), ds, http.MethodGet, strings.TrimRight(ds.URL, "/")+path, nil, "")
 	var result struct {
 		Data   []traceData       `json:"data"`
 		Errors []json.RawMessage `json:"errors"`
@@ -248,11 +307,11 @@ func QueryTraces(c *gin.Context) {
 		err = decodeLogJSON(raw, &result)
 	}
 	if err != nil || len(result.Errors) > 0 || result.Data == nil {
-		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "链路查询失败，请检查 Trace ID、数据源及读取权限")
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "链路查询失败，请检查查询条件、数据源及读取权限")
 		return
 	}
 	for _, trace := range result.Data {
-		if !strings.EqualFold(trace.TraceID, req.TraceID) || trace.Spans == nil || len(trace.Spans) > 10000 {
+		if (req.TraceID != "" && !strings.EqualFold(trace.TraceID, req.TraceID)) || trace.Spans == nil || len(trace.Spans) > 10000 {
 			resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "链路结果无效或 Span 数量过多")
 			return
 		}
@@ -276,4 +335,51 @@ func testJaegerExplore(ds models.Datasource) (bool, string) {
 		return false, "Jaeger 查询接口不可用"
 	}
 	return true, "Jaeger 查询接口连接成功"
+}
+
+func TraceMetadata(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Query("datasource_id"), 10, 64)
+	var ds models.Datasource
+	if err != nil || id == 0 || database.DB.Where("id = ? AND type = ? AND status = 1", id, "jaeger").First(&ds).Error != nil {
+		resp.Error(c, 400, resp.CodeBadRequest, "Jaeger 数据源不存在或已禁用")
+		return
+	}
+	path := "/api/services"
+	if service := c.Query("service"); service != "" {
+		path += "/" + url.PathEscape(service) + "/operations"
+	}
+	raw, err := doLogRequest(c.Request.Context(), ds, http.MethodGet, strings.TrimRight(ds.URL, "/")+path, nil, "")
+	var result struct {
+		Data   []string          `json:"data"`
+		Errors []json.RawMessage `json:"errors"`
+	}
+	if err != nil || decodeLogJSON(raw, &result) != nil || len(result.Errors) > 0 || result.Data == nil {
+		resp.Error(c, 502, resp.CodeBadGateway, "读取 Jaeger 服务或操作列表失败")
+		return
+	}
+	resp.SuccessData(c, 200, result.Data)
+}
+
+// Older integrations without a configured database retain ClickHouse's default.
+func clickHouseDatabase(raw string) (string, error) {
+	var cfg struct {
+		Database string           `json:"database"`
+		Logs     *logSourceConfig `json:"log_query"`
+	}
+	if strings.TrimSpace(raw) != "" {
+		if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+			return "", fmt.Errorf("数据库配置格式不正确")
+		}
+	}
+	name := strings.TrimSpace(cfg.Database)
+	if name == "" && cfg.Logs != nil {
+		name = strings.TrimSpace(cfg.Logs.Database)
+	}
+	if name == "" {
+		name = "default"
+	}
+	if len(name) > 128 || strings.ContainsAny(name, "\r\n\x00") {
+		return "", fmt.Errorf("数据库名称无效")
+	}
+	return name, nil
 }

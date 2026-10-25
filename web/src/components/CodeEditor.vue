@@ -9,6 +9,7 @@ import * as monaco from 'monaco-editor/editor/editor.api'
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 import 'monaco-editor/languages/definitions/python/register'
 import 'monaco-editor/languages/definitions/shell/register'
+import 'monaco-editor/languages/definitions/sql/register'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },

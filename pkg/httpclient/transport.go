@@ -8,6 +8,8 @@ func (auth Auth) Apply(req *http.Request) {
 	switch auth.Type {
 	case "basic":
 		req.SetBasicAuth(auth.Username, auth.Password)
+	case "api_key":
+		req.Header.Set("Authorization", "ApiKey "+auth.Token)
 	case "bearer":
 		req.Header.Set("Authorization", "Bearer "+auth.Token)
 	}

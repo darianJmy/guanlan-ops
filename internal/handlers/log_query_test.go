@@ -64,6 +64,13 @@ func TestLokiLogQuery(t *testing.T) {
 	if w.Code != 200 {
 		t.Fatal(w.Body.String())
 	}
+	var history models.PromQueryHistory
+	if err := db.Where("user_id = ?", userID).First(&history).Error; err != nil {
+		t.Fatal(err)
+	}
+	if history.Query != `{app="a"}` || history.Mode != "logs" || history.DatasourceID != ds.ID {
+		t.Fatalf("incorrect Loki query history: %+v", history)
+	}
 	var result struct {
 		Data struct {
 			Entries      []logEntry `json:"entries"`

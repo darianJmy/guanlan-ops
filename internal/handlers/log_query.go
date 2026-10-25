@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"guanlan/pkg/logger"
 	"guanlan/pkg/resp"
 	"io"
 	"net/http"
@@ -65,6 +66,11 @@ func QueryLogs(c *gin.Context) {
 	if err := database.DB.Where("id = ? AND type IN ? AND status = 1", req.DatasourceID, logDatasourceTypes()).First(&ds).Error; err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "日志数据源不存在、已禁用或暂不支持查询")
 		return
+	}
+	if ds.Type == "loki" || ds.Type == "elasticsearch" {
+		if err := recordPromQueryHistory(c, ds, req.Query, "logs"); err != nil {
+			logger.Warn("record log query history failed", "error", err)
+		}
 	}
 	var entries []logEntry
 	var err error
