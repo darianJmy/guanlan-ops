@@ -1,11 +1,16 @@
 package handlers
 
 import (
+	"context"
+	"guanlan/pkg/sshclient"
+
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -32,41 +37,41 @@ type saveExecutorReq struct {
 func ListCertificateExecutors(c *gin.Context) {
 	var items []models.CertificateExecutor
 	database.DB.Order("id DESC").Find(&items)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": items})
+	resp.Success(c, http.StatusOK, "成功", items)
 }
 
 func CreateCertificateExecutor(c *gin.Context) {
 	var req saveExecutorReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写执行器名称、主机和用户名"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写执行器名称、主机和用户名")
 		return
 	}
 	item, err := buildExecutor(req, nil)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建执行器失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建执行器失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": item})
+	resp.Success(c, http.StatusOK, "创建成功", item)
 }
 
 func UpdateCertificateExecutor(c *gin.Context) {
 	var existing models.CertificateExecutor
 	if err := database.DB.First(&existing, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "执行器不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "执行器不存在")
 		return
 	}
 	var req saveExecutorReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写执行器名称、主机和用户名"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写执行器名称、主机和用户名")
 		return
 	}
 	item, err := buildExecutor(req, &existing)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Model(&existing).Updates(map[string]interface{}{
@@ -80,54 +85,54 @@ func UpdateCertificateExecutor(c *gin.Context) {
 		"status":        item.Status,
 		"description":   item.Description,
 	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新执行器失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新执行器失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteCertificateExecutor(c *gin.Context) {
 	id := c.Param("id")
 	if names := boundCertificateDomainNames("executor_id", id); len(names) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": boundResourceMessage("主机", names)})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, boundResourceMessage("主机", names))
 		return
 	}
 	if err := database.DB.Delete(&models.CertificateExecutor{}, id).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除主机失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除主机失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func TestCertificateExecutor(c *gin.Context) {
 	var item models.CertificateExecutor
 	if err := database.DB.First(&item, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "执行器不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "执行器不存在")
 		return
 	}
 	output, err := runSSHCommand(item, "echo executor-ok")
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error(), "data": output})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error(), output)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "连接成功", "data": output})
+	resp.Success(c, http.StatusOK, "连接成功", output)
 }
 
 func DeployCertificateDomain(c *gin.Context) {
 	start := time.Now()
 	var domain models.CertificateDomain
 	if err := database.DB.First(&domain, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "域名不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "域名不存在")
 		return
 	}
 	cert, version, privateKey, err := currentCertificateMaterial(domain.CertificateID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	command, scriptID, targetType, err := buildDeployCommand(domain, cert, version.CertPEM, privateKey)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	output, err := runDomainDeployment(domain, command)
@@ -149,11 +154,11 @@ func DeployCertificateDomain(c *gin.Context) {
 	}
 	database.DB.Create(&record)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "轮转失败", "data": record})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, "轮转失败", record)
 		return
 	}
 	_ = checkAndSaveDomain(&domain)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "轮转完成", "data": record})
+	resp.Success(c, http.StatusOK, "轮转完成", record)
 }
 
 func runDomainDeployment(domain models.CertificateDomain, command string) (string, error) {
@@ -218,7 +223,7 @@ func ListCertificateDeploymentRecords(c *gin.Context) {
 		tx = tx.Where("deploy_script_id = ?", deployScriptID)
 	}
 	tx.Limit(100).Find(&records)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": records})
+	resp.Success(c, http.StatusOK, "成功", records)
 }
 
 func buildDeployCommand(domain models.CertificateDomain, cert models.Certificate, certPEM, privateKey string) (string, uint, string, error) {
@@ -255,9 +260,9 @@ func buildDeployScriptCommand(scriptType, scriptContent, certPEM, privateKey str
 	}
 	builder.WriteString("set -e\n")
 	builder.WriteString("set -o pipefail\n")
-	builder.WriteString("CERT_PEM_B64=" + shellQuote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(certPEM)+"\n"))) + "\n")
-	builder.WriteString("PRIVATE_KEY_PEM_B64=" + shellQuote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(privateKey)+"\n"))) + "\n")
-	builder.WriteString("SCRIPT_B64=" + shellQuote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(normalizeScriptLineEndings(scriptContent))+"\n"))) + "\n")
+	builder.WriteString("CERT_PEM_B64=" + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(certPEM)+"\n"))) + "\n")
+	builder.WriteString("PRIVATE_KEY_PEM_B64=" + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(privateKey)+"\n"))) + "\n")
+	builder.WriteString("SCRIPT_B64=" + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(shellutil.NormalizeLineEndings(scriptContent))+"\n"))) + "\n")
 	builder.WriteString("WORK_DIR=\"$(mktemp -d /tmp/cert-deploy-XXXXXX)\"\n")
 	builder.WriteString("CERT_DEPLOY_DIR=\"$WORK_DIR\"\n")
 	builder.WriteString("trap 'rm -rf \"$WORK_DIR\"' EXIT\n")
@@ -272,34 +277,13 @@ func buildDeployScriptCommand(scriptType, scriptContent, certPEM, privateKey str
 	builder.WriteString("export WORK_DIR CERT_DEPLOY_DIR CERT_FILE KEY_FILE\n")
 	builder.WriteString("export PRIVATE_KEY_FILE=\"$KEY_FILE\"\n")
 	for key, value := range params {
-		if !isShellIdentifier(key) {
+		if !shellutil.IsIdentifier(key) {
 			continue
 		}
-		builder.WriteString("export " + key + "=" + shellQuote(value) + "\n")
+		builder.WriteString("export " + key + "=" + shellutil.Quote(value) + "\n")
 	}
 	builder.WriteString(runner + " \"$SCRIPT_FILE\"\n")
 	return builder.String()
-}
-
-func normalizeScriptLineEndings(value string) string {
-	value = strings.ReplaceAll(value, "\r\n", "\n")
-	return strings.ReplaceAll(value, "\r", "\n")
-}
-
-func isShellIdentifier(value string) bool {
-	if value == "" {
-		return false
-	}
-	for i, r := range value {
-		valid := r == '_' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || i > 0 && r >= '0' && r <= '9'
-		if !valid {
-			return false
-		}
-		if i == 0 && r >= '0' && r <= '9' {
-			return false
-		}
-	}
-	return true
 }
 
 func buildExecutor(req saveExecutorReq, existing *models.CertificateExecutor) (models.CertificateExecutor, error) {
@@ -377,52 +361,13 @@ func runSSHCommand(executor models.CertificateExecutor, command string) (string,
 	return output, err
 }
 
-func runSSHCommandOutput(executor models.CertificateExecutor, command string) (string, int, error) {
-	secret, err := decryptSecret(executor.SecretCipher)
-	if err != nil {
-		return "", 1, errors.New("执行器认证信息解密失败")
-	}
-	auth, err := certificateSSHAuthMethod(executor.AuthType, secret)
-	if err != nil {
-		return "", 1, err
-	}
-	client, err := ssh.Dial("tcp", net.JoinHostPort(executor.Host, strconv.Itoa(defaultSSHPort(executor.Port))), &ssh.ClientConfig{
-		User:            executor.Username,
-		Auth:            []ssh.AuthMethod{auth},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	})
-	if err != nil {
-		return "", 1, err
-	}
-	defer client.Close()
-	session, err := client.NewSession()
-	if err != nil {
-		return "", 1, err
-	}
-	defer session.Close()
-	var output synchronizedBuffer
-	session.Stdout = &output
-	session.Stderr = &output
-	err = session.Run(command)
-	exitCode := 0
-	if err != nil {
-		exitCode = 1
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
-			exitCode = exitErr.ExitStatus()
-		}
-	}
-	return strings.TrimSpace(output.String()), exitCode, err
-}
-
 func certificateSSHAuthMethod(authType, secret string) (ssh.AuthMethod, error) {
 	if authType == "private_key" {
-		signer, err := ssh.ParsePrivateKey([]byte(secret))
+		method, err := sshclient.PrivateKey([]byte(secret), nil)
 		if err != nil {
 			return nil, errors.New("解析 SSH 私钥失败")
 		}
-		return ssh.PublicKeys(signer), nil
+		return method, nil
 	}
 	return ssh.Password(secret), nil
 }
@@ -446,11 +391,7 @@ base64 -d <<'__PRIVATE_KEY_PEM__' | $SUDO tee "$KEY_PATH" >/dev/null
 __PRIVATE_KEY_PEM__
 $SUDO chmod 644 "$CERT_PATH"
 $SUDO chmod 600 "$KEY_PATH"
-%s`, shellQuote(domain.DeployCertPath), shellQuote(domain.DeployKeyPath), certB64, keyB64, domain.DeployReloadCommand)
-}
-
-func shellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+%s`, shellutil.Quote(domain.DeployCertPath), shellutil.Quote(domain.DeployKeyPath), certB64, keyB64, domain.DeployReloadCommand)
 }
 
 func defaultSSHPort(port int) int {
@@ -466,4 +407,25 @@ func certificateDefaultString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func openExecutorSSHClient(executor models.CertificateExecutor) (*ssh.Client, error) {
+	secret, err := decryptSecret(executor.SecretCipher)
+	if err != nil {
+		return nil, errors.New("执行器认证信息解密失败")
+	}
+	auth, err := certificateSSHAuthMethod(executor.AuthType, secret)
+	if err != nil {
+		return nil, err
+	}
+	return sshclient.Dial(sshclient.Config{Address: net.JoinHostPort(executor.Host, strconv.Itoa(defaultSSHPort(executor.Port))), User: executor.Username, Auth: []ssh.AuthMethod{auth}, HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 10 * time.Second})
+}
+func runSSHCommandOutput(executor models.CertificateExecutor, command string) (string, int, error) {
+	client, err := openExecutorSSHClient(executor)
+	if err != nil {
+		return "", 1, err
+	}
+	defer client.Close()
+	result, err := sshclient.Run(context.Background(), client, command, nil)
+	return strings.TrimSpace(result.Output), result.ExitCode, err
 }

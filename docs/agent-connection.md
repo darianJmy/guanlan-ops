@@ -42,7 +42,7 @@ go run ./cmd/aiops-agent
 在节点管理中创建“Docker 节点”后，平台会直接生成包含节点 Token、平台地址和镜像名称的 `docker run` 命令。Docker 节点仍使用 Agent 通信协议，但脚本运行在容器环境中。
 
 ```bash
-docker build -f build/package/Dockerfile.agent -t aiops-agent:latest .
+docker build -f Dockerfile.agent -t aiops-agent:latest .
 docker run -d --name aiops-agent \
   --restart unless-stopped \
   --init \

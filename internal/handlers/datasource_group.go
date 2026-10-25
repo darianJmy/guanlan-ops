@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,29 +28,29 @@ func ListDatasourceGroups(c *gin.Context) {
 	}
 	var groups []models.DatasourceGroup
 	if err := query.Order("created_at ASC, id ASC").Find(&groups).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询数据源分组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询数据源分组失败")
 		return
 	}
 	list := make([]gin.H, 0, len(groups))
 	for _, group := range groups {
 		list = append(list, datasourceGroupResponse(group))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": list})
+	resp.Success(c, http.StatusOK, "成功", list)
 }
 
 func CreateDatasourceGroup(c *gin.Context) {
 	var req saveDatasourceGroupReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "数据源分组格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "数据源分组格式不正确")
 		return
 	}
 	name, description, datasourceIDs, err := normalizeDatasourceGroupInput(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if datasourceGroupNameExists(name, 0) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "数据源分组名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "数据源分组名称已存在")
 		return
 	}
 	group := models.DatasourceGroup{Name: name, Description: description}
@@ -59,31 +60,31 @@ func CreateDatasourceGroup(c *gin.Context) {
 		}
 		return replaceDatasourceGroupMembers(tx, group.ID, datasourceIDs)
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建数据源分组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建数据源分组失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "数据源分组已创建", "data": datasourceGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "数据源分组已创建", datasourceGroupResponse(group))
 }
 
 func UpdateDatasourceGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.DatasourceGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "数据源分组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "数据源分组不存在")
 		return
 	}
 	var req saveDatasourceGroupReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "数据源分组格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "数据源分组格式不正确")
 		return
 	}
 	name, description, datasourceIDs, err := normalizeDatasourceGroupInput(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if datasourceGroupNameExists(name, group.ID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "数据源分组名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "数据源分组名称已存在")
 		return
 	}
 	if err := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -95,24 +96,24 @@ func UpdateDatasourceGroup(c *gin.Context) {
 		}
 		return syncDatasourceGroupRuleBindings(tx, group.ID)
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新数据源分组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新数据源分组失败")
 		return
 	}
 	database.DB.First(&group, group.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "数据源分组已更新", "data": datasourceGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "数据源分组已更新", datasourceGroupResponse(group))
 }
 
 func DeleteDatasourceGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.DatasourceGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "数据源分组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "数据源分组不存在")
 		return
 	}
 	var usageCount int64
 	database.DB.Model(&models.AlertRuleDatasourceGroup{}).Where("datasource_group_id = ?", group.ID).Count(&usageCount)
 	if usageCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "该数据源分组仍被告警规则使用，请先解除绑定"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "该数据源分组仍被告警规则使用，请先解除绑定")
 		return
 	}
 	if err := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -121,10 +122,10 @@ func DeleteDatasourceGroup(c *gin.Context) {
 		}
 		return tx.Delete(&group).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除数据源分组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除数据源分组失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "数据源分组已删除"})
+	resp.Success(c, http.StatusOK, "数据源分组已删除")
 }
 
 func normalizeDatasourceGroupInput(req saveDatasourceGroupReq) (string, string, []uint, error) {

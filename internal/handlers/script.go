@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,21 +32,21 @@ func ListScripts(c *gin.Context) {
 		query = query.Where("name LIKE ? OR description LIKE ?", pattern, pattern)
 	}
 	query.Find(&scripts)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": scripts})
+	resp.Success(c, http.StatusOK, "成功", scripts)
 }
 
 func GetScript(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本 ID 不正确")
 		return
 	}
 	var script models.Script
 	if err := database.DB.First(&script, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "脚本不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "脚本不存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": script})
+	resp.Success(c, http.StatusOK, "成功", script)
 }
 
 type CreateScriptReq struct {
@@ -62,7 +64,7 @@ type CreateScriptReq struct {
 func CreateScript(c *gin.Context) {
 	var req CreateScriptReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if req.Status == 0 {
@@ -71,44 +73,44 @@ func CreateScript(c *gin.Context) {
 
 	s, err := buildScript(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if scriptNameExists(s.Name, 0) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本名称已存在")
 		return
 	}
 	if err := database.DB.Create(&s).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本名称已存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 func UpdateScript(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本 ID 不正确")
 		return
 	}
 	var existing models.Script
 	if err := database.DB.First(&existing, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "脚本不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "脚本不存在")
 		return
 	}
 	var req CreateScriptReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	script, err := buildScript(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	script.Status = req.Status
 	if scriptNameExists(script.Name, uint(id)) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本名称已存在")
 		return
 	}
 
@@ -123,10 +125,10 @@ func UpdateScript(c *gin.Context) {
 		"description":    script.Description,
 		"status":         script.Status,
 	}).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本名称已存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func scriptNameExists(name string, excludeID uint) bool {
@@ -212,30 +214,30 @@ func validateGitRepositoryURL(repositoryURL string) error {
 func DeleteScript(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本 ID 不正确")
 		return
 	}
 	var taskCount int64
 	database.DB.Model(&models.AutomationTask{}).Where("source_type = ? AND script_id = ?", "script", id).Count(&taskCount)
 	if taskCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本已被自动化任务引用，请先解除绑定"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本已被自动化任务引用，请先解除绑定")
 		return
 	}
 	var probes []models.InspectionItem
 	if err := database.DB.Where("type = ?", "script").Find(&probes).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "检查脚本引用失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "检查脚本引用失败")
 		return
 	}
 	for _, probe := range probes {
 		var config ProbeReq
 		if json.Unmarshal([]byte(probe.Config), &config) == nil && uint64(config.ScriptID) == id {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本已被拨测任务引用，请先解除绑定"})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本已被拨测任务引用，请先解除绑定")
 			return
 		}
 	}
 	database.DB.Where("script_id = ?", id).Delete(&models.ScriptExecution{})
 	database.DB.Delete(&models.Script{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func runScript(script models.Script) (status, output string, durationMs int64) {
@@ -294,13 +296,13 @@ func buildGitScriptCommand(script models.Script) string {
 	}
 	cloneArgs := "--depth 1"
 	if script.GitRef != "" {
-		cloneArgs += " --branch " + shellQuote(script.GitRef) + " --single-branch"
+		cloneArgs += " --branch " + shellutil.Quote(script.GitRef) + " --single-branch"
 	}
 	return strings.Join([]string{
 		"set -e", "set -o pipefail", "AIOPS_REPO_DIR=\"$(mktemp -d /tmp/aiops-repo-XXXXXX)\"",
 		"trap 'rm -rf \"$AIOPS_REPO_DIR\"' EXIT",
-		"git clone " + cloneArgs + " -- " + shellQuote(script.RepositoryURL) + " \"$AIOPS_REPO_DIR/repository\"",
-		"cd \"$AIOPS_REPO_DIR/repository\"", "test -f " + shellQuote(script.Entrypoint), runner + " " + shellQuote(script.Entrypoint),
+		"git clone " + cloneArgs + " -- " + shellutil.Quote(script.RepositoryURL) + " \"$AIOPS_REPO_DIR/repository\"",
+		"cd \"$AIOPS_REPO_DIR/repository\"", "test -f " + shellutil.Quote(script.Entrypoint), runner + " " + shellutil.Quote(script.Entrypoint),
 	}, "\n")
 }
 
@@ -323,17 +325,5 @@ func ListScriptExecutions(c *gin.Context) {
 	tx.Count(&total)
 	tx.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&records)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "成功",
-		"data":    gin.H{"list": records, "total": total, "page": page, "page_size": pageSize},
-	})
-}
-
-func truncate(s string, n int) string {
-	runes := []rune(s)
-	if len(runes) > n {
-		return string(runes[:n]) + "..."
-	}
-	return s
+	resp.Success(c, http.StatusOK, "成功", gin.H{"list": records, "total": total, "page": page, "page_size": pageSize})
 }

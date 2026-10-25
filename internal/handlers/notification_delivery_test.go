@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"guanlan/pkg/mailclient"
 	"io"
 	"net"
 	"net/http"
@@ -60,16 +61,16 @@ func TestSMTPConfigAndCredentials(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name   string
-		change func(*smtpNotificationConfig)
+		change func(*mailclient.Config)
 	}{
-		{"port", func(c *smtpNotificationConfig) { c.Port = 0 }},
-		{"security", func(c *smtpNotificationConfig) { c.Security = "unknown" }},
-		{"from injection", func(c *smtpNotificationConfig) { c.From = "a@example.com\r\nBcc: b@example.com" }},
+		{"port", func(c *mailclient.Config) { c.Port = 0 }},
+		{"security", func(c *mailclient.Config) { c.Security = "unknown" }},
+		{"from injection", func(c *mailclient.Config) { c.From = "a@example.com\r\nBcc: b@example.com" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := stored
 			tc.change(&c)
-			if err := validateSMTPConfig(&c); err == nil {
+			if err := mailclient.ValidateConfig(&c); err == nil {
 				t.Fatal("invalid config accepted")
 			}
 		})

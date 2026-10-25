@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/textutil"
 	"time"
 )
 
@@ -104,7 +105,7 @@ func certificateDomainNotificationContent(item models.CertificateDomain, recover
 		return fmt.Sprintf("域名：%s\n本次检测成功，证书状态已恢复正常。\n证书到期时间：%s\n剩余天数：%d 天", target, formatCertificateDomainNotificationTime(item.ObservedExpiresAt), item.DaysRemaining)
 	}
 	if item.Status == "failed" {
-		return fmt.Sprintf("域名：%s\n证书检测失败：%s", target, truncate(item.LastCheckError, 800))
+		return fmt.Sprintf("域名：%s\n证书检测失败：%s", target, textutil.Ellipsis(item.LastCheckError, 800))
 	}
 	return fmt.Sprintf("域名：%s\n证书状态：%s\n证书到期时间：%s\n剩余天数：%d 天\n到期提醒：%d 天", target, statusTextForCertificateAlert(item.Status), formatCertificateDomainNotificationTime(item.ObservedExpiresAt), item.DaysRemaining, item.ExpiryAlertDays)
 }

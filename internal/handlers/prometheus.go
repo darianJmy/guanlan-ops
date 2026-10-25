@@ -7,6 +7,7 @@ import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
 	"guanlan/pkg/logger"
+	"guanlan/pkg/resp"
 	"io"
 	"net/http"
 	"net/url"
@@ -26,13 +27,13 @@ type PromQueryReq struct {
 func PromInstantQuery(c *gin.Context) {
 	var req PromQueryReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误: "+err.Error())
 		return
 	}
 
 	ds, err := getPromDatasource(req.DatasourceID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := recordPromQueryHistory(c, ds, req.Query, "table"); err != nil {
@@ -48,10 +49,10 @@ func PromInstantQuery(c *gin.Context) {
 
 	body, err := doPromHTTPContext(c.Request.Context(), ds, apiURL)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, wrapPromResponse(body))
+	writePromResponse(c, body)
 }
 
 type PromRangeReq struct {
@@ -65,13 +66,13 @@ type PromRangeReq struct {
 func PromRangeQuery(c *gin.Context) {
 	var req PromRangeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误: "+err.Error())
 		return
 	}
 
 	ds, err := getPromDatasource(req.DatasourceID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := recordPromQueryHistory(c, ds, req.Query, "graph"); err != nil {
@@ -87,10 +88,10 @@ func PromRangeQuery(c *gin.Context) {
 
 	body, err := doPromHTTPContext(c.Request.Context(), ds, apiURL)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, wrapPromResponse(body))
+	writePromResponse(c, body)
 }
 
 // PromMetadata returns available metrics, label names, or label values
@@ -101,7 +102,7 @@ func PromMetadata(c *gin.Context) {
 
 	ds, err := getPromDatasource(uint(datasourceID))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 
@@ -121,21 +122,21 @@ func PromMetadata(c *gin.Context) {
 			apiURL += "?match[]=" + url.QueryEscape(match)
 		}
 	default:
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "unknown target"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "unknown target")
 		return
 	}
 
 	body, err := doPromHTTPContext(c.Request.Context(), ds, apiURL)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, wrapPromResponse(body))
+	writePromResponse(c, body)
 }
 
-// wrapPromResponse parses a Prometheus API response and wraps it in the standard format
-func wrapPromResponse(body []byte) gin.H {
+// writePromResponse writes a Prometheus API response in the standard format.
+func writePromResponse(c *gin.Context, body []byte) {
 	var promResp struct {
 		Status string      `json:"status"`
 		Data   interface{} `json:"data"`
@@ -143,13 +144,14 @@ func wrapPromResponse(body []byte) gin.H {
 	}
 	json.Unmarshal(body, &promResp)
 	if promResp.Status == "success" {
-		return gin.H{"code": 0, "message": "成功", "data": promResp.Data}
+		resp.Success(c, http.StatusOK, "成功", promResp.Data)
+		return
 	}
 	msg := promResp.Error
 	if msg == "" {
 		msg = string(body)
 	}
-	return gin.H{"code": 1, "message": msg}
+	resp.Error(c, http.StatusOK, resp.CodeFailure, msg)
 }
 
 // PromDatasources returns available Prometheus datasources
@@ -167,7 +169,7 @@ func PromDatasources(c *gin.Context) {
 	for i := range ds {
 		result[i] = item{ID: ds[i].ID, Name: ds[i].Name, URL: ds[i].URL, Type: ds[i].Type}
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": result})
+	resp.Success(c, http.StatusOK, "成功", result)
 }
 
 func getPromDatasource(id uint) (models.Datasource, error) {

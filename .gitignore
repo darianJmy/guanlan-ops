@@ -16,3 +16,4 @@
 
 # Air local development build output
 /.air-tmp/
+nohup.out

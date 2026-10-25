@@ -3,6 +3,7 @@ package handlers
 import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 
@@ -26,7 +27,7 @@ func ListMenus(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": tree})
+	resp.Success(c, http.StatusOK, "成功", tree)
 }
 
 func buildTree(menuMap map[uint]*models.Menu, id uint) {
@@ -61,7 +62,7 @@ type CreateMenuReq struct {
 func CreateMenu(c *gin.Context) {
 	var req CreateMenuReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if req.Status == 0 {
@@ -81,14 +82,14 @@ func CreateMenu(c *gin.Context) {
 	}
 
 	database.DB.Create(&menu)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 func UpdateMenu(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req CreateMenuReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
@@ -104,7 +105,7 @@ func UpdateMenu(c *gin.Context) {
 		"status":     req.Status,
 	})
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteMenu(c *gin.Context) {
@@ -112,11 +113,11 @@ func DeleteMenu(c *gin.Context) {
 	var count int64
 	database.DB.Model(&models.Menu{}).Where("parent_id = ?", id).Count(&count)
 	if count > 0 {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "请先删除子菜单"})
+		resp.Error(c, http.StatusOK, resp.CodeBadRequest, "请先删除子菜单")
 		return
 	}
 	database.DB.Delete(&models.Menu{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func GetMenuOptions(c *gin.Context) {
@@ -136,5 +137,5 @@ func GetMenuOptions(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": tree})
+	resp.Success(c, http.StatusOK, "成功", tree)
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"io"
 	"net/http"
 	"net/url"
@@ -26,21 +28,21 @@ import (
 func ListConversations(c *gin.Context) {
 	userID := currentUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户身份无效"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "用户身份无效")
 		return
 	}
 	var convos []models.ChatConversation
 	if err := chatConversationScope(database.DB, userID).Order("updated_at DESC").Find(&convos).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取对话失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取对话失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": convos})
+	resp.Success(c, http.StatusOK, "成功", convos)
 }
 
 func CreateConversation(c *gin.Context) {
 	userID := currentUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户身份无效"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "用户身份无效")
 		return
 	}
 	var req struct {
@@ -52,12 +54,12 @@ func CreateConversation(c *gin.Context) {
 	if req.Title == "" {
 		req.Title = "新对话"
 	}
-	convo := models.ChatConversation{UserID: userID, Title: truncateStr(req.Title, 100), WorkspaceID: req.WorkspaceID}
+	convo := models.ChatConversation{UserID: userID, Title: textutil.Ellipsis(req.Title, 100), WorkspaceID: req.WorkspaceID}
 	if err := database.DB.Create(&convo).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建对话失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建对话失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": convo})
+	resp.Success(c, http.StatusOK, "创建成功", convo)
 }
 
 func DeleteConversation(c *gin.Context) {
@@ -71,10 +73,10 @@ func DeleteConversation(c *gin.Context) {
 		}
 		return tx.Where("id = ? AND user_id = ?", convo.ID, convo.UserID).Delete(&models.ChatConversation{}).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除对话失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除对话失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func GetMessages(c *gin.Context) {
@@ -84,17 +86,17 @@ func GetMessages(c *gin.Context) {
 	}
 	var messages []models.ChatMessage
 	if err := database.DB.Where("conversation_id = ?", convo.ID).Order("id ASC").Find(&messages).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取消息失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取消息失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": messages})
+	resp.Success(c, http.StatusOK, "成功", messages)
 }
 
 func findOwnedConversation(c *gin.Context, rawID string) (models.ChatConversation, bool) {
 	userID := currentUserID(c)
 	id, err := strconv.ParseUint(strings.TrimSpace(rawID), 10, 64)
 	if userID == 0 || err != nil || id == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "对话不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "对话不存在")
 		return models.ChatConversation{}, false
 	}
 	var convo models.ChatConversation
@@ -103,9 +105,9 @@ func findOwnedConversation(c *gin.Context, rawID string) (models.ChatConversatio
 		return convo, true
 	}
 	if err == gorm.ErrRecordNotFound {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "对话不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "对话不存在")
 	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取对话失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取对话失败")
 	}
 	return models.ChatConversation{}, false
 }
@@ -126,17 +128,17 @@ type ChatReq struct {
 func SendMessage(c *gin.Context) {
 	var req ChatReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	req.Message = strings.TrimSpace(req.Message)
 	if req.Message == "" || len([]rune(req.Message)) > 4000 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请输入不超过 4000 个字符的问题"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请输入不超过 4000 个字符的问题")
 		return
 	}
 	userID := currentUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户身份无效"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "用户身份无效")
 		return
 	}
 
@@ -153,15 +155,15 @@ func SendMessage(c *gin.Context) {
 	}
 	selectedModel, err := resolveAIModel(c.Request.Context(), req.ModelID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	req.ModelID = selectedModel.ID
 	// 确保会话存在
 	if req.ConversationID == 0 {
-		convo := models.ChatConversation{UserID: userID, Title: truncateStr(req.Message, 30), WorkspaceID: req.WorkspaceID, ModelID: req.ModelID}
+		convo := models.ChatConversation{UserID: userID, Title: textutil.Ellipsis(req.Message, 30), WorkspaceID: req.WorkspaceID, ModelID: req.ModelID}
 		if err := database.DB.Create(&convo).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建对话失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建对话失败")
 			return
 		}
 		req.ConversationID = convo.ID
@@ -175,19 +177,19 @@ func SendMessage(c *gin.Context) {
 
 	release, accepted := acquireChatExecution(userID, req.ConversationID)
 	if !accepted {
-		c.JSON(http.StatusTooManyRequests, gin.H{"code": 429, "message": "当前会话正在分析或服务繁忙，请稍后重试"})
+		resp.Error(c, http.StatusTooManyRequests, resp.CodeTooManyRequests, "当前会话正在分析或服务繁忙，请稍后重试")
 		return
 	}
 	defer release()
 	if err := database.DB.Model(&models.ChatConversation{}).Where("id = ? AND user_id = ?", req.ConversationID, userID).Update("model_id", req.ModelID).Error; err != nil {
-		c.JSON(500, gin.H{"code": 500, "message": "保存模型选择失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存模型选择失败")
 		return
 	}
 
 	// 保存用户消息
 	userMsg := models.ChatMessage{ConversationID: req.ConversationID, Role: "user", Content: req.Message}
 	if err := database.DB.Create(&userMsg).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存消息失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存消息失败")
 		return
 	}
 
@@ -203,7 +205,7 @@ func SendMessage(c *gin.Context) {
 		Content: response, Metadata: string(metaJSON),
 	}
 	if err := database.DB.Create(&assistantMsg).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存回复失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存回复失败")
 		return
 	}
 
@@ -213,24 +215,12 @@ func SendMessage(c *gin.Context) {
 		Where("conversation_id = ? AND role = ?", req.ConversationID, "user").Count(&userMessageCount)
 	if userMessageCount == 1 {
 		database.DB.Model(&models.ChatConversation{}).Where("id = ? AND user_id = ?", req.ConversationID, userID).
-			Update("title", truncateStr(req.Message, 30))
+			Update("title", textutil.Ellipsis(req.Message, 30))
 	}
 	database.DB.Model(&models.ChatConversation{}).Where("id = ? AND user_id = ?", req.ConversationID, userID).
 		Update("updated_at", time.Now())
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "成功",
-		"data":    assistantMsg,
-	})
-}
-
-func truncateStr(s string, n int) string {
-	r := []rune(s)
-	if len(r) > n {
-		return string(r[:n]) + "..."
-	}
-	return s
+	resp.Success(c, http.StatusOK, "成功", assistantMsg)
 }
 
 func currentUserID(c *gin.Context) uint {
@@ -487,7 +477,7 @@ func collectPlatformKnowledge() string {
 	for _, path := range candidates {
 		body, err := os.ReadFile(path)
 		if err == nil {
-			return truncateStr(string(body), 5000)
+			return textutil.Ellipsis(string(body), 5000)
 		}
 	}
 	return `观澜运维平台包含数据源、数据源分组、Prometheus 查询、拨测、脚本、自动化任务、证书和用户权限等模块。助手只能通过后端白名单工具读取和操作平台资源；明确请求且参数齐全时可创建工具清单中开放的资源，包括无认证直连数据源、故障中心、各类分组、通知模板及邮件对象；可创建/修改具体告警规则，并通过 search_platform_operations、describe_platform_operation、execute_platform_operation 发现和执行平台目录操作，权限以实际执行检查为准。`
@@ -523,7 +513,7 @@ func executePromQLContext(ctx context.Context, ds models.Datasource, query strin
 		return "", fmt.Errorf("读取 Prometheus 响应失败: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("Prometheus HTTP %d: %s", resp.StatusCode, truncateStr(string(body), 500))
+		return "", fmt.Errorf("Prometheus HTTP %d: %s", resp.StatusCode, textutil.Ellipsis(string(body), 500))
 	}
 
 	var promResp struct {
@@ -541,7 +531,7 @@ func executePromQLContext(ctx context.Context, ds models.Datasource, query strin
 	}
 
 	if promResp.Status != "success" {
-		return "", fmt.Errorf("Prometheus 查询异常: %s", truncateStr(string(body), 500))
+		return "", fmt.Errorf("Prometheus 查询异常: %s", textutil.Ellipsis(string(body), 500))
 	}
 
 	var sb strings.Builder

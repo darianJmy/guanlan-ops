@@ -4,6 +4,8 @@ import (
 	"errors"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -31,47 +33,47 @@ func ListGitRepositories(c *gin.Context) {
 	for _, row := range rows {
 		result = append(result, gitRepositoryResponse(row))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": result})
+	resp.Success(c, http.StatusOK, "成功", result)
 }
 
 func CreateGitRepository(c *gin.Context) {
 	var req saveGitRepositoryReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 仓库格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 仓库格式不正确")
 		return
 	}
 	item, err := buildGitRepository(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "仓库名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "仓库名称已存在")
 		return
 	}
 	database.DB.Preload("Credential").First(&item, item.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "Git 仓库已创建", "data": gitRepositoryResponse(item)})
+	resp.Success(c, http.StatusOK, "Git 仓库已创建", gitRepositoryResponse(item))
 }
 
 func UpdateGitRepository(c *gin.Context) {
 	var existing models.GitRepository
 	if database.DB.First(&existing, c.Param("id")).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "Git 仓库不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "Git 仓库不存在")
 		return
 	}
 	var req saveGitRepositoryReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 仓库格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 仓库格式不正确")
 		return
 	}
 	item, err := buildGitRepository(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	sourceChanged := existing.RepositoryURL != item.RepositoryURL || existing.DefaultRef != item.DefaultRef || existing.CredentialID != item.CredentialID
 	if err := database.DB.Model(&existing).Updates(map[string]interface{}{"name": item.Name, "repository_url": item.RepositoryURL, "default_ref": item.DefaultRef, "credential_id": item.CredentialID, "description": item.Description, "status": item.Status}).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "仓库名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "仓库名称已存在")
 		return
 	}
 	if sourceChanged {
@@ -79,7 +81,7 @@ func UpdateGitRepository(c *gin.Context) {
 		_ = removeRepositoryArtifact(existing.ID)
 	}
 	database.DB.Preload("Credential").First(&existing, existing.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "Git 仓库已更新", "data": gitRepositoryResponse(existing)})
+	resp.Success(c, http.StatusOK, "Git 仓库已更新", gitRepositoryResponse(existing))
 }
 
 func DeleteGitRepository(c *gin.Context) {
@@ -87,22 +89,22 @@ func DeleteGitRepository(c *gin.Context) {
 	var count int64
 	database.DB.Model(&models.AutomationTask{}).Where("source_type = ? AND repository_id = ?", "repository", id).Count(&count)
 	if count > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "仓库已被自动化任务引用，请先解除绑定"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "仓库已被自动化任务引用，请先解除绑定")
 		return
 	}
 	result := database.DB.Delete(&models.GitRepository{}, id)
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "Git 仓库不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "Git 仓库不存在")
 		return
 	}
 	_ = removeRepositoryArtifact(uint(id))
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "Git 仓库已删除"})
+	resp.Success(c, http.StatusOK, "Git 仓库已删除")
 }
 
 func SyncGitRepository(c *gin.Context) {
 	repositoryID, err := strconv.Atoi(c.Param("id"))
 	if err != nil || repositoryID < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 仓库 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 仓库 ID 不正确")
 		return
 	}
 	lockValue, _ := gitRepositorySyncLocks.LoadOrStore(uint(repositoryID), &sync.Mutex{})
@@ -111,19 +113,19 @@ func SyncGitRepository(c *gin.Context) {
 	defer lock.Unlock()
 	var item models.GitRepository
 	if database.DB.First(&item, repositoryID).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "Git 仓库不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "Git 仓库不存在")
 		return
 	}
 	attemptedAt := time.Now()
 	artifact, err := buildRepositoryArtifact(item, item.DefaultRef)
 	if err != nil {
-		database.DB.Model(&item).Updates(map[string]interface{}{"last_sync_attempt_at": &attemptedAt, "last_sync_error": truncate(err.Error(), 2000)})
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		database.DB.Model(&item).Updates(map[string]interface{}{"last_sync_attempt_at": &attemptedAt, "last_sync_error": textutil.Ellipsis(err.Error(), 2000)})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
 	if err := storeRepositoryArtifact(item.ID, artifact); err != nil {
 		database.DB.Model(&item).Updates(map[string]interface{}{"last_sync_attempt_at": &attemptedAt, "last_sync_error": err.Error()})
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
 	syncedAt := time.Now()
@@ -131,7 +133,7 @@ func SyncGitRepository(c *gin.Context) {
 		"synced_revision": artifact.Revision, "synced_sha256": artifact.SHA256, "synced_size": len(artifact.Data),
 		"synced_at": &syncedAt, "last_sync_attempt_at": &attemptedAt, "last_sync_error": "",
 	})
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "仓库同步成功", "data": gin.H{"revision": artifact.Revision, "size": len(artifact.Data), "sha256": artifact.SHA256, "synced_at": syncedAt}})
+	resp.Success(c, http.StatusOK, "仓库同步成功", gin.H{"revision": artifact.Revision, "size": len(artifact.Data), "sha256": artifact.SHA256, "synced_at": syncedAt})
 }
 
 func buildGitRepository(req saveGitRepositoryReq) (models.GitRepository, error) {

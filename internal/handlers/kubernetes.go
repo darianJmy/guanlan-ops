@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"io"
 	"net/http"
 	"net/url"
@@ -72,33 +74,33 @@ type K8sQuotaSummary struct {
 func ListK8sResources(c *gin.Context) {
 	var req K8sResourceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	result, err := listK8sResources(req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": result})
+	resp.Success(c, http.StatusOK, "成功", result)
 }
 
 func GetK8sResource(c *gin.Context) {
 	var req K8sResourceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if strings.TrimSpace(req.Name) == "" {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "请指定资源名称"})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, "请指定资源名称")
 		return
 	}
 	result, err := getK8sResource(req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": result})
+	resp.Success(c, http.StatusOK, "成功", result)
 }
 
 func listK8sResources(req K8sResourceReq) (K8sResourceResult, error) {
@@ -205,7 +207,7 @@ func sanitizeK8sAPIResult(path string, raw map[string]interface{}) map[string]in
 	return map[string]interface{}{
 		"truncated": true,
 		"message":   "Kubernetes 响应过大，已截断；请缩小 namespace、labelSelector 或资源范围。",
-		"preview":   truncateStr(string(body), 20000),
+		"preview":   textutil.Ellipsis(string(body), 20000),
 	}
 }
 
@@ -289,7 +291,7 @@ func summarizePodContainers(status map[string]interface{}) (int, int, int, []str
 					reasons = appendUnique(reasons, reason)
 				}
 				if message != "" {
-					messages = appendUnique(messages, truncateStr(message, 220))
+					messages = appendUnique(messages, textutil.Ellipsis(message, 220))
 				}
 			}
 		}
@@ -645,7 +647,7 @@ func executeK8sJSONContext(ctx context.Context, ds models.Datasource, path strin
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("Kubernetes HTTP %d: %s", resp.StatusCode, truncateStr(string(body), 500))
+		return nil, fmt.Errorf("Kubernetes HTTP %d: %s", resp.StatusCode, textutil.Ellipsis(string(body), 500))
 	}
 	var parsed map[string]interface{}
 	if err := json.Unmarshal(body, &parsed); err != nil {

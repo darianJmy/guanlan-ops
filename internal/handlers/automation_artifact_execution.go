@@ -1,25 +1,24 @@
 package handlers
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
+	"guanlan/pkg/archiveutil"
+	"guanlan/pkg/shellutil"
+	"guanlan/pkg/sshclient"
+	"guanlan/pkg/syncbuffer"
+
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
-	"io"
-	"net"
+
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+
 	"strings"
 	"time"
-
-	"golang.org/x/crypto/ssh"
 )
 
 func executeRepositoryArtifact(task models.AutomationTask, artifact repositoryArtifact, input []byte) (automationRunResult, error) {
@@ -46,7 +45,7 @@ func executeLocalRepositoryArtifact(task models.AutomationTask, artifact reposit
 	if err := os.MkdirAll(repositoryDir, 0700); err != nil {
 		return automationRunResult{}, err
 	}
-	if err := extractRepositoryArtifact(artifact.Data, repositoryDir); err != nil {
+	if err := archiveutil.ExtractTarGzip(artifact.Data, repositoryDir); err != nil {
 		return automationRunResult{}, err
 	}
 	inputFile := filepath.Join(root, "input.json")
@@ -62,7 +61,7 @@ func executeLocalRepositoryArtifact(task models.AutomationTask, artifact reposit
 	command := exec.CommandContext(ctx, "bash", "-c", task.Command)
 	command.Dir = workingDir
 	command.Env = append(os.Environ(), "AIOPS_INPUT_FILE="+inputFile, "AIOPS_GIT_COMMIT="+artifact.Revision, "AIOPS_ARTIFACT_SHA256="+artifact.SHA256)
-	var output synchronizedBuffer
+	var output syncbuffer.Buffer
 	command.Stdout, command.Stderr = &output, &output
 	err = command.Run()
 	result := automationRunResult{Output: output.String(), ExitCode: processExitCode(err)}
@@ -112,108 +111,25 @@ func buildRemoteArtifactCommand(task models.AutomationTask, artifact repositoryA
 	return strings.Join([]string{
 		"set -e", "set -o pipefail", "AIOPS_TASK_DIR=\"$(mktemp -d /tmp/aiops-task-XXXXXX)\"", "trap 'rm -rf \"$AIOPS_TASK_DIR\"' EXIT",
 		"cat > \"$AIOPS_TASK_DIR/artifact.tar.gz\"",
-		"test \"$(sha256sum \"$AIOPS_TASK_DIR/artifact.tar.gz\" | awk '{print $1}')\" = " + shellQuote(artifact.SHA256),
+		"test \"$(sha256sum \"$AIOPS_TASK_DIR/artifact.tar.gz\" | awk '{print $1}')\" = " + shellutil.Quote(artifact.SHA256),
 		"mkdir -p \"$AIOPS_TASK_DIR/repository\"", "tar -xzf \"$AIOPS_TASK_DIR/artifact.tar.gz\" -C \"$AIOPS_TASK_DIR/repository\"",
-		"printf '%s' " + shellQuote(base64.StdEncoding.EncodeToString(input)) + " | base64 -d > \"$AIOPS_TASK_DIR/input.json\"",
-		"export AIOPS_INPUT_FILE=\"$AIOPS_TASK_DIR/input.json\"", "export AIOPS_GIT_COMMIT=" + shellQuote(artifact.Revision), "export AIOPS_ARTIFACT_SHA256=" + shellQuote(artifact.SHA256),
-		"cd \"" + workDir + "\"", "bash -c " + shellQuote(task.Command),
+		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString(input)) + " | base64 -d > \"$AIOPS_TASK_DIR/input.json\"",
+		"export AIOPS_INPUT_FILE=\"$AIOPS_TASK_DIR/input.json\"", "export AIOPS_GIT_COMMIT=" + shellutil.Quote(artifact.Revision), "export AIOPS_ARTIFACT_SHA256=" + shellutil.Quote(artifact.SHA256),
+		"cd \"" + workDir + "\"", "bash -c " + shellutil.Quote(task.Command),
 	}, "\n")
 }
 
 func runSSHCommandWithInput(executor models.CertificateExecutor, command string, input []byte, timeout time.Duration) (automationRunResult, error) {
-	secret, err := decryptSecret(executor.SecretCipher)
-	if err != nil {
-		return automationRunResult{}, errors.New("执行器认证信息解密失败")
-	}
-	auth, err := certificateSSHAuthMethod(executor.AuthType, secret)
-	if err != nil {
-		return automationRunResult{}, err
-	}
-	client, err := ssh.Dial("tcp", net.JoinHostPort(executor.Host, strconv.Itoa(defaultSSHPort(executor.Port))), &ssh.ClientConfig{User: executor.Username, Auth: []ssh.AuthMethod{auth}, HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 10 * time.Second})
+	client, err := openExecutorSSHClient(executor)
 	if err != nil {
 		return automationRunResult{}, err
 	}
 	defer client.Close()
-	session, err := client.NewSession()
-	if err != nil {
-		return automationRunResult{}, err
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	result, err := sshclient.Run(ctx, client, command, input)
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = errors.New("任务执行超时")
 	}
-	defer session.Close()
-	var output synchronizedBuffer
-	session.Stdin, session.Stdout, session.Stderr = bytes.NewReader(input), &output, &output
-	done := make(chan error, 1)
-	go func() { done <- session.Run(command) }()
-	select {
-	case err := <-done:
-		exitCode := 0
-		if err != nil {
-			exitCode = 1
-			var exitErr *ssh.ExitError
-			if errors.As(err, &exitErr) {
-				exitCode = exitErr.ExitStatus()
-			}
-		}
-		return automationRunResult{Output: strings.TrimSpace(output.String()), ExitCode: exitCode}, err
-	case <-time.After(timeout):
-		_ = client.Close()
-		return automationRunResult{Output: strings.TrimSpace(output.String()), ExitCode: -1}, errors.New("任务执行超时")
-	}
-}
-
-func extractRepositoryArtifact(data []byte, destination string) error {
-	gzipReader, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return errors.New("Git 制品格式不正确")
-	}
-	defer gzipReader.Close()
-	tarReader := tar.NewReader(gzipReader)
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return errors.New("解压 Git 制品失败")
-		}
-		cleaned := filepath.Clean(filepath.FromSlash(header.Name))
-		if cleaned == "." || cleaned == ".." || filepath.IsAbs(cleaned) || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-			return errors.New("Git 制品包含非法路径")
-		}
-		target := filepath.Join(destination, cleaned)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0755); err != nil {
-				return err
-			}
-		case tar.TypeReg, tar.TypeRegA:
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return err
-			}
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode)&0777)
-			if err != nil {
-				return err
-			}
-			_, copyErr := io.CopyN(file, tarReader, header.Size)
-			closeErr := file.Close()
-			if copyErr != nil {
-				return copyErr
-			}
-			if closeErr != nil {
-				return closeErr
-			}
-		case tar.TypeSymlink:
-			link := filepath.Clean(filepath.FromSlash(header.Linkname))
-			if filepath.IsAbs(link) || link == ".." || strings.HasPrefix(link, ".."+string(filepath.Separator)) {
-				return errors.New("Git 制品包含非法符号链接")
-			}
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return err
-			}
-			if err := os.Symlink(link, target); err != nil {
-				return err
-			}
-		default:
-			return errors.New("Git 制品包含不支持的文件类型")
-		}
-	}
+	return automationRunResult{Output: strings.TrimSpace(result.Output), ExitCode: result.ExitCode}, err
 }

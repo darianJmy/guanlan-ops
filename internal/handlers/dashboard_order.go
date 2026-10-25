@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"guanlan/pkg/resp"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -53,10 +54,10 @@ func dashboardOrderModel(kind string) interface{} {
 func ListDashboardCards(c *gin.Context) {
 	cards := make([]dashboardCard, 0)
 	if err := database.DB.Raw("SELECT * FROM (" + dashboardCardsSQL + ") ORDER BY sort ASC, kind ASC, id ASC").Scan(&cards).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取仪表盘失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取仪表盘失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": cards})
+	resp.SuccessData(c, http.StatusOK, cards)
 }
 
 // Creation and position allocation use one transaction across all provider tables.
@@ -85,13 +86,13 @@ func ReorderDashboardCards(c *gin.Context) {
 		Items []dashboardOrderItem `json:"items"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.Items) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "排序参数不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "排序参数不正确")
 		return
 	}
 	seen := make(map[dashboardOrderItem]bool, len(req.Items))
 	for _, item := range req.Items {
 		if item.ID == 0 || dashboardOrderModel(item.Kind) == nil || seen[item] {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "排序包含重复或无效的仪表盘"})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "排序包含重复或无效的仪表盘")
 			return
 		}
 		seen[item] = true
@@ -118,12 +119,12 @@ func ReorderDashboardCards(c *gin.Context) {
 		return nil
 	})
 	if errors.Is(err, changed) {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "仪表盘列表已变化，请刷新后重新排序"})
+		resp.Error(c, http.StatusConflict, resp.CodeConflict, "仪表盘列表已变化，请刷新后重新排序")
 		return
 	}
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存仪表盘排序失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存仪表盘排序失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "排序已保存"})
+	resp.Success(c, http.StatusOK, "排序已保存")
 }

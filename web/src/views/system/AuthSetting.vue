@@ -77,12 +77,14 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { defineAsyncComponent, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled, QuestionFilled } from '@element-plus/icons-vue'
-import CodeEditor from '../../components/CodeEditor.vue'
 import { getAuthSettings, updateAuthSettings } from '../../api/systemSetting'
 import { getRoles } from '../../api/role'
+
+// Keep Monaco out of the route's initial dependency chain, especially when external auth is disabled.
+const CodeEditor = defineAsyncComponent(() => import('../../components/CodeEditor.vue'))
 
 const ldapSample=`connection:
   url: ldaps://ldap.example.com:636

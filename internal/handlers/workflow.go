@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -69,39 +71,39 @@ var workflowConditionOperators = map[string]bool{
 func ListWorkflows(c *gin.Context) {
 	var workflows []models.Workflow
 	database.DB.Order("id ASC").Find(&workflows)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": workflows})
+	resp.Success(c, http.StatusOK, "成功", workflows)
 }
 
 func CreateWorkflow(c *gin.Context) {
 	var req CreateWorkflowReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	steps, err := validateWorkflowRequest(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	encoded, _ := json.Marshal(steps)
 	workflow := models.Workflow{Name: strings.TrimSpace(req.Name), Description: strings.TrimSpace(req.Description), Steps: string(encoded), Status: req.Status}
 	if err := database.DB.Create(&workflow).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建工作流失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建工作流失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": workflow})
+	resp.Success(c, http.StatusOK, "创建成功", workflow)
 }
 
 func UpdateWorkflow(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req CreateWorkflowReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	steps, err := validateWorkflowRequest(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	encoded, _ := json.Marshal(steps)
@@ -109,7 +111,7 @@ func UpdateWorkflow(c *gin.Context) {
 		"name":        strings.TrimSpace(req.Name),
 		"description": strings.TrimSpace(req.Description), "steps": string(encoded), "status": req.Status,
 	})
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func validateWorkflowRequest(req CreateWorkflowReq) ([]WorkflowStep, error) {
@@ -315,14 +317,14 @@ func DeleteWorkflow(c *gin.Context) {
 	id := c.Param("id")
 	database.DB.Where("workflow_id = ?", id).Delete(&models.WorkflowExecution{})
 	database.DB.Delete(&models.Workflow{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func ExecuteWorkflow(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var workflow models.Workflow
 	if err := database.DB.First(&workflow, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "工作流不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "工作流不存在")
 		return
 	}
 	var req struct {
@@ -330,12 +332,12 @@ func ExecuteWorkflow(c *gin.Context) {
 	}
 	if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "工作流输入格式不正确"})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "工作流输入格式不正确")
 			return
 		}
 	}
 	record := runWorkflow(&workflow, req.Input)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "工作流执行完成: " + record.Status, "data": record})
+	resp.Success(c, http.StatusOK, "工作流执行完成: "+record.Status, record)
 }
 
 func runWorkflow(workflow *models.Workflow, inputs ...map[string]interface{}) models.WorkflowExecution {
@@ -614,8 +616,8 @@ func workflowScriptEnvironment(runtime map[string]interface{}, stepInput string)
 
 func workflowRemoteScriptCommand(commandName, content string, environment map[string]string) string {
 	return fmt.Sprintf("env AIOPS_WORKFLOW_INPUT=%s AIOPS_WORKFLOW_CONTEXT=%s AIOPS_STEP_INPUT=%s %s",
-		shellQuote(environment["AIOPS_WORKFLOW_INPUT"]), shellQuote(environment["AIOPS_WORKFLOW_CONTEXT"]),
-		shellQuote(environment["AIOPS_STEP_INPUT"]), buildShellCommand(commandName, []string{"-c", content}))
+		shellutil.Quote(environment["AIOPS_WORKFLOW_INPUT"]), shellutil.Quote(environment["AIOPS_WORKFLOW_CONTEXT"]),
+		shellutil.Quote(environment["AIOPS_STEP_INPUT"]), shellutil.Command(commandName, []string{"-c", content}))
 }
 
 func evaluateWorkflowCondition(runtime map[string]interface{}, path, operator, expected string) (bool, interface{}) {

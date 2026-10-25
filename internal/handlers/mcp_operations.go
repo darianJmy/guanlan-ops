@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"guanlan/pkg/resp"
 	"math"
 	"net/http"
 	"net/url"
@@ -380,14 +381,14 @@ func executePlatformOperation(ctx context.Context, userID uint, name string, arg
 		if yaml.Unmarshal(writer.body.Bytes(), &document) != nil {
 			return nil, errors.New("导出文档格式不正确")
 		}
-		return map[string]interface{}{"code": 0, "format": "yaml", "data": sanitizeOperationResult(document)}, nil
+		return map[string]interface{}{"code": resp.CodeSuccess, "format": "yaml", "data": sanitizeOperationResult(document)}, nil
 	}
 	var envelope map[string]interface{}
 	if json.Unmarshal(writer.body.Bytes(), &envelope) != nil {
 		return nil, errors.New("操作未返回可解析的 JSON 结果，请查询状态")
 	}
 	code, hasCode := envelope["code"].(float64)
-	if writer.status >= 400 || !hasCode || code != 0 {
+	if writer.status >= 400 || !hasCode || code != resp.CodeSuccess {
 		message, _ := envelope["message"].(string)
 		// Validation messages are useful, but upstream/server errors may contain secrets.
 		if writer.status >= 500 || len(message) > 300 {

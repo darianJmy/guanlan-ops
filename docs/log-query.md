@@ -64,7 +64,7 @@ OpenSearch、SLS、CLS、Tempo 查询适配器尚未加入本页；现有云日�
 
 ## 统一即时查询工作台
 
-新安装默认只有一个一级「即时查询」入口，地址沿用 `/monitor/query`，`/explore` 为别名。旧的 `/observability/logs` 和 `/observability/traces` 跳转到工作台并优先选中对应能力的数据源。已有数据库执行 `deployments/migrations/2026102402_explore.sql`：保留旧菜单记录但隐藏，转移查询入口的角色绑定；新增 `query:sql` 权限，仅自动授权管理员。
+新安装默认只有一个一级「即时查询」入口，地址沿用 `/monitor/query`，`/explore` 为别名。旧的 `/observability/logs` 和 `/observability/traces` 跳转到工作台并优先选中对应能力的数据源。新数据库初始化时创建 `query:sql` 权限，仅默认授权管理员。开发环境已有数据库如需更新默认菜单和权限，可按 [数据库说明](database.md) 重建无需保留数据的开发库。
 
 顶部数据源列表按查询权限过滤。Prometheus / VictoriaMetrics 使用 `datasource:list`，日志使用 `observability:logs`，Jaeger 使用 `observability:traces`，ClickHouse SQL 使用独立的 `query:sql`。SQL 权限允许查询数据源账号可读取的所有表，应给连接配置适当的数据库侧读取权限。
 

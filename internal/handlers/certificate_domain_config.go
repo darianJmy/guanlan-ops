@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"sort"
 	"strings"
@@ -58,7 +59,7 @@ type preparedCertificateDomainImport struct {
 func ExportCertificateDomains(c *gin.Context) {
 	var domains []models.CertificateDomain
 	if err := database.DB.Order("domain ASC, port ASC, id ASC").Find(&domains).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取域名配置失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取域名配置失败")
 		return
 	}
 	document := certificateDomainConfigDocument{APIVersion: certificateDomainConfigAPIVersion, Kind: certificateDomainConfigKind, Domains: make([]certificateDomainConfigEntry, 0, len(domains))}
@@ -78,7 +79,7 @@ func ExportCertificateDomains(c *gin.Context) {
 	})
 	content, err := yaml.Marshal(document)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成导出文件失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成导出文件失败")
 		return
 	}
 	filename := fmt.Sprintf("certificate-domains-%s.yaml", time.Now().Format("20060102-150405"))
@@ -89,21 +90,21 @@ func ExportCertificateDomains(c *gin.Context) {
 func ImportCertificateDomains(c *gin.Context) {
 	var payload importCertificateDomainConfigReq
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请粘贴 YAML 配置"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请粘贴 YAML 配置")
 		return
 	}
 	document, err := parseCertificateDomainConfigDocument(payload.Content)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	prepared, result, err := prepareCertificateDomainImport(document, payload.Overwrite)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if payload.DryRun {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "配置校验通过", "data": result})
+		resp.Success(c, http.StatusOK, "配置校验通过", result)
 		return
 	}
 
@@ -125,10 +126,10 @@ func ImportCertificateDomains(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "导入域名配置失败，未写入任何数据"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "导入域名配置失败，未写入任何数据")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "导入完成", "data": result})
+	resp.Success(c, http.StatusOK, "导入完成", result)
 }
 
 func parseCertificateDomainConfigDocument(content string) (certificateDomainConfigDocument, error) {

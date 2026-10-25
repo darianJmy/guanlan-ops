@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"sort"
 	"strings"
@@ -69,18 +70,18 @@ func ExportInspectionItems(c *gin.Context) {
 		return
 	}
 	if err := query.Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取拨测任务失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取拨测任务失败")
 		return
 	}
 	document, err := inspectionTaskConfigDocumentFromItems(items)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, err.Error())
 		return
 	}
 
 	content, err := yaml.Marshal(document)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成导出文件失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成导出文件失败")
 		return
 	}
 	filename := fmt.Sprintf("inspection-tasks-%s.yaml", time.Now().Format("20060102-150405"))
@@ -91,12 +92,12 @@ func ExportInspectionItems(c *gin.Context) {
 func ImportInspectionItems(c *gin.Context) {
 	var payload importInspectionTaskConfigReq
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请粘贴 YAML 配置"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请粘贴 YAML 配置")
 		return
 	}
 	document, err := parseInspectionTaskConfigDocument(payload.Content)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if payload.GroupID > 0 {
@@ -106,11 +107,11 @@ func ImportInspectionItems(c *gin.Context) {
 	}
 	prepared, result, err := prepareInspectionTaskImport(document, payload.Overwrite)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if payload.DryRun {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "配置校验通过", "data": result})
+		resp.Success(c, http.StatusOK, "配置校验通过", result)
 		return
 	}
 
@@ -135,7 +136,7 @@ func ImportInspectionItems(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "导入拨测任务失败，未写入任何配置"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "导入拨测任务失败，未写入任何配置")
 		return
 	}
 
@@ -148,7 +149,7 @@ func ImportInspectionItems(c *gin.Context) {
 			database.DB.Model(&models.InspectionItem{}).Where("id = ?", item.Existing.ID).Updates(map[string]interface{}{"consecutive_failures": 0, "consecutive_successes": 0, "alert_active": false})
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "导入完成", "data": result})
+	resp.Success(c, http.StatusOK, "导入完成", result)
 }
 
 func parseInspectionTaskConfigDocument(content string) (inspectionTaskConfigDocument, error) {

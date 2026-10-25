@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"guanlan/pkg/textutil"
 	"io"
 	"math/big"
 	"net/http"
@@ -142,7 +143,7 @@ func callTencentCloudAPI(endpoint, service, version, action, region, secretID, s
 		return nil, fmt.Errorf("读取腾讯云 %s 响应失败: %w", action, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("腾讯云 %s 返回 HTTP %d: %s", action, resp.StatusCode, truncateStr(string(body), 500))
+		return nil, fmt.Errorf("腾讯云 %s 返回 HTTP %d: %s", action, resp.StatusCode, textutil.Ellipsis(string(body), 500))
 	}
 	return body, nil
 }

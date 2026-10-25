@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"guanlan/pkg/resp"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -24,7 +25,7 @@ func explorePermission(userID uint, code string) bool {
 func ExploreDatasources(c *gin.Context) {
 	var sources []models.Datasource
 	if err := database.DB.Select("id", "name", "type", "config").Where("status = 1 AND type IN ?", supportedDatasourceTypes()).Order("name,id").Find(&sources).Error; err != nil {
-		c.JSON(500, gin.H{"code": 500, "message": "读取数据源失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取数据源失败")
 		return
 	}
 	permissions := map[string]bool{}
@@ -52,7 +53,7 @@ func ExploreDatasources(c *gin.Context) {
 			result = append(result, gin.H{"id": ds.ID, "name": ds.Name, "type": ds.Type, "modes": modes})
 		}
 	}
-	c.JSON(200, gin.H{"code": 0, "data": result})
+	resp.SuccessData(c, http.StatusOK, result)
 }
 
 type SQLQueryRequest struct {
@@ -164,31 +165,31 @@ func queryClickHouseSQL(ctx context.Context, ds models.Datasource, req SQLQueryR
 func QuerySQL(c *gin.Context) {
 	var req SQLQueryRequest
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(400, gin.H{"code": 400, "message": "请提供 SQL、数据源和时间范围"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请提供 SQL、数据源和时间范围")
 		return
 	}
 	if req.Limit == 0 {
 		req.Limit = 500
 	}
 	if req.Limit < 1 || req.Limit > 5000 || len(req.Query) > 65536 || !req.End.After(req.Start) || req.Start.Year() < 1970 || req.End.Year() > 2261 {
-		c.JSON(400, gin.H{"code": 400, "message": "查询参数或时间范围无效，最多返回 5000 行"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "查询参数或时间范围无效，最多返回 5000 行")
 		return
 	}
 	if err := validateExploreSQL(req.Query); err != nil {
-		c.JSON(400, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	var ds models.Datasource
 	if database.DB.Where("id = ? AND type = ? AND status = 1", req.DatasourceID, "clickhouse").First(&ds).Error != nil {
-		c.JSON(400, gin.H{"code": 400, "message": "ClickHouse 数据源不存在或已禁用"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "ClickHouse 数据源不存在或已禁用")
 		return
 	}
 	result, err := queryClickHouseSQL(c.Request.Context(), ds, req)
 	if err != nil {
-		c.JSON(502, gin.H{"code": 502, "message": err.Error()})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, err.Error())
 		return
 	}
-	c.JSON(200, gin.H{"code": 0, "data": gin.H{"columns": result.Meta, "rows": result.Data, "limit_reached": len(result.Data) >= req.Limit}})
+	resp.SuccessData(c, http.StatusOK, gin.H{"columns": result.Meta, "rows": result.Data, "limit_reached": len(result.Data) >= req.Limit})
 }
 func testClickHouseExplore(ds models.Datasource) (bool, string) {
 	if _, err := readLogSourceConfig(ds); err == nil {
@@ -230,12 +231,12 @@ func QueryTraces(c *gin.Context) {
 		TraceID      string `json:"trace_id" binding:"required"`
 	}
 	if c.ShouldBindJSON(&req) != nil || !regexp.MustCompile(`^(?:[a-fA-F0-9]{16}|[a-fA-F0-9]{32})$`).MatchString(req.TraceID) {
-		c.JSON(400, gin.H{"code": 400, "message": "请输入 16 或 32 位十六进制 Trace ID"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请输入 16 或 32 位十六进制 Trace ID")
 		return
 	}
 	var ds models.Datasource
 	if database.DB.Where("id = ? AND type = ? AND status = 1", req.DatasourceID, "jaeger").First(&ds).Error != nil {
-		c.JSON(400, gin.H{"code": 400, "message": "Jaeger 数据源不存在或已禁用"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Jaeger 数据源不存在或已禁用")
 		return
 	}
 	raw, err := doLogRequest(c.Request.Context(), ds, http.MethodGet, strings.TrimRight(ds.URL, "/")+"/api/traces/"+req.TraceID, nil, "")
@@ -247,22 +248,22 @@ func QueryTraces(c *gin.Context) {
 		err = decodeLogJSON(raw, &result)
 	}
 	if err != nil || len(result.Errors) > 0 || result.Data == nil {
-		c.JSON(502, gin.H{"code": 502, "message": "链路查询失败，请检查 Trace ID、数据源及读取权限"})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "链路查询失败，请检查 Trace ID、数据源及读取权限")
 		return
 	}
 	for _, trace := range result.Data {
 		if !strings.EqualFold(trace.TraceID, req.TraceID) || trace.Spans == nil || len(trace.Spans) > 10000 {
-			c.JSON(502, gin.H{"code": 502, "message": "链路结果无效或 Span 数量过多"})
+			resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "链路结果无效或 Span 数量过多")
 			return
 		}
 		for _, span := range trace.Spans {
 			if span.Start < 0 || span.Duration < 0 || span.Start > 9000000000000000 || span.Duration > 9000000000000000-span.Start {
-				c.JSON(502, gin.H{"code": 502, "message": "Span 时间无效"})
+				resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "Span 时间无效")
 				return
 			}
 		}
 	}
-	c.JSON(200, gin.H{"code": 0, "data": result.Data})
+	resp.SuccessData(c, http.StatusOK, result.Data)
 }
 func testJaegerExplore(ds models.Datasource) (bool, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

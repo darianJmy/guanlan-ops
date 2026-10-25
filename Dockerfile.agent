@@ -8,6 +8,8 @@ COPY go.mod go.sum ./
 RUN go mod download github.com/gorilla/websocket
 COPY cmd/aiops-agent ./cmd/aiops-agent
 COPY internal/agent ./internal/agent
+COPY pkg/syncbuffer ./pkg/syncbuffer
+COPY pkg/archiveutil ./pkg/archiveutil
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/aiops-agent ./cmd/aiops-agent
 
 FROM python:3.12-slim

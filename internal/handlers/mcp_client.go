@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -71,75 +73,75 @@ func ListMCPClients(c *gin.Context) {
 
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取 MCP 连接失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取 MCP 连接失败")
 		return
 	}
 	var clients []models.MCPClient
 	if err := tx.Preload("APIToken.User").Order("mcp_clients.created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&clients).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取 MCP 连接失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取 MCP 连接失败")
 		return
 	}
 	items := make([]gin.H, 0, len(clients))
 	for i := range clients {
 		items = append(items, mcpClientResponse(clients[i]))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{"list": items, "total": total, "page": page, "page_size": pageSize}})
+	resp.Success(c, http.StatusOK, "成功", gin.H{"list": items, "total": total, "page": page, "page_size": pageSize})
 }
 
 func CreateMCPClient(c *gin.Context) {
 	var req mcpClientReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "MCP 连接格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "MCP 连接格式不正确")
 		return
 	}
 	req = normalizeMCPClientReq(req)
 	if message := validateMCPClientReq(req); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	token, message := availableMCPToken(req.APITokenID, "")
 	if message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	id, err := newMCPClientID()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成 MCP 连接标识失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成 MCP 连接标识失败")
 		return
 	}
 	client := models.MCPClient{ID: id, Name: req.Name, ClientType: req.ClientType, APITokenID: token.ID, APIToken: token, Description: req.Description, Status: req.Status, CreatedBy: c.GetUint("user_id")}
 	if err := database.DB.Create(&client).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "客户端名称或访问令牌已被使用"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "客户端名称或访问令牌已被使用")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "MCP 连接已创建", "data": mcpClientResponse(client)})
+	resp.Success(c, http.StatusOK, "MCP 连接已创建", mcpClientResponse(client))
 }
 
 func UpdateMCPClient(c *gin.Context) {
 	var client models.MCPClient
 	if err := database.DB.First(&client, "id = ?", c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "MCP 连接不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "MCP 连接不存在")
 		return
 	}
 	var req mcpClientReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "MCP 连接格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "MCP 连接格式不正确")
 		return
 	}
 	req = normalizeMCPClientReq(req)
 	if message := validateMCPClientReq(req); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	if _, message := availableMCPToken(req.APITokenID, client.ID); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	if err := database.DB.Model(&client).Updates(map[string]interface{}{"name": req.Name, "client_type": req.ClientType, "api_token_id": req.APITokenID, "description": req.Description, "status": req.Status}).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "客户端名称或访问令牌已被使用"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "客户端名称或访问令牌已被使用")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "MCP 连接已更新"})
+	resp.Success(c, http.StatusOK, "MCP 连接已更新")
 }
 
 func UpdateMCPClientStatus(c *gin.Context) {
@@ -147,24 +149,24 @@ func UpdateMCPClientStatus(c *gin.Context) {
 		Status int `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || (req.Status != 0 && req.Status != 1) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "启用状态不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "启用状态不正确")
 		return
 	}
 	result := database.DB.Model(&models.MCPClient{}).Where("id = ?", c.Param("id")).Update("status", req.Status)
 	if result.Error != nil || result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "MCP 连接不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "MCP 连接不存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "MCP 连接状态已更新"})
+	resp.Success(c, http.StatusOK, "MCP 连接状态已更新")
 }
 
 func DeleteMCPClient(c *gin.Context) {
 	result := database.DB.Where("id = ?", c.Param("id")).Delete(&models.MCPClient{})
 	if result.Error != nil || result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "MCP 连接不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "MCP 连接不存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "MCP 连接已删除"})
+	resp.Success(c, http.StatusOK, "MCP 连接已删除")
 }
 
 func normalizeMCPClientReq(req mcpClientReq) mcpClientReq {
@@ -241,19 +243,14 @@ func newMCPClientID() (string, error) {
 	return hex.EncodeToString(raw), nil
 }
 
-func truncateMCPText(value string, limit int) string {
-	value = strings.TrimSpace(value)
-	runes := []rune(value)
-	if len(runes) <= limit {
-		return value
-	}
-	return string(runes[:limit])
-}
-
 func mcpPositiveInt(value string, fallback int) int {
 	parsed, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil || parsed <= 0 {
 		return fallback
 	}
 	return parsed
+}
+
+func truncateMCPText(value string, limit int) string {
+	return textutil.Clip(strings.TrimSpace(value), limit)
 }

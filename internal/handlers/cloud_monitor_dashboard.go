@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -59,7 +60,7 @@ func ListCloudMonitorWorkspaces(c *gin.Context) {
 	}
 	var items []models.CloudMonitorWorkspace
 	if err := query.Order("id DESC").Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取云监控 Workspace 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取云监控 Workspace 失败")
 		return
 	}
 	data := make([]cloudMonitorWorkspaceView, 0, len(items))
@@ -70,27 +71,27 @@ func ListCloudMonitorWorkspaces(c *gin.Context) {
 			CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": data})
+	resp.Success(c, http.StatusOK, "成功", data)
 }
 
 func CreateCloudMonitorWorkspace(c *gin.Context) {
 	var req cloudMonitorWorkspaceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if message := validateCloudMonitorWorkspaceReq(req, true); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	accessKeyIDCipher, err := encryptSecret(strings.TrimSpace(req.AccessKeyID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey ID 加密失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey ID 加密失败")
 		return
 	}
 	accessKeySecretCipher, err := encryptSecret(strings.TrimSpace(req.AccessKeySecret))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey Secret 加密失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey Secret 加密失败")
 		return
 	}
 	item := models.CloudMonitorWorkspace{
@@ -100,13 +101,13 @@ func CreateCloudMonitorWorkspace(c *gin.Context) {
 	}
 	if err := createDashboardAtFront(&item); err != nil {
 		if isCloudMonitorDuplicate(err) {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "该地域下的 Workspace 已存在"})
+			resp.Error(c, http.StatusConflict, resp.CodeConflict, "该地域下的 Workspace 已存在")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建云监控 Workspace 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建云监控 Workspace 失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": gin.H{"id": item.ID}})
+	resp.Success(c, http.StatusOK, "创建成功", gin.H{"id": item.ID})
 }
 
 func UpdateCloudMonitorWorkspace(c *gin.Context) {
@@ -116,11 +117,11 @@ func UpdateCloudMonitorWorkspace(c *gin.Context) {
 	}
 	var req cloudMonitorWorkspaceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if message := validateCloudMonitorWorkspaceReq(req, false); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	updates := map[string]interface{}{
@@ -130,7 +131,7 @@ func UpdateCloudMonitorWorkspace(c *gin.Context) {
 	if value := strings.TrimSpace(req.AccessKeyID); value != "" {
 		ciphertext, err := encryptSecret(value)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey ID 加密失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey ID 加密失败")
 			return
 		}
 		updates["access_key_id_cipher"] = ciphertext
@@ -138,20 +139,20 @@ func UpdateCloudMonitorWorkspace(c *gin.Context) {
 	if value := strings.TrimSpace(req.AccessKeySecret); value != "" {
 		ciphertext, err := encryptSecret(value)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey Secret 加密失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey Secret 加密失败")
 			return
 		}
 		updates["access_key_secret_cipher"] = ciphertext
 	}
 	if err := database.DB.Model(&item).Updates(updates).Error; err != nil {
 		if isCloudMonitorDuplicate(err) {
-			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "该地域下的 Workspace 已存在"})
+			resp.Error(c, http.StatusConflict, resp.CodeConflict, "该地域下的 Workspace 已存在")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新云监控 Workspace 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新云监控 Workspace 失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteCloudMonitorWorkspace(c *gin.Context) {
@@ -160,32 +161,32 @@ func DeleteCloudMonitorWorkspace(c *gin.Context) {
 		return
 	}
 	if err := database.DB.Delete(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除云监控 Workspace 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除云监控 Workspace 失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func TestCloudMonitorWorkspace(c *gin.Context) {
 	var req cloudMonitorWorkspaceReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if message := validateCloudMonitorWorkspaceReq(req, req.ID == 0); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	auth, err := resolveCloudMonitorCredentials(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if _, err := createCloudMonitorTicket(auth); err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "连接失败: " + err.Error()})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "连接失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "连接成功"})
+	resp.Success(c, http.StatusOK, "连接成功")
 }
 
 func CreateCloudMonitorSession(c *gin.Context) {
@@ -195,18 +196,18 @@ func CreateCloudMonitorSession(c *gin.Context) {
 	}
 	auth, err := decryptCloudMonitorCredentials(item)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "云监控凭证读取失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "云监控凭证读取失败")
 		return
 	}
 	ticket, err := createCloudMonitorTicket(auth)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "创建云监控免登录会话失败: " + err.Error()})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "创建云监控免登录会话失败: "+err.Error())
 		return
 	}
 	c.Header("Cache-Control", "no-store")
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"url": buildCloudMonitorConsoleURL(item.Region, item.Workspace, ticket), "expires_in": cloudMonitorTicketTTL,
-	}})
+	})
 }
 
 func createCloudMonitorTicket(auth slsAuth) (string, error) {
@@ -298,15 +299,15 @@ func decryptCloudMonitorCredentials(item models.CloudMonitorWorkspace) (slsAuth,
 func loadCloudMonitorWorkspace(c *gin.Context, param string) (models.CloudMonitorWorkspace, bool) {
 	id, err := strconv.ParseUint(c.Param(param), 10, 64)
 	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "云监控 Workspace ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "云监控 Workspace ID 不正确")
 		return models.CloudMonitorWorkspace{}, false
 	}
 	var item models.CloudMonitorWorkspace
 	if err := database.DB.First(&item, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "云监控 Workspace 不存在"})
+			resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "云监控 Workspace 不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取云监控 Workspace 失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取云监控 Workspace 失败")
 		}
 		return models.CloudMonitorWorkspace{}, false
 	}

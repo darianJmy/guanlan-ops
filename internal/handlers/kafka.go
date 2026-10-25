@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"sort"
 	"strconv"
@@ -54,10 +55,10 @@ func KafkaTopics(c *gin.Context) {
 	}
 	topics, err := listKafkaTopics(ds)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{"datasource": ds.Name, "count": len(topics), "topics": topics}})
+	resp.Success(c, http.StatusOK, "成功", gin.H{"datasource": ds.Name, "count": len(topics), "topics": topics})
 }
 
 func KafkaConsumerLag(c *gin.Context) {
@@ -68,17 +69,17 @@ func KafkaConsumerLag(c *gin.Context) {
 	group := strings.TrimSpace(c.Query("group"))
 	result, err := listKafkaConsumerLag(ds, group, intQueryDefault(c, "limit", 200))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{"datasource": ds.Name, "groups": result.Groups, "items": result.Items}})
+	resp.Success(c, http.StatusOK, "成功", gin.H{"datasource": ds.Name, "groups": result.Groups, "items": result.Items})
 }
 
 func loadKafkaDatasource(c *gin.Context) (models.Datasource, bool) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var ds models.Datasource
 	if err := database.DB.Where("id = ? AND status = 1 AND type = ?", id, "kafka").First(&ds).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "Kafka 数据源不存在或未启用"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "Kafka 数据源不存在或未启用")
 		return ds, false
 	}
 	return ds, true

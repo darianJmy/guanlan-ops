@@ -12,6 +12,9 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/httpclient"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"io"
 	"net"
 	"net/http"
@@ -29,7 +32,7 @@ import (
 func ListDatasources(c *gin.Context) {
 	var datasources []models.Datasource
 	database.DB.Where("type IN ?", supportedDatasourceTypes()).Order("id ASC").Find(&datasources)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": datasources})
+	resp.Success(c, http.StatusOK, "成功", datasources)
 }
 
 type CreateDatasourceReq struct {
@@ -56,7 +59,7 @@ func DeleteDatasource(c *gin.Context) {
 	id := c.Param("id")
 	numericID, err := strconv.ParseUint(id, 10, 64)
 	if err != nil || numericID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "实例 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "实例 ID 不正确")
 		return
 	}
 	if !requireSupportedDatasourceIDs(c, []uint{uint(numericID)}) {
@@ -65,14 +68,14 @@ func DeleteDatasource(c *gin.Context) {
 	var groupCount int64
 	database.DB.Model(&models.DatasourceGroupMember{}).Where("datasource_id = ?", id).Count(&groupCount)
 	if groupCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "该接入仍属于数据源分组，请先从数据源分组移除"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "该接入仍属于数据源分组，请先从数据源分组移除")
 		return
 	}
 	if !requireUnboundDatasources(c, []uint{uint(numericID)}) {
 		return
 	}
 	database.DB.Delete(&models.Datasource{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 type TestConnectionReq struct {
@@ -107,7 +110,7 @@ type kubeconfigFile struct {
 func TestDatasourceConnection(c *gin.Context) {
 	var req TestConnectionReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
@@ -121,9 +124,9 @@ func TestDatasourceConnection(c *gin.Context) {
 	}
 	ok, msg := testConnectionForDatasource(ds)
 	if ok {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": msg})
+		resp.Success(c, http.StatusOK, msg)
 	} else {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": msg})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, msg)
 	}
 }
 
@@ -131,7 +134,7 @@ func TestSavedDatasourceConnection(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var ds models.Datasource
 	if err := database.DB.Where("type IN ?", supportedDatasourceTypes()).First(&ds, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "数据源不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "数据源不存在")
 		return
 	}
 
@@ -158,9 +161,9 @@ func TestSavedDatasourceConnection(c *gin.Context) {
 
 	ok, msg := testConnectionForDatasource(ds)
 	if ok {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": msg})
+		resp.Success(c, http.StatusOK, msg)
 	} else {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": msg})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, msg)
 	}
 }
 
@@ -506,9 +509,9 @@ func testNacosPath(client *http.Client, baseURL, path, authType, authConfig, tok
 	}
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return false, "Nacos 认证失败或权限不足，HTTP " + strconv.Itoa(resp.StatusCode) + ": " + truncateStr(string(body), 200)
+		return false, "Nacos 认证失败或权限不足，HTTP " + strconv.Itoa(resp.StatusCode) + ": " + textutil.Ellipsis(string(body), 200)
 	}
-	return false, "Nacos 返回异常状态码 HTTP " + strconv.Itoa(resp.StatusCode) + " (" + path + "): " + truncateStr(string(body), 200)
+	return false, "Nacos 返回异常状态码 HTTP " + strconv.Itoa(resp.StatusCode) + " (" + path + "): " + textutil.Ellipsis(string(body), 200)
 }
 
 type nacosServiceListResult struct {
@@ -559,7 +562,7 @@ func listNacosServices(ds models.Datasource, namespace, group string, pageSize i
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nacosServiceListResult{}, fmt.Errorf("Nacos HTTP %d: %s", resp.StatusCode, truncateStr(string(body), 300))
+		return nacosServiceListResult{}, fmt.Errorf("Nacos HTTP %d: %s", resp.StatusCode, textutil.Ellipsis(string(body), 300))
 	}
 
 	var parsed struct {
@@ -790,7 +793,7 @@ func listSLSLogstores(ds models.Datasource) ([]string, error) {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("SLS 返回 HTTP %d: %s", resp.StatusCode, truncateStr(string(body), 300))
+		return nil, fmt.Errorf("SLS 返回 HTTP %d: %s", resp.StatusCode, textutil.Ellipsis(string(body), 300))
 	}
 
 	var parsed struct {
@@ -937,7 +940,7 @@ func searchCLSLogs(ds models.Datasource, from, to time.Time, query string, limit
 		return clsSearchResult{}, fmt.Errorf("读取 CLS 响应失败: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return clsSearchResult{}, fmt.Errorf("CLS HTTP %d: %s", resp.StatusCode, truncateStr(string(body), 500))
+		return clsSearchResult{}, fmt.Errorf("CLS HTTP %d: %s", resp.StatusCode, textutil.Ellipsis(string(body), 500))
 	}
 
 	var parsed struct {
@@ -962,7 +965,7 @@ func searchCLSLogs(ds models.Datasource, from, to time.Time, query string, limit
 		} `json:"Response"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return clsSearchResult{}, fmt.Errorf("解析 CLS 响应失败: %w; body=%s", err, truncateStr(string(body), 500))
+		return clsSearchResult{}, fmt.Errorf("解析 CLS 响应失败: %w; body=%s", err, textutil.Ellipsis(string(body), 500))
 	}
 	if parsed.Response.Error != nil {
 		return clsSearchResult{}, fmt.Errorf("CLS 查询失败: %s %s", parsed.Response.Error.Code, parsed.Response.Error.Message)
@@ -1047,24 +1050,6 @@ func normalizeTencentRegion(region string) string {
 }
 
 // ── Auth helper ──
-
-func setAuthHeader(req *http.Request, authType, authConfig string) {
-	var auth map[string]string
-	json.Unmarshal([]byte(authConfig), &auth)
-	switch authType {
-	case "basic":
-		req.SetBasicAuth(auth["username"], auth["password"])
-	case "bearer":
-		req.Header.Set("Authorization", "Bearer "+auth["token"])
-	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 // ── SLS request signing (Alibaba Cloud Signature V1) ──
 
@@ -1202,4 +1187,13 @@ func hmacSHA256(key []byte, data string) []byte {
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(data))
 	return h.Sum(nil)
+}
+
+func datasourceHTTPAuth(authType, authConfig string) httpclient.Auth {
+	var auth map[string]string
+	_ = json.Unmarshal([]byte(authConfig), &auth)
+	return httpclient.Auth{Type: authType, Username: auth["username"], Password: auth["password"], Token: auth["token"]}
+}
+func setAuthHeader(req *http.Request, authType, authConfig string) {
+	datasourceHTTPAuth(authType, authConfig).Apply(req)
 }

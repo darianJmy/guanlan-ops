@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
 	"io"
 	"net"
 	"net/http"
@@ -89,23 +91,23 @@ type networkProbeResult struct {
 func InstantProbe(c *gin.Context) {
 	var req ProbeReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	req.Type = strings.ToLower(strings.TrimSpace(req.Type))
 	if req.Type != "http" && req.Type != "icmp" && req.Type != "tcp" && req.Type != "certificate_expiry" && req.Type != "script" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "不支持的拨测类型"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "不支持的拨测类型")
 		return
 	}
 	if req.Type == "script" {
 		if _, err := loadProbeScript(req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 			return
 		}
 		status, result, duration := executeScriptProbe(req)
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "拨测完成", "data": gin.H{
+		resp.Success(c, http.StatusOK, "拨测完成", gin.H{
 			"status": status, "probe_type": "script", "duration_ms": duration, "result": result,
-		}})
+		})
 		return
 	}
 	if req.Type != "http" {
@@ -125,18 +127,18 @@ func InstantProbe(c *gin.Context) {
 			if err != nil {
 				status = "fail"
 			}
-			c.JSON(http.StatusOK, gin.H{"code": 0, "message": "检测完成", "data": gin.H{
+			resp.Success(c, http.StatusOK, "检测完成", gin.H{
 				"status": status, "probe_type": req.Type, "duration_ms": durationMS, "result": mustJSON(result),
 				"certificate_status": result.CertificateStatus, "not_after": result.NotAfter, "days_remaining": result.DaysRemaining,
 				"error": result.Error, "message": result.Output,
-			}})
+			})
 			return
 		}
 		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "message": "拨测完成", "data": gin.H{
+			resp.Success(c, http.StatusOK, "拨测完成", gin.H{
 				"status": "fail", "message": err.Error(), "error": err.Error(), "duration_ms": durationMS,
 				"probe_type": req.Type, "result": mustJSON(gin.H{"error": err.Error()}),
-			}})
+			})
 			return
 		}
 		payload := gin.H{
@@ -155,15 +157,15 @@ func InstantProbe(c *gin.Context) {
 			payload["days_remaining"] = result.DaysRemaining
 			payload["fingerprint_sha256"] = result.FingerprintSHA256
 		}
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "拨测完成", "data": payload})
+		resp.Success(c, http.StatusOK, "拨测完成", payload)
 		return
 	}
 
 	result, durationMS, err := executeHTTPProbe(req)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "拨测完成", "data": gin.H{
+		resp.Success(c, http.StatusOK, "拨测完成", gin.H{
 			"status": "fail", "result": mustJSON(gin.H{"error": err.Error()}), "error": err.Error(), "duration_ms": durationMS,
-		}})
+		})
 		return
 	}
 	status := "success"
@@ -176,13 +178,13 @@ func InstantProbe(c *gin.Context) {
 		message = fmt.Sprintf("响应内容未包含关键字：%s", keyword)
 	}
 	keyword := strings.TrimSpace(req.ResponseKeyword)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "拨测完成", "data": gin.H{
+	resp.Success(c, http.StatusOK, "拨测完成", gin.H{
 		"status": status, "message": message, "status_code": result.StatusCode, "duration_ms": durationMS,
 		"body": result.Body, "content_type": result.ContentType, "node_type": result.NodeType,
 		"node_name": result.NodeName, "url": result.URL, "method": result.Method,
 		"truncated": result.Truncated, "response_keyword": keyword,
 		"keyword_matched": keyword == "" || strings.Contains(result.Body, keyword), "result": mustJSON(result),
-	}})
+	})
 }
 
 func executeHTTPProbe(req ProbeReq) (probeExecutionResult, int64, error) {
@@ -221,7 +223,7 @@ func executeHTTPProbe(req ProbeReq) (probeExecutionResult, int64, error) {
 		if node.Status != 1 {
 			return probeExecutionResult{}, time.Since(start).Milliseconds(), errors.New("SSH 节点已停用")
 		}
-		output, err = runSSHCommand(node, buildShellCommand("curl", args))
+		output, err = runSSHCommand(node, shellutil.Command("curl", args))
 		if err != nil {
 			return probeExecutionResult{}, time.Since(start).Milliseconds(), curlExecutionError(output, err)
 		}
@@ -234,7 +236,7 @@ func executeHTTPProbe(req ProbeReq) (probeExecutionResult, int64, error) {
 		if !agentVersionAtLeast(node.Version, minimumAgentExecVersion) {
 			return probeExecutionResult{}, time.Since(start).Milliseconds(), fmt.Errorf("Agent 版本过旧，请重新部署（最低版本 %s）", minimumAgentExecVersion)
 		}
-		agentResult, runErr := runAgentCommand(node.ID, buildShellCommand("curl", args), timeout)
+		agentResult, runErr := runAgentCommand(node.ID, shellutil.Command("curl", args), timeout)
 		output = strings.TrimSpace(agentResult.Stdout + "\n" + agentResult.Stderr)
 		if runErr != nil {
 			return probeExecutionResult{}, time.Since(start).Milliseconds(), runErr
@@ -285,7 +287,7 @@ func executeTCPProbe(req ProbeReq) (networkProbeResult, int64, error) {
 
 	seconds := max(1, int(timeout/time.Second))
 	inner := fmt.Sprintf("cat < /dev/null > /dev/tcp/%s/%d", host, port)
-	command := buildShellCommand("timeout", []string{strconv.Itoa(seconds), "bash", "-c", inner})
+	command := shellutil.Command("timeout", []string{strconv.Itoa(seconds), "bash", "-c", inner})
 	output, resolvedType, nodeName, runErr := executeRemoteProbeCommand(req, command, timeout)
 	if runErr != nil {
 		return result, time.Since(start).Milliseconds(), fmt.Errorf("TCP 连接失败: %v", runErr)
@@ -326,7 +328,7 @@ func executeICMPProbe(req ProbeReq) (networkProbeResult, int64, error) {
 		}
 		nodeName = "服务端直连"
 	} else {
-		command := buildShellCommand("timeout", []string{strconv.Itoa(waitSeconds), "ping"}) + " " + strings.Join(shellQuotedArgs(args), " ")
+		command := shellutil.Command("timeout", []string{strconv.Itoa(waitSeconds), "ping"}) + " " + strings.Join(shellQuotedArgs(args), " ")
 		output, nodeType, nodeName, err = executeRemoteProbeCommand(req, command, timeout)
 		if err != nil {
 			err = fmt.Errorf("ICMP 拨测失败: %v", err)
@@ -393,8 +395,8 @@ func executeSSLProbe(req ProbeReq) (networkProbeResult, int64, error) {
 	if serverName != "" {
 		args = append(args, "-servername", serverName)
 	}
-	pipeline := "printf '' | " + buildShellCommand("openssl", args) + " 2>/dev/null | " + buildShellCommand("openssl", []string{"x509", "-noout", "-subject", "-issuer", "-serial", "-dates", "-fingerprint", "-sha256"})
-	command := buildShellCommand("timeout", []string{strconv.Itoa(max(1, int(timeout/time.Second))), "sh", "-c", pipeline})
+	pipeline := "printf '' | " + shellutil.Command("openssl", args) + " 2>/dev/null | " + shellutil.Command("openssl", []string{"x509", "-noout", "-subject", "-issuer", "-serial", "-dates", "-fingerprint", "-sha256"})
+	command := shellutil.Command("timeout", []string{strconv.Itoa(max(1, int(timeout/time.Second))), "sh", "-c", pipeline})
 	output, resolvedType, nodeName, runErr := executeRemoteProbeCommand(req, command, timeout)
 	if runErr != nil {
 		return result, time.Since(start).Milliseconds(), fmt.Errorf("SSL 握手失败: %v", runErr)
@@ -678,7 +680,7 @@ func commandErrorMessage(output string, err error) string {
 func shellQuotedArgs(args []string) []string {
 	quoted := make([]string, 0, len(args))
 	for _, arg := range args {
-		quoted = append(quoted, shellQuote(arg))
+		quoted = append(quoted, shellutil.Quote(arg))
 	}
 	return quoted
 }
@@ -872,14 +874,6 @@ func sortedKeys(values map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func buildShellCommand(name string, args []string) string {
-	parts := []string{shellQuote(name)}
-	for _, arg := range args {
-		parts = append(parts, shellQuote(arg))
-	}
-	return strings.Join(parts, " ")
 }
 
 func curlExecutionError(output string, err error) error {

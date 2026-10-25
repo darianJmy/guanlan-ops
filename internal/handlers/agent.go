@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -113,23 +115,23 @@ func ListAgents(c *gin.Context) {
 	markStaleAgentsOffline()
 	var items []models.AgentConnection
 	database.DB.Order("id DESC").Find(&items)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": items})
+	resp.Success(c, http.StatusOK, "成功", items)
 }
 
 func CreateAgent(c *gin.Context) {
 	var req createAgentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写 Agent 名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写 Agent 名称")
 		return
 	}
 	token, tokenHash, err := newAgentToken()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成 Agent Token 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成 Agent Token 失败")
 		return
 	}
 	deploymentType := normalizeAgentDeploymentType(req.DeploymentType)
 	if deploymentType == "docker" && len(strings.TrimSpace(req.DockerImage)) > 255 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Docker 镜像名称不能超过 255 个字符"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Docker 镜像名称不能超过 255 个字符")
 		return
 	}
 	capabilities, _ := json.Marshal(initialAgentCapabilities(deploymentType, req.DockerImage))
@@ -142,14 +144,14 @@ func CreateAgent(c *gin.Context) {
 		Description:  strings.TrimSpace(req.Description),
 	}
 	if item.Name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写 Agent 名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写 Agent 名称")
 		return
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Agent 名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Agent 名称已存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": gin.H{"agent": item, "token": token}})
+	resp.Success(c, http.StatusOK, "创建成功", gin.H{"agent": item, "token": token})
 }
 
 func normalizeAgentDeploymentType(value string) string {
@@ -173,7 +175,7 @@ func initialAgentCapabilities(deploymentType, dockerImage string) []string {
 func UpdateAgent(c *gin.Context) {
 	var req updateAgentReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写 Agent 名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写 Agent 名称")
 		return
 	}
 	updates := map[string]interface{}{
@@ -182,33 +184,33 @@ func UpdateAgent(c *gin.Context) {
 		"description": strings.TrimSpace(req.Description),
 	}
 	if updates["name"] == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写 Agent 名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写 Agent 名称")
 		return
 	}
 	if err := database.DB.Model(&models.AgentConnection{}).Where("id = ?", c.Param("id")).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新 Agent 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新 Agent 失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func RotateAgentToken(c *gin.Context) {
 	token, tokenHash, err := newAgentToken()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成 Agent Token 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成 Agent Token 失败")
 		return
 	}
 	if err := database.DB.Model(&models.AgentConnection{}).Where("id = ?", c.Param("id")).Update("token_hash", tokenHash).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "刷新 Agent Token 失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "刷新 Agent Token 失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "刷新成功", "data": gin.H{"token": token}})
+	resp.Success(c, http.StatusOK, "刷新成功", gin.H{"token": token})
 }
 
 func DeleteAgent(c *gin.Context) {
 	id := c.Param("id")
 	if names := boundCertificateDomainNames("agent_id", id); len(names) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": boundResourceMessage("Agent", names)})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, boundResourceMessage("Agent", names))
 		return
 	}
 	agentHub.Lock()
@@ -218,14 +220,14 @@ func DeleteAgent(c *gin.Context) {
 	}
 	agentHub.Unlock()
 	database.DB.Delete(&models.AgentConnection{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func AgentConnect(c *gin.Context) {
 	token := agentTokenFromRequest(c.Request)
 	agent, ok := findAgentByToken(token)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "Agent Token 无效"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "Agent Token 无效")
 		return
 	}
 
@@ -258,22 +260,22 @@ func AgentConnect(c *gin.Context) {
 func RunAgentCommand(c *gin.Context) {
 	var agent models.AgentConnection
 	if err := database.DB.First(&agent, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "Agent 不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "Agent 不存在")
 		return
 	}
 	if !agentVersionAtLeast(agent.Version, minimumAgentExecVersion) {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": fmt.Sprintf("Agent 版本 %s 过旧，请重新部署 Agent（最低版本 %s）", certificateDefaultString(agent.Version, "未知"), minimumAgentExecVersion)})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, fmt.Sprintf("Agent 版本 %s 过旧，请重新部署 Agent（最低版本 %s）", certificateDefaultString(agent.Version, "未知"), minimumAgentExecVersion))
 		return
 	}
 	var req agentRunCommandReq
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Command) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请输入执行命令"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请输入执行命令")
 		return
 	}
 	timeout := time.Duration(defaultAgentTimeout(req.TimeoutSeconds)) * time.Second
 	result, err := runAgentCommand(agent.ID, req.Command, timeout)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error(), "data": result})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error(), result)
 		return
 	}
 	if result.ExitCode != 0 {
@@ -281,10 +283,10 @@ func RunAgentCommand(c *gin.Context) {
 		if message == "" {
 			message = fmt.Sprintf("命令退出码 %d", result.ExitCode)
 		}
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": message, "data": result})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, message, result)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "执行完成", "data": result})
+	resp.Success(c, http.StatusOK, "执行完成", result)
 }
 
 func AgentInstallScript(c *gin.Context) {
@@ -662,11 +664,7 @@ else
 fi
 
 echo "AI Ops Agent 已安装并启动。"
-`, agentShellQuote(serverURL), agentShellQuote(binaryURL), agentShellQuote(token), agentShellQuote(region))
-}
-
-func agentShellQuote(value string) string {
-	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+`, shellutil.Quote(serverURL), shellutil.Quote(binaryURL), shellutil.Quote(token), shellutil.Quote(region))
 }
 
 func newAgentToken() (string, string, error) {

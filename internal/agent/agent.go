@@ -1,9 +1,9 @@
 package agent
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
+	"guanlan/pkg/archiveutil"
+	"guanlan/pkg/syncbuffer"
+
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io"
+
 	"log"
 	"net/http"
 	"net/url"
@@ -196,7 +196,7 @@ func runExecPayload(payload execPayload) execResult {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", payload.Command)
-	var output synchronizedBuffer
+	var output syncbuffer.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	err := cmd.Run()
@@ -243,7 +243,7 @@ func runArtifactExecPayload(payload artifactExecPayload) execResult {
 		result.Error = err.Error()
 		return result
 	}
-	if err := extractArtifact(artifact, repositoryDir); err != nil {
+	if err := archiveutil.ExtractTarGzip(artifact, repositoryDir); err != nil {
 		result.Error = err.Error()
 		return result
 	}
@@ -266,7 +266,7 @@ func runArtifactExecPayload(payload artifactExecPayload) execResult {
 	command := exec.CommandContext(ctx, "/bin/bash", "-c", payload.Command)
 	command.Dir = workingDir
 	command.Env = append(os.Environ(), "AIOPS_INPUT_FILE="+inputFile, "AIOPS_GIT_COMMIT="+payload.Revision, "AIOPS_ARTIFACT_SHA256="+payload.ArtifactSHA256)
-	var output synchronizedBuffer
+	var output syncbuffer.Buffer
 	command.Stdout, command.Stderr = &output, &output
 	err = command.Run()
 	result.Output, result.DurationMs = output.String(), time.Since(start).Milliseconds()
@@ -282,81 +282,6 @@ func runArtifactExecPayload(payload artifactExecPayload) execResult {
 		result.ExitCode, result.Error = -1, "执行超时"
 	}
 	return result
-}
-
-type synchronizedBuffer struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (buffer *synchronizedBuffer) Write(value []byte) (int, error) {
-	buffer.mu.Lock()
-	defer buffer.mu.Unlock()
-	return buffer.buffer.Write(value)
-}
-
-func (buffer *synchronizedBuffer) String() string {
-	buffer.mu.Lock()
-	defer buffer.mu.Unlock()
-	return buffer.buffer.String()
-}
-
-func extractArtifact(data []byte, destination string) error {
-	gzipReader, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return errors.New("Git 制品格式不正确")
-	}
-	defer gzipReader.Close()
-	tarReader := tar.NewReader(gzipReader)
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return errors.New("解压 Git 制品失败")
-		}
-		cleaned := filepath.Clean(filepath.FromSlash(header.Name))
-		if cleaned == "." || cleaned == ".." || filepath.IsAbs(cleaned) || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-			return errors.New("Git 制品包含非法路径")
-		}
-		target := filepath.Join(destination, cleaned)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0755); err != nil {
-				return err
-			}
-		case tar.TypeReg, tar.TypeRegA:
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return err
-			}
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode)&0777)
-			if err != nil {
-				return err
-			}
-			_, copyErr := io.CopyN(file, tarReader, header.Size)
-			closeErr := file.Close()
-			if copyErr != nil {
-				return copyErr
-			}
-			if closeErr != nil {
-				return closeErr
-			}
-		case tar.TypeSymlink:
-			link := filepath.Clean(filepath.FromSlash(header.Linkname))
-			if filepath.IsAbs(link) || link == ".." || strings.HasPrefix(link, ".."+string(filepath.Separator)) {
-				return errors.New("Git 制品包含非法符号链接")
-			}
-			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-				return err
-			}
-			if err := os.Symlink(link, target); err != nil {
-				return err
-			}
-		default:
-			return errors.New("Git 制品包含不支持的文件类型")
-		}
-	}
 }
 
 func mustMarshalString(value interface{}) string {

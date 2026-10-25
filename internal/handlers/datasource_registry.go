@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"io"
 	"net/http"
 	"strings"
@@ -81,7 +82,7 @@ func isMetricDatasourceType(kind string) bool {
 }
 
 func ListDatasourceTypes(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": datasourceDefinitions})
+	resp.Success(c, http.StatusOK, "成功", datasourceDefinitions)
 }
 
 // A constant query validates the actual read endpoint, including tenant path and auth.

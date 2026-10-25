@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -107,12 +108,12 @@ func GetMCPService(c *gin.Context) {
 			"permission": tool.Permission, "read_only": tool.Annotations["readOnlyHint"],
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"enabled": true, "endpoint": mcpEndpointURL(c), "transport": "streamable-http",
 		"protocol_version": currentMCPProtocolVersion, "supported_protocol_versions": sortedMCPProtocolVersions(),
 		"authentication": "Bearer API Token", "server_name": mcpServerName, "server_version": mcpServerVersion,
 		"tools": tools,
-	}})
+	})
 }
 
 // MCPServer handles the stateless JSON response form of MCP Streamable HTTP.

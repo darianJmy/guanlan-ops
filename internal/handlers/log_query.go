@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"guanlan/pkg/resp"
 	"io"
 	"net/http"
 	"net/url"
@@ -36,7 +37,7 @@ type logEntry struct {
 func LogDatasources(c *gin.Context) {
 	var sources []models.Datasource
 	if err := database.DB.Select("id", "name", "type", "labels").Where("type IN ? AND status = 1", logDatasourceTypes()).Order("name, id").Find(&sources).Error; err != nil {
-		c.JSON(500, gin.H{"code": 500, "message": "读取日志数据源失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取日志数据源失败")
 		return
 	}
 	// Explicit projection prevents credentials and connection configuration from leaking.
@@ -44,25 +45,25 @@ func LogDatasources(c *gin.Context) {
 	for _, ds := range sources {
 		result = append(result, gin.H{"id": ds.ID, "name": ds.Name, "type": ds.Type, "labels": ds.Labels})
 	}
-	c.JSON(200, gin.H{"code": 0, "data": result})
+	resp.SuccessData(c, http.StatusOK, result)
 }
 
 func QueryLogs(c *gin.Context) {
 	var req LogQueryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"code": 400, "message": "请提供数据源、查询语句和有效时间范围"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请提供数据源、查询语句和有效时间范围")
 		return
 	}
 	if req.Limit == 0 {
 		req.Limit = 500
 	}
 	if strings.TrimSpace(req.Query) == "" || len(req.Query) > 65536 || !req.End.After(req.Start) || req.End.Sub(req.Start) > 31*24*time.Hour || req.Start.Year() < 1970 || req.End.Year() > 2261 || req.Limit < 1 || req.Limit > 5000 {
-		c.JSON(400, gin.H{"code": 400, "message": "时间范围须在 31 天内，返回条数须为 1–5000，查询语句不能为空或超过 64 KB"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "时间范围须在 31 天内，返回条数须为 1–5000，查询语句不能为空或超过 64 KB")
 		return
 	}
 	var ds models.Datasource
 	if err := database.DB.Where("id = ? AND type IN ? AND status = 1", req.DatasourceID, logDatasourceTypes()).First(&ds).Error; err != nil {
-		c.JSON(400, gin.H{"code": 400, "message": "日志数据源不存在、已禁用或暂不支持查询"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "日志数据源不存在、已禁用或暂不支持查询")
 		return
 	}
 	var entries []logEntry
@@ -78,10 +79,10 @@ func QueryLogs(c *gin.Context) {
 		err = fmt.Errorf("暂不支持此日志数据源")
 	}
 	if err != nil {
-		c.JSON(502, gin.H{"code": 502, "message": err.Error()})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, err.Error())
 		return
 	}
-	c.JSON(200, gin.H{"code": 0, "data": gin.H{"entries": entries, "limit": req.Limit, "limit_reached": len(entries) >= req.Limit}})
+	resp.SuccessData(c, http.StatusOK, gin.H{"entries": entries, "limit": req.Limit, "limit_reached": len(entries) >= req.Limit})
 }
 
 func queryLoki(ctx context.Context, ds models.Datasource, query LogQueryRequest) ([]logEntry, error) {

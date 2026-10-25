@@ -6,6 +6,7 @@ import (
 	"errors"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net"
 	"net/http"
 	"net/url"
@@ -95,64 +96,64 @@ type oidcClaimsYAML struct {
 func PublicSystemSettings(c *gin.Context) {
 	system := loadSystemSetting()
 	auth := loadAuthSetting()
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"system_name": system.SystemName, "system_subtitle": system.SystemSubtitle, "logo_data": system.LogoData,
 		"default_theme": system.DefaultTheme, "local_enabled": true, "ldap_enabled": auth.LDAPEnabled, "oidc_enabled": auth.OIDCEnabled,
-	}})
+	})
 }
 
 func GetSystemSettings(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": loadSystemSetting()})
+	resp.Success(c, http.StatusOK, "成功", loadSystemSetting())
 }
 
 func UpdateSystemSettings(c *gin.Context) {
 	var req saveSystemSettingReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "基础设置格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "基础设置格式不正确")
 		return
 	}
 	item, err := buildSystemSetting(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	existing := loadSystemSetting()
 	if err := database.DB.Model(&existing).Updates(map[string]interface{}{
 		"system_name": item.SystemName, "system_subtitle": item.SystemSubtitle, "logo_data": item.LogoData, "default_theme": item.DefaultTheme,
 	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存基础设置失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存基础设置失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "基础设置已保存", "data": item})
+	resp.Success(c, http.StatusOK, "基础设置已保存", item)
 }
 
 func GetAuthSettings(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": authSettingResponse(loadAuthSetting())})
+	resp.Success(c, http.StatusOK, "成功", authSettingResponse(loadAuthSetting()))
 }
 
 func UpdateAuthSettings(c *gin.Context) {
 	var req saveAuthSettingReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "登录认证配置格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "登录认证配置格式不正确")
 		return
 	}
 	existing := loadAuthSetting()
 	item, err := buildAuthSetting(req, &existing)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Model(&existing).Updates(authSettingUpdates(item)).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存登录认证配置失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存登录认证配置失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "登录认证配置已保存", "data": authSettingResponse(item)})
+	resp.Success(c, http.StatusOK, "登录认证配置已保存", authSettingResponse(item))
 }
 
 func TestLDAPSettings(c *gin.Context) {
 	var req saveAuthSettingReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "LDAP 配置格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "LDAP 配置格式不正确")
 		return
 	}
 	item, err := buildAuthSettingForTest(req, loadAuthSetting())
@@ -160,16 +161,16 @@ func TestLDAPSettings(c *gin.Context) {
 		err = testLDAPConnection(item)
 	}
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "LDAP 连接成功"})
+	resp.Success(c, http.StatusOK, "LDAP 连接成功")
 }
 
 func TestOIDCSettings(c *gin.Context) {
 	var req saveAuthSettingReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "OIDC 配置格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "OIDC 配置格式不正确")
 		return
 	}
 	item, err := buildAuthSettingForTest(req, loadAuthSetting())
@@ -179,10 +180,10 @@ func TestOIDCSettings(c *gin.Context) {
 		_, err = oidc.NewProvider(ctx, item.OIDCIssuerURL)
 	}
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": "OIDC Discovery 失败：" + err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, "OIDC Discovery 失败："+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "OIDC Discovery 成功"})
+	resp.Success(c, http.StatusOK, "OIDC Discovery 成功")
 }
 
 func loadSystemSetting() models.SystemSetting {

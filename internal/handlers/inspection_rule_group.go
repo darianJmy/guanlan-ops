@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,106 +39,106 @@ func ListInspectionRuleGroups(c *gin.Context) {
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询规则组失败")
 		return
 	}
 	var groups []models.InspectionRuleGroup
 	if err := query.Order("updated_at DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&groups).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询规则组失败")
 		return
 	}
 	list := make([]gin.H, 0, len(groups))
 	for _, group := range groups {
 		list = append(list, inspectionRuleGroupResponse(group))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"list": list, "total": total, "page": page, "page_size": pageSize,
-	}})
+	})
 }
 
 func GetInspectionRuleGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.InspectionRuleGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "规则组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "规则组不存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": inspectionRuleGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "成功", inspectionRuleGroupResponse(group))
 }
 
 func CreateInspectionRuleGroup(c *gin.Context) {
 	var req saveInspectionRuleGroupReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组格式不正确")
 		return
 	}
 	name, description, err := normalizeInspectionRuleGroupInput(req.Name, req.Description)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if inspectionRuleGroupNameExists(name, 0) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组名称已存在")
 		return
 	}
 	group := models.InspectionRuleGroup{Name: name, Description: description}
 	if database.DB.Create(&group).Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建规则组失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "规则组已创建", "data": inspectionRuleGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "规则组已创建", inspectionRuleGroupResponse(group))
 }
 
 func UpdateInspectionRuleGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.InspectionRuleGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "规则组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "规则组不存在")
 		return
 	}
 	var req saveInspectionRuleGroupReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组格式不正确")
 		return
 	}
 	name, description, err := normalizeInspectionRuleGroupInput(req.Name, req.Description)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if inspectionRuleGroupNameExists(name, group.ID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组名称已存在")
 		return
 	}
 	if err := database.DB.Model(&group).Updates(map[string]interface{}{"name": name, "description": description}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新规则组失败")
 		return
 	}
 	database.DB.First(&group, group.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "规则组已更新", "data": inspectionRuleGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "规则组已更新", inspectionRuleGroupResponse(group))
 }
 
 func DeleteInspectionRuleGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.InspectionRuleGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "规则组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "规则组不存在")
 		return
 	}
 	var ruleCount int64
 	if err := database.DB.Model(&models.InspectionItem{}).Where("group_id = ?", group.ID).Count(&ruleCount).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "检查组内任务失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "检查组内任务失败")
 		return
 	}
 	if ruleCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请先删除规则组内的拨测任务"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请先删除规则组内的拨测任务")
 		return
 	}
 	if database.DB.Delete(&group).Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除规则组失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "规则组已删除"})
+	resp.Success(c, http.StatusOK, "规则组已删除")
 }
 
 func normalizeInspectionRuleGroupInput(rawName, rawDescription string) (string, string, error) {
@@ -185,7 +186,7 @@ func inspectionGroupQuery(c *gin.Context, query *gorm.DB) (*gorm.DB, bool) {
 	}
 	id, err := strconv.ParseUint(raw, 10, 64)
 	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组参数不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组参数不正确")
 		return query, false
 	}
 	return query.Where("group_id = ?", id), true
