@@ -25,22 +25,14 @@
 
       <section class="form-section">
         <div class="section-heading"><div><strong>规则配置</strong></div></div>
-        <div class="field-label">数据源类型</div>
-        <div class="source-cards" role="group" aria-label="选择数据源类型">
-          <button v-for="type in sourceTypes" :key="type.value" type="button" class="source-card" :class="{ selected: selectedSourceType === type.value }" :aria-pressed="selectedSourceType === type.value" @click="selectedSourceType = type.value">
-            <img :src="type.logo" :class="{ 'vm-logo': type.value === 'victoriametrics' }" alt="" />
-            <span>{{ type.label }}</span>
-            <el-icon v-if="selectedSourceType === type.value" aria-hidden="true"><Check /></el-icon>
-          </button>
-        </div>
         <el-form-item class="datasource-field" prop="datasource_ids">
-          <template #label><span class="detail-label">数据源<el-tooltip content="可同时选择多个数据源分组和多个数据源，实际执行范围取全部选择项的数据源并集。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="数据源选择说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <template #label><span class="detail-label">实例分组<el-tooltip content="选择实例分组后，规则自动覆盖全部子分组中的指标实例；后续新增实例自动生效。旧规则的直接实例绑定可保留或移除。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="数据源选择说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
           <el-select v-model="datasourceSelection" multiple filterable collapse-tags :max-collapse-tags="5" placeholder="" @change="formRef?.validateField('datasource_ids')">
-            <el-option-group v-if="visibleDatasourceGroups.length" label="数据源分组">
-              <el-option v-for="item in visibleDatasourceGroups" :key="`group-${item.id}`" :label="`${item.name}（${item.member_count} 个数据源）`" :value="`group:${item.id}`" />
+            <el-option-group v-if="visibleDatasourceGroups.length" label="实例分组（包含子分组）">
+              <el-option v-for="item in visibleDatasourceGroups" :key="`group-${item.id}`" :label="`${item.path || item.name}（${item.scope_member_count ?? item.member_count} 个实例）`" :value="`group:${item.id}`" />
             </el-option-group>
-            <el-option-group label="数据源">
-              <el-option v-for="item in visibleDatasources" :key="`source-${item.id}`" :label="item.name" :value="`source:${item.id}`" />
+            <el-option-group v-if="legacyDatasources.length" label="原有直接绑定（可移除）">
+              <el-option v-for="item in legacyDatasources" :key="`source-${item.id}`" :label="item.name" :value="`source:${item.id}`" />
             </el-option-group>
           </el-select>
         </el-form-item>
@@ -133,9 +125,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Check, Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
-import victoriaMetricsLogo from '../../assets/victoriametrics-logo.svg'
-import prometheusLogo from '../../assets/prometheus-logo.7aa022e5.svg'
+import { ArrowLeft, Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
 import { getFaultCenters } from '../../api/alert'
 import { createAlertRule, getAlertRule, getAlertRuleGroup, updateAlertRule } from '../../api/alertRule'
 import { getDatasourceGroups } from '../../api/datasourceGroup'
@@ -154,24 +144,15 @@ const descriptionAnnotation = reactive({ key: 'description', value: '' })
 const formRules = {
   name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
   expression: [{ required: true, message: '请输入 PromQL 表达式', trigger: 'blur' }],
-  datasource_ids: [{ validator: (_rule, value, callback) => { if (!form.datasource_group_ids.length && !value?.length) callback(new Error('请至少选择一个数据源或数据源分组')); else callback() }, trigger: 'change' }],
+  datasource_ids: [{ validator: (_rule, value, callback) => { if (!form.datasource_group_ids.length && !value?.length) callback(new Error('请至少选择一个实例分组')); else callback() }, trigger: 'change' }],
   conditions: [{ required: true, validator: (_rule, _value, callback) => { try { normalizeConditions(); callback() } catch (error) { callback(error) } }, trigger: 'change' }],
   evaluation_interval_seconds: [{ validator: validateEvaluationInterval, trigger: 'change' }],
   for_seconds: [{ validator: validateTimingWindow('持续时间', 604800), trigger: 'change' }],
   recovery_wait_seconds: [{ validator: validateTimingWindow('恢复时间', 86400), trigger: 'change' }],
   fault_center_id: [{ required: true, message: '请选择故障中心', trigger: 'change' }],
 }
-const sourceTypes = [
-  { value: 'prometheus', label: 'Prometheus', logo: prometheusLogo },
-  { value: 'victoriametrics', label: 'VictoriaMetrics', logo: victoriaMetricsLogo },
-]
-const selectedSourceType = ref('prometheus')
-// Retain selected options so switching the catalog does not discard rule targets.
-const visibleDatasources = computed(() => datasources.value.filter(item => item.type === selectedSourceType.value || form.datasource_ids.includes(item.id)))
-const visibleDatasourceGroups = computed(() => {
-  const matchingIDs = new Set(datasources.value.filter(item => item.type === selectedSourceType.value).map(item => item.id))
-  return datasourceGroups.value.filter(item => form.datasource_group_ids.includes(item.id) || item.datasource_ids?.some(id => matchingIDs.has(id)))
-})
+const legacyDatasources = computed(() => datasources.value.filter(item => form.datasource_ids.includes(item.id)))
+const visibleDatasourceGroups = computed(() => datasourceGroups.value)
 const activeCenters = computed(() => centers.value.filter(item => item.status === 1))
 const datasourceSelection = computed({
   get: () => [...form.datasource_group_ids.map(id => `group:${id}`), ...form.datasource_ids.map(id => `source:${id}`)],
@@ -181,8 +162,9 @@ const datasourceSelection = computed({
   },
 })
 const effectiveDatasourceIds = computed(() => {
-  const groupDatasourceIDs = datasourceGroups.value.filter(item => form.datasource_group_ids.includes(item.id)).flatMap(item => item.datasource_ids || [])
-  return [...new Set([...form.datasource_ids, ...groupDatasourceIDs])]
+  const groupDatasourceIDs = datasourceGroups.value.filter(item => form.datasource_group_ids.includes(item.id)).flatMap(item => item.effective_datasource_ids || item.datasource_ids || [])
+  const available = new Set(datasources.value.map(item => item.id))
+  return [...new Set([...form.datasource_ids, ...groupDatasourceIDs])].filter(id => available.has(id))
 })
 const triggerTiming = computed(() => timingSummary(form.for_seconds, '命中', '触发'))
 const recoveryTiming = computed(() => timingSummary(form.recovery_wait_seconds, '不命中', '恢复'))
@@ -236,8 +218,6 @@ onMounted(async () => {
     datasourceGroups.value = datasourceGroupResult.data || []
     centers.value = centerResult.data || []
     if (ruleResult) hydrateRule(ruleResult.data)
-    const selected = datasources.value.find(item => effectiveDatasourceIds.value.includes(item.id))
-    if (selected) selectedSourceType.value = selected.type
   } catch {
     ElMessage.error('告警规则编辑页加载失败')
     cancel()

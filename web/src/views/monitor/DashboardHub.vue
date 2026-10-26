@@ -57,7 +57,7 @@
           <div class="type-group-title">{{ group.name }}</div>
           <div class="type-grid">
             <button v-for="type in group.items" :key="type.id" type="button" class="type-card" :aria-label="`创建${type.name}`" @click="createItem(type.id)">
-              <img :src="type.icon" :class="{ 'logo-wide': type.kind === 'logs', 'logo-cloud': type.kind === 'cloud' }" alt="" />
+              <span class="type-logo-slot"><img :src="type.icon" :class="{ 'logo-wide': type.kind === 'logs', 'logo-cloud': type.kind === 'cloud' }" alt="" /></span>
               <strong>{{ type.name }}</strong>
             </button>
           </div>
@@ -221,13 +221,14 @@ onMounted(load)
 .card-actions .el-button + .el-button { margin-left: 0; }
 :global(.el-drawer.dashboard-type-drawer) { border-radius: 0; }
 .drawer-header { display: flex; align-items: center; gap: 12px; }
-.drawer-title { font-size: 16px; font-weight: 600; color: var(--ops-text); }
+.drawer-title { font-size: 16px; font-weight: 500; color: var(--ops-text); }
 .type-groups { display: flex; flex-direction: column; gap: 24px; }
-.type-group-title { margin-bottom: 10px; color: var(--ops-text); font-size: 14px; font-weight: 700; }
+.type-group-title { margin-bottom: 10px; color: var(--ops-text); font-size: 14px; font-weight: 500; }
 .type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .type-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 0; min-height: 96px; padding: 12px 6px; border: 1px solid var(--ops-border); border-radius: 8px; background: var(--ops-surface); color: var(--ops-text); text-align: center; font: inherit; cursor: pointer; }
 .type-card:hover { border-color: var(--ops-primary); background: var(--ops-primary-soft); }
-.type-card img { width: 26px; height: 26px; object-fit: contain; }
+.type-logo-slot { display: flex; align-items: center; justify-content: center; width: 100%; height: 36px; flex-shrink: 0; }
+.type-card img { display: block; width: 26px; height: 26px; object-fit: contain; }
 .type-card img.logo-wide, .card-brand img.logo-wide { width: 88px; max-width: 100%; height: 32px; }
 .type-card img.logo-cloud, .card-brand img.logo-cloud { width: 42px; height: 36px; }
 .type-card strong { max-width: 100%; margin-top: 8px; overflow-wrap: anywhere; font-size: 12px; font-weight: 500; }

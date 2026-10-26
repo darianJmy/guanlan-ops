@@ -138,6 +138,7 @@ func GetTunnelOptions(c *gin.Context) {
 // ── Update Datasource handler to fill tunnel_name ──
 
 type DatasourceListQuery struct {
+	GroupID  uint   `form:"group_id"`
 	Page     int    `form:"page"`
 	PageSize int    `form:"page_size"`
 	Keyword  string `form:"keyword"`
@@ -152,7 +153,10 @@ type DatasourceListQuery struct {
 
 func ListDatasourcesWithTunnel(c *gin.Context) {
 	var query DatasourceListQuery
-	c.ShouldBindQuery(&query)
+	if err := c.ShouldBindQuery(&query); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "筛选参数不正确")
+		return
+	}
 	if query.Page < 1 {
 		query.Page = 1
 	}
@@ -163,6 +167,14 @@ func ListDatasourcesWithTunnel(c *gin.Context) {
 	var total int64
 	var datasources []models.Datasource
 	tx := database.DB.Model(&models.Datasource{}).Where("type IN ?", supportedDatasourceTypes())
+	if query.GroupID > 0 {
+		groupIDs, err := expandedDatasourceGroupIDs(database.DB, []uint{query.GroupID})
+		if err != nil {
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询实例分组失败")
+			return
+		}
+		tx = tx.Where("id IN (?)", database.DB.Model(&models.DatasourceGroupMember{}).Select("datasource_id").Where("group_id IN ?", groupIDs))
+	}
 	if query.Category != "" {
 		tx = tx.Where("category = ?", query.Category)
 	}
@@ -252,6 +264,7 @@ func datasourceOrderClause(sortBy, sortDesc string) string {
 // ── Override Create/Update Datasource to handle tunnel_id ──
 
 type CreateDatasourceWithTunnelReq struct {
+	GroupID      uint   `json:"group_id"`
 	Name         string `json:"name" binding:"required"`
 	Category     string `json:"category"`
 	Type         string `json:"type" binding:"required"`
@@ -322,7 +335,12 @@ func UpdateDatasourceWithTunnel(c *gin.Context) {
 		"auth_config":  req.AuthConfig,
 	}
 
-	if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&existing).Updates(updates).Error; err != nil {
+			return err
+		}
+		return syncDatasourceStatusRuleBindings(tx, []uint{existing.ID})
+	}); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新实例失败")
 		return
 	}
@@ -348,12 +366,20 @@ func BatchUpdateDatasourceStatus(c *gin.Context) {
 		return
 	}
 
-	result := database.DB.Model(&models.Datasource{}).Where("id IN ?", req.IDs).Update("status", *req.Status)
-	if result.Error != nil {
+	var updated int64
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.Datasource{}).Where("id IN ?", req.IDs).Update("status", *req.Status)
+		if result.Error != nil {
+			return result.Error
+		}
+		updated = result.RowsAffected
+		return syncDatasourceStatusRuleBindings(tx, req.IDs)
+	})
+	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量更新状态失败")
 		return
 	}
-	resp.Success(c, http.StatusOK, "批量更新成功", gin.H{"updated": result.RowsAffected})
+	resp.Success(c, http.StatusOK, "批量更新成功", gin.H{"updated": updated})
 }
 
 func BatchDeleteDatasources(c *gin.Context) {
@@ -366,21 +392,11 @@ func BatchDeleteDatasources(c *gin.Context) {
 		return
 	}
 
-	var groupCount int64
-	database.DB.Model(&models.DatasourceGroupMember{}).Where("datasource_id IN ?", req.IDs).Count(&groupCount)
-	if groupCount > 0 {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "所选接入仍属于数据源分组，请先从数据源分组移除")
+	deleted, ok := deleteDatasourceInstances(c, req.IDs)
+	if !ok {
 		return
 	}
-	if !requireUnboundDatasources(c, req.IDs) {
-		return
-	}
-	result := database.DB.Where("id IN ?", req.IDs).Delete(&models.Datasource{})
-	if result.Error != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量删除失败")
-		return
-	}
-	resp.Success(c, http.StatusOK, "批量删除成功", gin.H{"deleted": result.RowsAffected})
+	resp.Success(c, http.StatusOK, "批量删除成功", gin.H{"deleted": deleted})
 }
 
 func buildAndCreateDatasource(req CreateDatasourceWithTunnelReq, c *gin.Context) {
@@ -389,8 +405,30 @@ func buildAndCreateDatasource(req CreateDatasourceWithTunnelReq, c *gin.Context)
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
+	if req.GroupID > 0 {
+		var group models.DatasourceGroup
+		if err := database.DB.First(&group, req.GroupID).Error; err != nil {
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "实例分组不存在")
+			return
+		}
+	}
 	if err := database.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		return persistNewDatasource(tx, &ds, req.Status)
+		if req.GroupID > 0 {
+			var group models.DatasourceGroup
+			if err := tx.First(&group, req.GroupID).Error; err != nil {
+				return err
+			}
+		}
+		if err := persistNewDatasource(tx, &ds, req.Status); err != nil {
+			return err
+		}
+		if req.GroupID == 0 {
+			return nil
+		}
+		if err := tx.Create(&models.DatasourceGroupMember{GroupID: req.GroupID, DatasourceID: ds.ID}).Error; err != nil {
+			return err
+		}
+		return syncDatasourceGroupRuleBindings(tx, req.GroupID)
 	}); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建实例失败")
 		return

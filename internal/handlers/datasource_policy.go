@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func validateDatasourceConnection(ds models.Datasource) error {
@@ -139,15 +141,36 @@ func requireSupportedDatasourceIDs(c *gin.Context, ids []uint) bool {
 	return true
 }
 
-func requireUnboundDatasources(c *gin.Context, ids []uint) bool {
-	var count int64
-	if err := database.DB.Model(&models.AlertRuleDatasource{}).Where("datasource_id IN ?", ids).Count(&count).Error; err != nil {
-		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "检查告警规则引用失败")
-		return false
+// Delete the instance and its memberships atomically, reconciling inherited rules
+// before removing the datasource so active alerts can be terminated correctly.
+func deleteDatasourceInstances(c *gin.Context, ids []uint) (int64, bool) {
+	inUse := errors.New("实例已被告警规则直接引用，请先解除绑定")
+	var deleted int64
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.AlertRuleDatasource{}).Where("datasource_id IN ?", ids).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return inUse
+		}
+		if err := tx.Where("datasource_id IN ?", ids).Delete(&models.DatasourceGroupMember{}).Error; err != nil {
+			return err
+		}
+		if err := syncAllDatasourceGroupRuleBindings(tx); err != nil {
+			return err
+		}
+		result := tx.Where("id IN ?", ids).Delete(&models.Datasource{})
+		deleted = result.RowsAffected
+		return result.Error
+	})
+	if err != nil {
+		if errors.Is(err, inUse) {
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, inUse.Error())
+		} else {
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除数据源实例失败")
+		}
+		return 0, false
 	}
-	if count > 0 {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "实例已被告警规则引用，请先解除绑定")
-		return false
-	}
-	return true
+	return deleted, true
 }

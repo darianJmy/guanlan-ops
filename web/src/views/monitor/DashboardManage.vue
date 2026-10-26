@@ -334,7 +334,7 @@ function backFromForm() {
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
 .drawer-header { display: flex; width: 100%; align-items: center; gap: 12px; }
 .drawer-back { margin-left: -8px; color: var(--ops-primary); }
-.dashboard-form { padding: 2px 0; }
+.dashboard-form { padding: 0; }
 .field-label { display: inline-flex; align-items: center; gap: 5px; }
 .field-help-button {
   display: inline-flex;

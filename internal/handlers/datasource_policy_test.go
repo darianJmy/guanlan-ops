@@ -196,10 +196,15 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 	}
 	group := models.DatasourceGroup{Name: "production"}
 	db.Create(&group)
-	db.Create(&models.DatasourceGroupMember{GroupID: group.ID, DatasourceID: prom.ID})
-	_, body = call(http.MethodDelete, fmt.Sprintf("/sources/%d", prom.ID), nil)
-	if body["code"] == float64(0) {
-		t.Fatal("deleted grouped instance")
+	db.Create(&models.DatasourceGroupMember{GroupID: group.ID, DatasourceID: disabled.ID})
+	_, body = call(http.MethodDelete, fmt.Sprintf("/sources/%d", disabled.ID), nil)
+	if body["code"] != float64(0) {
+		t.Fatalf("delete grouped instance: %+v", body)
+	}
+	var remaining int64
+	db.Model(&models.DatasourceGroupMember{}).Where("datasource_id = ?", disabled.ID).Count(&remaining)
+	if remaining != 0 {
+		t.Fatal("left orphan group membership")
 	}
 	db.Where("group_id = ?", group.ID).Delete(&models.DatasourceGroupMember{})
 	db.Create(&models.AlertRuleDatasource{RuleID: 77, DatasourceID: prom.ID})

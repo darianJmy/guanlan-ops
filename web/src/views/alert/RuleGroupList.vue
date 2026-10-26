@@ -51,7 +51,7 @@
     </section>
 
     <el-drawer v-model="drawerVisible" class="group-drawer" size="min(460px, 94vw)" :close-on-click-modal="false" destroy-on-close>
-      <template #header><div class="drawer-header"><DrawerBackButton @click="drawerVisible = false" /><strong>{{ form.id ? '编辑规则组' : '创建规则组' }}</strong></div></template>
+      <template #header><div class="drawer-header"><DrawerBackButton @click="drawerVisible = false" /><span class="standard-drawer-title">{{ form.id ? '编辑规则组' : '创建规则组' }}</span></div></template>
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
         <el-form-item label="规则组名称" prop="name"><el-input v-model="form.name" maxlength="128" show-word-limit /></el-form-item>
         <el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="5" maxlength="500" show-word-limit /></el-form-item>

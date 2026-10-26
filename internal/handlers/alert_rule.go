@@ -504,7 +504,7 @@ func buildAlertRule(req saveAlertRuleReq, excludeID uint) (models.AlertRule, ale
 	if err != nil {
 		return models.AlertRule{}, emptySelection, err
 	}
-	if len(effectiveIDs) == 0 {
+	if len(datasourceGroupIDs) == 0 && len(directDatasourceIDs) == 0 {
 		return models.AlertRule{}, emptySelection, fmt.Errorf("请至少选择一个数据源或数据源分组")
 	}
 	severity := strings.ToUpper(strings.TrimSpace(req.Severity))
@@ -651,8 +651,12 @@ func datasourceIDsForSelection(tx *gorm.DB, datasourceGroupIDs, directDatasource
 	}
 	effectiveIDs := append([]uint{}, directDatasourceIDs...)
 	if len(datasourceGroupIDs) > 0 {
+		expandedIDs, err := expandedDatasourceGroupIDs(tx, datasourceGroupIDs)
+		if err != nil {
+			return nil, err
+		}
 		var members []models.DatasourceGroupMember
-		if err := tx.Where("group_id IN ?", datasourceGroupIDs).Find(&members).Error; err != nil {
+		if err := tx.Where("group_id IN ?", expandedIDs).Where("datasource_id IN (?)", tx.Model(&models.Datasource{}).Select("id").Where("type IN ? AND status = 1", metricDatasourceTypes())).Find(&members).Error; err != nil {
 			return nil, err
 		}
 		for _, member := range members {
@@ -699,7 +703,13 @@ func effectiveAlertRuleDatasourceIDs(tx *gorm.DB, ruleID uint) ([]uint, error) {
 	for _, selection := range groupSelections {
 		groupIDs = append(groupIDs, selection.DatasourceGroupID)
 	}
-	return datasourceIDsForSelection(tx, groupIDs, directIDs)
+	var activeDirectIDs []uint
+	if len(directIDs) > 0 {
+		if err := tx.Model(&models.Datasource{}).Where("id IN ? AND type IN ? AND status = 1", directIDs, metricDatasourceTypes()).Pluck("id", &activeDirectIDs).Error; err != nil {
+			return nil, err
+		}
+	}
+	return datasourceIDsForSelection(tx, groupIDs, activeDirectIDs)
 }
 
 func replaceAlertRuleBindings(tx *gorm.DB, ruleID uint, datasourceIDs []uint) error {
@@ -828,11 +838,13 @@ func alertRuleResponse(rule models.AlertRule) gin.H {
 	database.DB.Where("rule_id = ?", rule.ID).Order("id ASC").Find(&datasourceGroupSelections)
 	datasourceGroupIDs := make([]uint, 0, len(datasourceGroupSelections))
 	datasourceGroupNames := make([]string, 0, len(datasourceGroupSelections))
+	datasourceGroupTree, _ := loadDatasourceGroupTree(database.DB)
 	for _, selection := range datasourceGroupSelections {
 		var datasourceGroup models.DatasourceGroup
 		database.DB.Select("id", "name").First(&datasourceGroup, selection.DatasourceGroupID)
 		datasourceGroupIDs = append(datasourceGroupIDs, selection.DatasourceGroupID)
-		datasourceGroupNames = append(datasourceGroupNames, datasourceGroup.Name)
+		path, _ := datasourceGroupPath(datasourceGroupTree, datasourceGroup.ID)
+		datasourceGroupNames = append(datasourceGroupNames, path)
 	}
 	var activeCount int64
 	database.DB.Model(&models.AlertInstance{}).Where("source = ? AND source_id = ? AND status IN ?", alertRuleSource, rule.ID, []string{alertStatusPending, alertStatusFiring, alertStatusRecovering}).Count(&activeCount)

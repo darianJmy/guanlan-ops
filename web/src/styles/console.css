@@ -34,6 +34,10 @@ html.dark {
 }
 
 :root, html.dark, html[data-theme] {
+  --ops-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --el-font-family: var(--ops-font-family);
+  --el-font-size-base: 14px;
+  --el-font-weight-primary: 400;
   --ops-radius: 8px;
   --ops-radius-sm: 6px;
   --ops-shadow: 0 14px 36px #00000018;
@@ -110,7 +114,14 @@ body {
   margin: 0;
   color: var(--ops-text);
   background: var(--ops-bg);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-family: var(--ops-font-family);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
 }
 
 #app {
@@ -204,7 +215,7 @@ body {
 
 .el-button {
   border-radius: var(--ops-radius-sm);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
@@ -241,12 +252,13 @@ body {
 }
 
 .el-table th.el-table__cell {
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .el-tag {
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Element Plus 2.11 may collapse the pagination size selector to its arrow width. */
@@ -294,8 +306,13 @@ body {
   gap: 12px;
   min-width: 0;
 }
-.standard-drawer-title {
+.standard-drawer-title,
+.el-drawer__title,
+.el-dialog__title,
+.el-message-box__title,
+.el-drawer__header .drawer-header > strong {
   color: var(--ops-text);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.5;
 }

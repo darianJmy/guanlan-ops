@@ -11,7 +11,7 @@ tmp_dir = ".air-tmp"
   bin = ".air-tmp/guanlan"
   # 当前应用不读取 APP_ENV，直接使用内置配置或 --conf/APP_* 覆盖。
   # 开发时前端占用 8080，后端仅在本机 8081 接受 Vite 代理请求。
-  full_bin = "APP_SERVER_ADDR=0.0.0.0:8081 ./.air-tmp/guanlan"
+  full_bin = "APP_WEB_DEV=1 APP_SERVER_ADDR=0.0.0.0:8081 ./.air-tmp/guanlan"
   args_bin = []
 
   # 只监听后端实现、服务入口、配置及前端 embed 入口。

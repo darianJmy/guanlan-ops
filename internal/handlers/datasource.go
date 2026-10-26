@@ -65,16 +65,9 @@ func DeleteDatasource(c *gin.Context) {
 	if !requireSupportedDatasourceIDs(c, []uint{uint(numericID)}) {
 		return
 	}
-	var groupCount int64
-	database.DB.Model(&models.DatasourceGroupMember{}).Where("datasource_id = ?", id).Count(&groupCount)
-	if groupCount > 0 {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "该接入仍属于数据源分组，请先从数据源分组移除")
+	if _, ok := deleteDatasourceInstances(c, []uint{uint(numericID)}); !ok {
 		return
 	}
-	if !requireUnboundDatasources(c, []uint{uint(numericID)}) {
-		return
-	}
-	database.DB.Delete(&models.Datasource{}, id)
 	resp.Success(c, http.StatusOK, "删除成功")
 }
 

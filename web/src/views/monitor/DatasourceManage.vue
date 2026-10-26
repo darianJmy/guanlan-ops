@@ -13,7 +13,7 @@
           <template #dropdown><el-dropdown-menu><el-dropdown-item command="enable" v-permission="['datasource:edit']">批量启用</el-dropdown-item><el-dropdown-item command="disable" v-permission="['datasource:edit']">批量禁用</el-dropdown-item><el-dropdown-item command="delete" divided v-permission="['datasource:delete']">批量删除</el-dropdown-item></el-dropdown-menu></template>
         </el-dropdown>
         <el-button :icon="Refresh" :loading="loading" @click="fetchData">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="handleAdd" v-permission="['datasource:create']">新增实例</el-button>
+        <el-button type="primary" :icon="Plus" :disabled="requireGroup && !groupId" @click="handleAdd" v-permission="['datasource:create']">新增实例</el-button>
       </div>
     </div>
     <el-card class="datasource-table-card" shadow="never">
@@ -26,17 +26,18 @@
         <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="100" sortable="custom"><template #default="{ row }"><span class="status"><i :class="{ enabled: row.status === 1 }" />{{ row.status === 1 ? '启用' : '禁用' }}</span></template></el-table-column>
         <el-table-column label="操作" width="110" fixed="right"><template #default="{ row }"><el-button link type="primary" :icon="Edit" aria-label="编辑实例" title="编辑" @click="handleEdit(row)" v-permission="['datasource:edit']" /><el-button link type="danger" :icon="Delete" aria-label="删除实例" title="删除" @click="handleDelete(row)" v-permission="['datasource:delete']" /></template></el-table-column>
+        <template #empty><TableEmpty /></template>
       </el-table>
       <div class="pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next" @current-change="fetchData" @size-change="handleSearch" /></div>
     </el-card>
-    <el-drawer v-model="drawerVisible" class="datasource-drawer" direction="rtl" size="min(460px, 94vw)" :close-on-click-modal="false">
+    <el-drawer v-model="pickerVisible" class="datasource-drawer" direction="rtl" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
-          <DrawerBackButton :disabled="saving || testing" @click="handleDrawerBack" />
-          <span :id="titleId" :class="[titleClass, 'drawer-title']">{{ creationStep === 'type' ? '选择数据源类型' : (form.id ? '编辑接入' : '新增接入') }}</span>
+          <DrawerBackButton @click="pickerVisible = false" />
+          <span :id="titleId" :class="[titleClass, 'drawer-title']">选择数据源类型</span>
         </div>
       </template>
-      <div v-if="creationStep === 'type'" class="type-groups">
+      <div class="type-groups">
         <section v-for="group in groupedTypeOptions" :key="group.value" class="type-group">
           <div class="type-group-title">{{ group.label }}</div>
           <div class="type-grid">
@@ -55,7 +56,16 @@
         </section>
         <el-empty v-if="!datasourceTypes.length" description="暂无可用的数据源类型" :image-size="72" />
       </div>
-      <div v-else class="step2-wrapper">
+      <template #footer><el-button @click="pickerVisible = false">取消</el-button></template>
+    </el-drawer>
+    <el-drawer v-model="drawerVisible" class="datasource-drawer" direction="rtl" size="min(460px, 94vw)" :show-close="false" :close-on-click-modal="false">
+      <template #header="{ titleId, titleClass }">
+        <div class="drawer-header">
+          <DrawerBackButton :disabled="saving || testing" @click="handleDrawerBack" />
+          <span :id="titleId" :class="[titleClass, 'drawer-title']">{{ form.id ? '编辑接入' : '新增接入' }}</span>
+        </div>
+      </template>
+      <div class="step2-wrapper">
         <div class="selected-type-banner">
           <div class="selected-type-icon" :style="{ background: form.type === 'prometheus' ? '#fff3eb' : (['victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? 'transparent' : '#ecf5ff') }">
             <img v-if="form.type === 'prometheus'" :src="prometheusLogo" alt="" class="selected-type-logo" />
@@ -98,7 +108,7 @@
         <el-form-item label="启用状态"><el-switch v-model="form.status" :active-value="1" :inactive-value="0" /></el-form-item>
       </el-form>
       </div>
-      <template #footer><div v-if="creationStep === 'type'" class="picker-footer"><el-button @click="drawerVisible = false">取消</el-button></div><div v-else class="form-footer"><el-button class="btn-test" :loading="testing" @click="testFromForm">测试连接</el-button><el-button @click="drawerVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="handleSubmit">保存</el-button></div></template>
+      <template #footer><div class="form-footer"><el-button class="btn-test" :loading="testing" @click="testFromForm">测试连接</el-button><el-button @click="drawerVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="handleSubmit">保存</el-button></div></template>
     </el-drawer>
     <el-dialog v-model="testVisible" title="连接测试结果" width="min(440px, 94vw)"><el-result v-if="testResult" :icon="testResult.ok ? 'success' : 'error'" :title="testResult.ok ? '连接成功' : '连接失败'" :sub-title="testResult.message" /><template #footer><el-button @click="testVisible = false">关闭</el-button></template></el-dialog>
   </div>
@@ -106,7 +116,7 @@
 
 <script setup>
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowLeft, Connection, Delete, Edit, Minus, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { getDatasourceTypes, getDatasources, createDatasource, updateDatasource, deleteDatasource, batchUpdateDatasourceStatus, batchDeleteDatasources, testConnection, testSavedConnection } from '../../api/datasource'
@@ -117,12 +127,17 @@ import lokiLogo from '../../assets/loki-logo.svg'
 import victoriaMetricsLogo from '../../assets/victoriametrics-logo.svg'
 import prometheusLogo from '../../assets/prometheus-logo.7aa022e5.svg'
 
+const props = defineProps({ groupId: { type: Number, default: null }, groupName: { type: String, default: '' }, refreshKey: { type: Number, default: 0 }, requireGroup: { type: Boolean, default: false } })
+const emit = defineEmits(['changed'])
+const creationGroupId = ref(null)
+watch(() => [props.groupId, props.refreshKey], () => { selectedRows.value = []; handleSearch() })
+
 const loading = ref(false), saving = ref(false), testing = ref(false), drawerVisible = ref(false), formRef = ref()
 const tableData = ref([]), selectedRows = ref([]), keyword = ref(''), statusFilter = ref(''), typeFilter = ref(''), batchAction = ref('')
 const page = ref(1), pageSize = ref(10), total = ref(0), sortBy = ref('id'), sortDesc = ref(false)
 const testVisible = ref(false), testResult = ref(null), headers = ref([])
 const datasourceTypes = ref([])
-const creationStep = ref('type')
+const pickerVisible = ref(false)
 const sourceDescription = item => ({ jaeger: 'Trace 链路追踪', loki: '日志查询', elasticsearch: '全文日志检索', clickhouse: '列式分析数据库', prometheus: '指标监控', victoriametrics: '时序数据库' }[item.type] || capabilityLabel(item.capabilities))
 const baseAuthOptions = [{ value: 'none', label: '无认证' }, { value: 'basic', label: 'Basic Auth' }, { value: 'bearer', label: 'Bearer Token' }]
 
@@ -147,8 +162,8 @@ const groupedTypeOptions = computed(() => {
   })
 })
 function handleDrawerBack() {
-  if (!form.id && creationStep.value === 'config') creationStep.value = 'type'
-  else drawerVisible.value = false
+  drawerVisible.value = false
+  if (!form.id) pickerVisible.value = true
 }
 const typeDefinition = type => datasourceTypes.value.find(item => item.type === type) || {}
 const selectedType = computed(() => typeDefinition(form.type))
@@ -179,9 +194,13 @@ onMounted(async () => {
 onBeforeUnmount(() => { clearTimeout(keywordTimer); requestID++ })
 async function fetchData() {
   const current = ++requestID
+  if (props.requireGroup && !props.groupId) {
+    tableData.value = []; total.value = 0; selectedRows.value = []; loading.value = false
+    return
+  }
   loading.value = true
   try {
-    const response = await getDatasources({ page: page.value, page_size: pageSize.value, keyword: keyword.value, status: statusFilter.value, type: typeFilter.value, sort_by: sortBy.value, sort_desc: sortDesc.value })
+    const response = await getDatasources({ group_id: props.groupId || undefined, page: page.value, page_size: pageSize.value, keyword: keyword.value, status: statusFilter.value, type: typeFilter.value, sort_by: sortBy.value, sort_desc: sortDesc.value })
     if (current !== requestID) return
     tableData.value = response.data.list || []; total.value = response.data.total || 0; selectedRows.value = []
     const lastPage = Math.max(1, Math.ceil(total.value / pageSize.value))
@@ -196,9 +215,11 @@ function parseObject(value) { if (value && typeof value === 'object') return val
 function objectToRows(value) { return Object.entries(value).map(([key, value]) => ({ key, value })) }
 function rowsToObject(rows) { return Object.fromEntries(rows.filter(row => row.key.trim()).map(row => [row.key.trim(), row.value])) }
 function handleAdd() {
-  creationStep.value = 'type'
+  if (props.requireGroup && !props.groupId) return
+  creationGroupId.value = props.groupId
+  pickerVisible.value = true
   Object.assign(form, blankForm()); Object.assign(authFields, { username: '', password: '', token: '' }); headers.value = []
-  originalAuth = {}; originalAuthType = 'none'; originalConfig = {}; formRef.value?.clearValidate(); drawerVisible.value = true
+  originalAuth = {}; originalAuthType = 'none'; originalConfig = {}; formRef.value?.clearValidate(); drawerVisible.value = false
 }
 function selectDatasourceType(item) {
   if (form.type !== item.type) {
@@ -209,11 +230,13 @@ function selectDatasourceType(item) {
     Object.assign(authFields, { username: item.type === 'clickhouse' ? 'default' : '', password: '', token: '' })
     headers.value = []
   }
-  creationStep.value = 'config'
+  pickerVisible.value = false
+  drawerVisible.value = true
   formRef.value?.clearValidate()
 }
 function handleEdit(row) {
-  creationStep.value = 'config'
+  pickerVisible.value = false
+  drawerVisible.value = true
   Object.assign(form, blankForm(), row, { labels: objectToRows(parseObject(row.labels)) })
   originalAuth = parseObject(row.auth_config); originalAuthType = row.auth_type || 'none'; originalConfig = parseObject(row.config)
   if (form.type === 'clickhouse') form.auth_type = 'basic'
@@ -261,7 +284,7 @@ async function payload() {
 async function handleSubmit() {
   const data = await payload(); if (!data) return
   saving.value = true
-  try { form.id ? await updateDatasource(form.id, data) : await createDatasource(data); ElMessage.success('实例已保存'); drawerVisible.value = false; await fetchData() } finally { saving.value = false }
+  try { form.id ? await updateDatasource(form.id, data) : await createDatasource({ ...data, group_id: creationGroupId.value || undefined }); ElMessage.success('实例已保存'); drawerVisible.value = false; emit('changed'); await fetchData() } finally { saving.value = false }
 }
 async function testFromForm() {
   const data = await payload(); if (!data) return
@@ -274,14 +297,14 @@ async function testFromForm() {
 }
 async function handleDelete(row) {
   if (!await ElMessageBox.confirm(`确定删除实例「${row.name}」吗？`, '删除实例', { type: 'warning' }).then(() => true).catch(() => false)) return
-  await deleteDatasource(row.id); ElMessage.success('实例已删除'); await fetchData()
+  await deleteDatasource(row.id); ElMessage.success('实例已删除'); emit('changed'); await fetchData()
 }
 async function handleBatchCommand(command) {
   if (!selectedRows.value.length) return
   const ids = selectedRows.value.map(row => row.id)
   if (command === 'delete' && !await ElMessageBox.confirm(`确定删除选中的 ${ids.length} 个实例吗？`, '批量删除', { type: 'warning' }).then(() => true).catch(() => false)) return
   batchAction.value = command
-  try { command === 'delete' ? await batchDeleteDatasources(ids) : await batchUpdateDatasourceStatus(ids, command === 'enable' ? 1 : 0); ElMessage.success('批量操作完成'); await fetchData() } finally { batchAction.value = '' }
+  try { command === 'delete' ? await batchDeleteDatasources(ids) : await batchUpdateDatasourceStatus(ids, command === 'enable' ? 1 : 0); ElMessage.success('批量操作完成'); emit('changed'); await fetchData() } finally { batchAction.value = '' }
 }
 </script>
 
@@ -295,13 +318,13 @@ async function handleBatchCommand(command) {
 }
 .type-group-title {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--ops-text);
   margin-bottom: 10px;
 }
 .type-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 130px));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: start;
   gap: 8px;
 }
@@ -352,14 +375,6 @@ async function handleBatchCommand(command) {
 }
 
 /* ── 步骤 2：表单 ── */
-.step2-wrapper {
-  animation: fadeInUp 0.3s ease;
-}
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 /* 已选类型横幅 */
 .selected-type-banner {
   display: flex;
@@ -575,7 +590,7 @@ async function handleBatchCommand(command) {
 
 :global(.el-drawer.datasource-drawer) { border-radius:0; }
 .drawer-header { display:flex; align-items:center; gap:12px; }
-.drawer-title { font-size:16px; font-weight:600; color:var(--ops-text); }
+.drawer-title { font-size:16px; font-weight:500; color:var(--ops-text); }
 .back-button { padding:8px 6px; }
 .type-card { background:var(--el-bg-color); font-family:inherit; color:var(--el-text-color-primary); }
 .type-card:focus-visible,.auth-seg:focus-visible { outline:2px solid var(--ops-primary); outline-offset:3px; }
@@ -583,8 +598,7 @@ async function handleBatchCommand(command) {
 .config-form :deep(.el-form-item__label) { font-size:13px; font-weight:500; color:var(--ops-muted); }
 .config-form .kv-editor>.el-button { width:100%; }
 .picker-footer { display:flex; justify-content:flex-end; }
-@media(max-width:380px) { .type-grid { grid-template-columns:repeat(2,minmax(0,130px)); } }
-@media(prefers-reduced-motion:reduce) { .step2-wrapper { animation:none; } .type-card { transition:none; } }
+@media(prefers-reduced-motion:reduce) { .type-card { transition:none; } }
 .log-source-logo { object-fit: contain; }
 .jaeger-logo { object-fit: contain; }
 .loki-logo { object-fit: contain; }
