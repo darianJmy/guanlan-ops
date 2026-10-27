@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,13 +18,13 @@ func ListDashboards(c *gin.Context) {
 	if provider := strings.TrimSpace(c.Query("provider")); provider != "" {
 		normalized, err := normalizeDashboardProvider(provider)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 			return
 		}
 		tx = tx.Where("provider = ?", normalized)
 	}
 	tx.Find(&dashboards)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": dashboards})
+	resp.Success(c, http.StatusOK, "成功", dashboards)
 }
 
 type CreateDashboardReq struct {
@@ -38,7 +39,7 @@ type CreateDashboardReq struct {
 func CreateDashboard(c *gin.Context) {
 	var req CreateDashboardReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if req.Status == 0 {
@@ -47,7 +48,7 @@ func CreateDashboard(c *gin.Context) {
 
 	provider, err := normalizeDashboardProvider(req.Provider)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	d := models.Dashboard{
@@ -58,30 +59,33 @@ func CreateDashboard(c *gin.Context) {
 		Sort:        req.Sort,
 		Status:      req.Status,
 	}
-	database.DB.Create(&d)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	if err := createDashboardAtFront(&d); err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建仪表盘失败")
+		return
+	}
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 func UpdateDashboard(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req UpdateDashboardReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	updates, err := dashboardUpdateFields(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "没有可更新的字段"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "没有可更新的字段")
 		return
 	}
 
 	database.DB.Model(&models.Dashboard{}).Where("id = ?", id).Updates(updates)
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 type UpdateDashboardReq struct {
@@ -140,5 +144,5 @@ func normalizeDashboardProvider(value string) (string, error) {
 func DeleteDashboard(c *gin.Context) {
 	id := c.Param("id")
 	database.DB.Delete(&models.Dashboard{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }

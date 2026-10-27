@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"io"
 	"net/http"
 	"strconv"
@@ -74,7 +76,7 @@ func Audit() gin.HandlerFunc {
 			ResourceName: auditResourceName(requestBody), Method: c.Request.Method, Path: c.Request.URL.Path,
 			RequestSummary: auditRequestSummary(c, requestBody), Result: result, StatusCode: writer.Status(),
 			ResponseMessage: message, DurationMS: time.Since(startedAt).Milliseconds(), IP: c.ClientIP(),
-			UserAgent: truncateAuditText(c.Request.UserAgent(), 500),
+			UserAgent: textutil.Clip(c.Request.UserAgent(), 500),
 		}
 		writeAuditLog(entry)
 	}
@@ -84,11 +86,11 @@ func Audit() gin.HandlerFunc {
 // persisting the submitted password.
 func RecordLogin(c *gin.Context, userID uint, username, result, message string) {
 	writeAuditLog(models.AuditLog{
-		UserID: userID, Username: truncateAuditText(strings.TrimSpace(username), 50), Module: "认证安全",
-		Action: "登录", ResourceType: "session", ResourceName: truncateAuditText(strings.TrimSpace(username), 255),
+		UserID: userID, Username: textutil.Clip(strings.TrimSpace(username), 50), Module: "认证安全",
+		Action: "登录", ResourceType: "session", ResourceName: textutil.Clip(strings.TrimSpace(username), 255),
 		Method: c.Request.Method, Path: c.Request.URL.Path, RequestSummary: `{"username":"` + escapeAuditText(username) + `"}`,
-		Result: result, StatusCode: http.StatusOK, ResponseMessage: truncateAuditText(message, 500), IP: c.ClientIP(),
-		UserAgent: truncateAuditText(c.Request.UserAgent(), 500),
+		Result: result, StatusCode: http.StatusOK, ResponseMessage: textutil.Clip(message, 500), IP: c.ClientIP(),
+		UserAgent: textutil.Clip(c.Request.UserAgent(), 500),
 	})
 }
 
@@ -158,7 +160,7 @@ func auditResource(path string) (string, string) {
 	}
 	items := map[string][2]string{
 		"users": {"用户管理", "user"}, "roles": {"角色管理", "role"}, "menus": {"菜单管理", "menu"},
-		"datasources": {"接入中心", "datasource"}, "datasource-groups": {"数据源分组", "workspace"}, "prometheus": {"即时查询", "prometheus_query"},
+		"datasources": {"接入中心", "datasource"}, "datasource-groups": {"数据源分组", "workspace"}, "prometheus": {"指标查询", "prometheus_query"}, "query": {"查询中心", "log_query"},
 		"dashboards": {"仪表盘", "dashboard"}, "cloud-monitor-workspaces": {"云监控2.0", "cloud_monitor_workspace"}, "inspection-items": {"拨测中心", "inspection_task"},
 		"instant-probe": {"拨测中心", "instant_probe"}, "scripts": {"自动化脚本库", "script"},
 		"workflows": {"工作流", "workflow"}, "scheduled-tasks": {"定时任务", "scheduled_task"},
@@ -256,7 +258,7 @@ func auditRequestSummary(c *gin.Context, body map[string]interface{}) string {
 		return ""
 	}
 	encoded, _ := json.Marshal(value)
-	return truncateAuditText(string(encoded), maxAuditSummaryBytes)
+	return textutil.Clip(string(encoded), maxAuditSummaryBytes)
 }
 
 func auditResponseResult(status int, body []byte) (string, string) {
@@ -268,20 +270,20 @@ func auditResponseResult(status int, body []byte) (string, string) {
 	}
 	if json.Unmarshal(body, &payload) == nil {
 		message = payload.Message
-		if payload.Code != 0 {
+		if payload.Code != resp.CodeSuccess {
 			result = "失败"
 		}
 	}
 	if status >= http.StatusBadRequest {
 		result = "失败"
 	}
-	return result, truncateAuditText(message, 500)
+	return result, textutil.Clip(message, 500)
 }
 
 func auditResourceID(c *gin.Context, path string) string {
 	for _, name := range []string{"ruleId", "id"} {
 		if value := strings.TrimSpace(c.Param(name)); value != "" {
-			return truncateAuditText(value, 128)
+			return textutil.Clip(value, 128)
 		}
 	}
 	return ""
@@ -290,7 +292,7 @@ func auditResourceID(c *gin.Context, path string) string {
 func auditResourceName(body map[string]interface{}) string {
 	for _, key := range []string{"name", "rule_name", "title", "username", "domain"} {
 		if value, ok := body[key].(string); ok && strings.TrimSpace(value) != "" {
-			return truncateAuditText(strings.TrimSpace(value), 255)
+			return textutil.Clip(strings.TrimSpace(value), 255)
 		}
 	}
 	return ""
@@ -306,14 +308,6 @@ func auditWorkspaceID(c *gin.Context, body map[string]interface{}) uint {
 		return uint(value)
 	}
 	return 0
-}
-
-func truncateAuditText(value string, limit int) string {
-	runes := []rune(value)
-	if len(runes) <= limit {
-		return value
-	}
-	return string(runes[:limit])
 }
 
 func escapeAuditText(value string) string {

@@ -45,7 +45,7 @@ func TestAssistantMCPPermissionsAndProjection(t *testing.T) {
 	}
 	registry := aicore.NewRegistry()
 	registerAssistantMCPTools(context.Background(), registry, 1)
-	if len(registry.Specs()) != 2 {
+	if len(registry.Specs()) != 5 {
 		t.Fatalf("wrong tools: %+v", registry.Specs())
 	}
 	if _, ok := registry.Get("run_automation_task"); ok {

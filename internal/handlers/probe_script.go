@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/shellutil"
+	"guanlan/pkg/syncbuffer"
 	"os/exec"
 	"strings"
 	"time"
@@ -77,14 +79,14 @@ func executeScriptProbe(req ProbeReq) (status, result string, durationMS int64) 
 	}
 	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
 	// GNU timeout terminates the process group, including children of the script.
-	command = buildShellCommand("timeout", []string{"--signal=TERM", "--kill-after=1s", fmt.Sprintf("%.3fs", timeout.Seconds()), "bash", "-c", command})
+	command = shellutil.Command("timeout", []string{"--signal=TERM", "--kill-after=1s", fmt.Sprintf("%.3fs", timeout.Seconds()), "bash", "-c", command})
 	var execution automationRunResult
 	if payload.NodeType == "direct" {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout+2*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "bash", "-c", command)
 		cmd.WaitDelay = time.Second
-		output := synchronizedBuffer{limit: 65537}
+		output := syncbuffer.Buffer{Limit: 65537}
 		cmd.Stdout, cmd.Stderr = &output, &output
 		err = cmd.Run()
 		execution = automationRunResult{Output: output.String(), ExitCode: processExitCode(err)}

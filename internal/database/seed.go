@@ -19,6 +19,7 @@ func seedInitialData(db *gorm.DB) error {
 		return err
 	}
 	permissions := []models.Permission{
+		{ID: 67, Name: "SQL 查询", Code: "query:sql", Status: 1},
 		{ID: 1, Name: "用户列表", Code: "user:list", Status: 1},
 		{ID: 2, Name: "创建用户", Code: "user:create", Status: 1},
 		{ID: 3, Name: "编辑用户", Code: "user:edit", Status: 1},
@@ -94,32 +95,26 @@ func seedInitialData(db *gorm.DB) error {
 		{ID: 4, ParentID: 1, Name: "权限列表", Path: "/system/permissions", Component: "system/PermissionManage", Icon: "Lock", Sort: 3, Type: 2, Permission: "perm:list", Status: 1},
 		{ID: 5, ParentID: 1, Name: "菜单列表", Path: "/system/menus", Component: "system/MenuManage", Icon: "Menu", Sort: 4, Type: 2, Permission: "menu:list", Status: 1},
 		{ID: 7, ParentID: 0, Name: "接入中心", Path: "/integrations/sources", Component: "monitor/IntegrationManage", Icon: "Connection", Sort: 10, Type: 2, Permission: "datasource:list", Status: 1},
-		{ID: 8, ParentID: 0, Name: "仪表盘", Path: "/dashboards", Component: "", Icon: "DataAnalysis", Sort: 1, Type: 1, Permission: "", Status: 1},
-		{ID: 11, ParentID: 0, Name: "拨测任务", Path: "/inspection/items", Component: "inspection/InspectionManage", Icon: "Checked", Sort: 6, Type: 2, Permission: "inspection:list", Status: 1},
+		{ID: 8, ParentID: 0, Name: "仪表盘", Path: "/dashboards", Component: "monitor/DashboardHub", Icon: "DataAnalysis", Sort: 1, Type: 2, Permission: "dashboard:list", Status: 1},
+		{ID: 11, ParentID: 38, Name: "拨测任务", Path: "/inspection/items", Component: "inspection/InspectionRuleGroupList", Icon: "Checked", Sort: 3, Type: 2, Permission: "inspection:list", Status: 1},
 		{ID: 12, ParentID: 15, Name: "脚本库", Path: "/automation/scripts", Component: "automation/ScriptLibrary", Icon: "Document", Sort: 2, Type: 2, Permission: "", Status: 1},
 		{ID: 13, ParentID: 15, Name: "自动化任务", Path: "/automation/tasks", Component: "automation/AutomationTaskManage", Icon: "SetUp", Sort: 3, Type: 2, Permission: "automation-task:list", Status: 1},
 		{ID: 14, ParentID: 15, Name: "执行记录", Path: "/automation/records", Component: "inspection/ExecutionRecords", Icon: "Tickets", Sort: 5, Type: 2, Permission: "", Status: 1},
 		{ID: 15, ParentID: 0, Name: "自动化中心", Path: "/automation", Component: "", Icon: "Operation", Sort: 7, Type: 1, Permission: "", Status: 1},
-		{ID: 19, ParentID: 38, Name: "即时查询", Path: "/monitor/query", Component: "monitor/InstantQuery", Icon: "Search", Sort: 2, Type: 2, Permission: "", Status: 1},
+		{ID: 19, ParentID: 0, Name: "即时查询", Path: "/monitor/query", Component: "monitor/Explore", Icon: "Search", Sort: 2, Type: 2, Permission: "", Status: 1},
 		{ID: 24, ParentID: 87, Name: "节点管理", Path: "/nodes", Component: "certificate/ExecutorManage", Icon: "Monitor", Sort: 5, Type: 2, Permission: "certificate:executor:list", Status: 1},
-		{ID: 30, ParentID: 0, Name: "可观测中心", Path: "/observability", Component: "", Icon: "DataLine", Sort: 5, Type: 1, Permission: "", Status: 1},
-		{ID: 31, ParentID: 30, Name: "日志查询", Path: "/observability/logs", Component: "common/FeaturePlaceholder", Icon: "Document", Sort: 1, Type: 2, Permission: "observability:logs", Status: 1},
-		{ID: 32, ParentID: 30, Name: "链路追踪", Path: "/observability/traces", Component: "common/FeaturePlaceholder", Icon: "Share", Sort: 2, Type: 2, Permission: "observability:traces", Status: 1},
-		{ID: 38, ParentID: 0, Name: "告警中心", Path: "/alert-center", Component: "", Icon: "Bell", Sort: 4, Type: 1, Permission: "", Status: 1},
-		{ID: 39, ParentID: 38, Name: "告警管理", Path: "/alert-rules", Component: "alert/RuleManage", Icon: "Histogram", Sort: 1, Type: 2, Permission: "alert:rule:list", Status: 1},
-		{ID: 40, ParentID: 0, Name: "故障中心", Path: "/alerts", Component: "alert/AlertCenter", Icon: "OfficeBuilding", Sort: 3, Type: 2, Permission: "alert:event:list", Status: 1},
+		{ID: 38, ParentID: 0, Name: "告警中心", Path: "/alert-center", Component: "", Icon: "Bell", Sort: 3, Type: 1, Permission: "", Status: 1},
+		{ID: 39, ParentID: 38, Name: "告警管理", Path: "/alert-rules", Component: "alert/RuleGroupList", Icon: "Histogram", Sort: 1, Type: 2, Permission: "alert:rule:list", Status: 1},
+		{ID: 40, ParentID: 0, Name: "故障中心", Path: "/alerts", Component: "alert/AlertCenter", Icon: "OfficeBuilding", Sort: 4, Type: 2, Permission: "alert:event:list", Status: 1},
 		{ID: 70, ParentID: 0, Name: "通知管理", Path: "/notifications", Component: "", Icon: "Message", Sort: 11, Type: 1, Permission: "", Status: 1},
 		{ID: 71, ParentID: 70, Name: "通知对象", Path: "/notifications/channels", Component: "notification/ChannelManage", Icon: "Promotion", Sort: 1, Type: 2, Permission: "notification:channel:list", Status: 1},
 		{ID: 72, ParentID: 70, Name: "通知模板", Path: "/notifications/templates", Component: "notification/TemplateManage", Icon: "Tickets", Sort: 2, Type: 2, Permission: "notification:template:list", Status: 1},
 		{ID: 73, ParentID: 70, Name: "通知记录", Path: "/notifications/records", Component: "notification/RecordManage", Icon: "DocumentChecked", Sort: 3, Type: 2, Permission: "notification:record:list", Status: 1},
 		{ID: 81, ParentID: 0, Name: "操作审计", Path: "/security/audit", Component: "security/AuditLog", Icon: "DocumentChecked", Sort: 90, Type: 2, Permission: "security:audit:list", Status: 1},
-		{ID: 84, ParentID: 8, Name: "监控仪表盘", Path: "/dashboards/grafana", Component: "monitor/GrafanaDashboardManage", Icon: "DataAnalysis", Sort: 1, Type: 2, Permission: "dashboard:list", Status: 1},
-		{ID: 85, ParentID: 8, Name: "日志仪表盘", Path: "/dashboards/sls", Component: "monitor/SLSDashboardManage", Icon: "TrendCharts", Sort: 2, Type: 2, Permission: "dashboard:list", Status: 1},
 		{ID: 86, ParentID: 87, Name: "Git 认证", Path: "/settings/git-credentials", Component: "system/GitCredentialManage", Icon: "Key", Sort: 3, Type: 2, Permission: "git-credential:list", Status: 1},
 		{ID: 87, ParentID: 0, Name: "系统设置", Path: "/settings", Component: "", Icon: "Tools", Sort: 99, Type: 1, Permission: "", Status: 1},
 		{ID: 89, ParentID: 87, Name: "登录认证", Path: "/settings/authentication", Component: "system/AuthSetting", Icon: "Lock", Sort: 2, Type: 2, Permission: "system-setting:list", Status: 1},
 		{ID: 90, ParentID: 87, Name: "访问令牌", Path: "/settings/api-tokens", Component: "system/APITokenManage", Icon: "Key", Sort: 4, Type: 2, Permission: "api-token:list", Status: 1},
-		{ID: 91, ParentID: 8, Name: "云监控2.0", Path: "/dashboards/cloud-monitor", Component: "monitor/CloudMonitorDashboardManage", Icon: "Cloudy", Sort: 3, Type: 2, Permission: "dashboard:list", Status: 1},
 		{ID: 93, ParentID: 87, Name: "AI 模型", Path: "/settings/ai-models", Component: "system/AIModelManage", Icon: "Cpu", Sort: 6, Type: 2, Permission: "system-setting:list", Status: 1},
 	}
 	if err := db.Create(&menus).Error; err != nil {
@@ -132,5 +127,5 @@ func seedInitialData(db *gorm.DB) error {
 	if err := db.Model(&user).Association("Roles").Append(&role); err != nil {
 		return err
 	}
-	return db.Create(&models.FaultCenter{Name: "默认故障中心", Description: "接收未单独分配的拨测告警", Status: 1, IsDefault: true}).Error
+	return db.Create(&models.FaultCenter{Name: "默认故障中心", Status: 1, IsDefault: true}).Error
 }

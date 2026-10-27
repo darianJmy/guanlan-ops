@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,103 +38,103 @@ func ListAlertRuleGroups(c *gin.Context) {
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询规则组失败")
 		return
 	}
 	var groups []models.AlertRuleGroup
 	if err := query.Order("updated_at DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&groups).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询规则组失败")
 		return
 	}
 	list := make([]gin.H, 0, len(groups))
 	for _, group := range groups {
 		list = append(list, alertRuleGroupResponse(group))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"list": list, "total": total, "page": page, "page_size": pageSize,
-	}})
+	})
 }
 
 func GetAlertRuleGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.AlertRuleGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "规则组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "规则组不存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": alertRuleGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "成功", alertRuleGroupResponse(group))
 }
 
 func CreateAlertRuleGroup(c *gin.Context) {
 	var req saveAlertRuleGroupReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组格式不正确")
 		return
 	}
 	name, description, err := normalizeAlertRuleGroupInput(req.Name, req.Description)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if alertRuleGroupNameExists(name, 0) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组名称已存在")
 		return
 	}
 	group := models.AlertRuleGroup{Name: name, Description: description}
 	if database.DB.Create(&group).Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建规则组失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "规则组已创建", "data": alertRuleGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "规则组已创建", alertRuleGroupResponse(group))
 }
 
 func UpdateAlertRuleGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.AlertRuleGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "规则组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "规则组不存在")
 		return
 	}
 	var req saveAlertRuleGroupReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组格式不正确")
 		return
 	}
 	name, description, err := normalizeAlertRuleGroupInput(req.Name, req.Description)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if alertRuleGroupNameExists(name, group.ID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则组名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则组名称已存在")
 		return
 	}
 	if err := database.DB.Model(&group).Updates(map[string]interface{}{"name": name, "description": description}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新规则组失败")
 		return
 	}
 	database.DB.First(&group, group.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "规则组已更新", "data": alertRuleGroupResponse(group)})
+	resp.Success(c, http.StatusOK, "规则组已更新", alertRuleGroupResponse(group))
 }
 
 func DeleteAlertRuleGroup(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var group models.AlertRuleGroup
 	if id < 1 || database.DB.First(&group, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "规则组不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "规则组不存在")
 		return
 	}
 	var ruleCount int64
 	database.DB.Model(&models.AlertRule{}).Where("group_id = ?", group.ID).Count(&ruleCount)
 	if ruleCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请先删除规则组内的告警规则"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请先删除规则组内的告警规则")
 		return
 	}
 	if database.DB.Delete(&group).Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除规则组失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除规则组失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "规则组已删除"})
+	resp.Success(c, http.StatusOK, "规则组已删除")
 }
 
 func normalizeAlertRuleGroupInput(rawName, rawDescription string) (string, string, error) {

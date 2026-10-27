@@ -1,0 +1,1831 @@
+{
+  "operations": [
+    {
+      "name": "list_audit_logs",
+      "handler": "ListAuditLogs",
+      "method": "GET",
+      "path": "/audit-logs",
+      "permission": "security:audit:list",
+      "title": "审计日志查询",
+      "admin_only": false
+    },
+    {
+      "name": "get_audit_log_stats",
+      "handler": "GetAuditLogStats",
+      "method": "GET",
+      "path": "/audit-logs/stats",
+      "permission": "security:audit:list",
+      "title": "审计日志查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_users",
+      "handler": "ListUsers",
+      "method": "GET",
+      "path": "/users",
+      "permission": "user:list",
+      "title": "用户查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_user",
+      "handler": "CreateUser",
+      "method": "POST",
+      "path": "/users",
+      "permission": "user:create",
+      "title": "用户创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_user",
+      "handler": "UpdateUser",
+      "method": "PUT",
+      "path": "/users/:id",
+      "permission": "user:edit",
+      "title": "用户修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_user",
+      "handler": "DeleteUser",
+      "method": "DELETE",
+      "path": "/users/:id",
+      "permission": "user:delete",
+      "title": "用户删除",
+      "admin_only": false
+    },
+    {
+      "name": "assign_user_roles",
+      "handler": "AssignUserRoles",
+      "method": "PUT",
+      "path": "/users/:id/roles",
+      "permission": "user:assign:role",
+      "title": "用户修改",
+      "admin_only": false
+    },
+    {
+      "name": "list_roles",
+      "handler": "ListRoles",
+      "method": "GET",
+      "path": "/roles",
+      "permission": "role:list",
+      "title": "角色查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_role",
+      "handler": "CreateRole",
+      "method": "POST",
+      "path": "/roles",
+      "permission": "role:create",
+      "title": "角色创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_role",
+      "handler": "UpdateRole",
+      "method": "PUT",
+      "path": "/roles/:id",
+      "permission": "role:edit",
+      "title": "角色修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_role",
+      "handler": "DeleteRole",
+      "method": "DELETE",
+      "path": "/roles/:id",
+      "permission": "role:delete",
+      "title": "角色删除",
+      "admin_only": false
+    },
+    {
+      "name": "assign_role_permissions",
+      "handler": "AssignRolePermissions",
+      "method": "PUT",
+      "path": "/roles/:id/permissions",
+      "permission": "role:assign:perm",
+      "title": "角色修改",
+      "admin_only": false
+    },
+    {
+      "name": "assign_role_menus",
+      "handler": "AssignRoleMenus",
+      "method": "PUT",
+      "path": "/roles/:id/menus",
+      "permission": "role:assign:menu",
+      "title": "角色修改",
+      "admin_only": false
+    },
+    {
+      "name": "list_permissions",
+      "handler": "ListPermissions",
+      "method": "GET",
+      "path": "/permissions",
+      "permission": "perm:list",
+      "title": "权限查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_menus",
+      "handler": "ListMenus",
+      "method": "GET",
+      "path": "/menus",
+      "permission": "menu:list",
+      "title": "菜单查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_menu",
+      "handler": "CreateMenu",
+      "method": "POST",
+      "path": "/menus",
+      "permission": "menu:list",
+      "title": "菜单创建/执行",
+      "admin_only": true
+    },
+    {
+      "name": "update_menu",
+      "handler": "UpdateMenu",
+      "method": "PUT",
+      "path": "/menus/:id",
+      "permission": "menu:list",
+      "title": "菜单修改",
+      "admin_only": true
+    },
+    {
+      "name": "delete_menu",
+      "handler": "DeleteMenu",
+      "method": "DELETE",
+      "path": "/menus/:id",
+      "permission": "menu:list",
+      "title": "菜单删除",
+      "admin_only": true
+    },
+    {
+      "name": "get_menu_options",
+      "handler": "GetMenuOptions",
+      "method": "GET",
+      "path": "/menu-options",
+      "permission": "menu:list",
+      "title": "菜单选项查询",
+      "admin_only": false
+    },
+    {
+      "name": "get_system_settings",
+      "handler": "GetSystemSettings",
+      "method": "GET",
+      "path": "/system-settings",
+      "permission": "system-setting:list",
+      "title": "基础设置查询",
+      "admin_only": false
+    },
+    {
+      "name": "update_system_settings",
+      "handler": "UpdateSystemSettings",
+      "method": "PUT",
+      "path": "/system-settings",
+      "permission": "system-setting:edit",
+      "title": "基础设置修改",
+      "admin_only": false
+    },
+    {
+      "name": "get_auth_settings",
+      "handler": "GetAuthSettings",
+      "method": "GET",
+      "path": "/auth-settings",
+      "permission": "system-setting:list",
+      "title": "登录认证查询",
+      "admin_only": false
+    },
+    {
+      "name": "update_auth_settings",
+      "handler": "UpdateAuthSettings",
+      "method": "PUT",
+      "path": "/auth-settings",
+      "permission": "system-setting:edit",
+      "title": "登录认证修改",
+      "admin_only": false
+    },
+    {
+      "name": "test_ldap_settings",
+      "handler": "TestLDAPSettings",
+      "method": "POST",
+      "path": "/auth-settings/test-ldap",
+      "permission": "system-setting:edit",
+      "title": "登录认证创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "test_oidc_settings",
+      "handler": "TestOIDCSettings",
+      "method": "POST",
+      "path": "/auth-settings/test-oidc",
+      "permission": "system-setting:edit",
+      "title": "登录认证创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_api_access_tokens",
+      "handler": "ListAPIAccessTokens",
+      "method": "GET",
+      "path": "/api-tokens",
+      "permission": "api-token:list",
+      "title": "API访问令牌查询",
+      "admin_only": false
+    },
+    {
+      "name": "update_api_access_token",
+      "handler": "UpdateAPIAccessToken",
+      "method": "PUT",
+      "path": "/api-tokens/:id",
+      "permission": "api-token:edit",
+      "title": "API访问令牌修改",
+      "admin_only": false
+    },
+    {
+      "name": "update_api_access_token_status",
+      "handler": "UpdateAPIAccessTokenStatus",
+      "method": "PUT",
+      "path": "/api-tokens/:id/status",
+      "permission": "api-token:edit",
+      "title": "API访问令牌修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_api_access_token",
+      "handler": "DeleteAPIAccessToken",
+      "method": "DELETE",
+      "path": "/api-tokens/:id",
+      "permission": "api-token:edit",
+      "title": "API访问令牌删除",
+      "admin_only": false
+    },
+    {
+      "name": "get_mcp_service",
+      "handler": "GetMCPService",
+      "method": "GET",
+      "path": "/mcp-service",
+      "permission": "mcp-service:list",
+      "title": "MCP服务查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_mcp_clients",
+      "handler": "ListMCPClients",
+      "method": "GET",
+      "path": "/mcp-clients",
+      "permission": "mcp-service:list",
+      "title": "MCP客户端查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_mcp_client",
+      "handler": "CreateMCPClient",
+      "method": "POST",
+      "path": "/mcp-clients",
+      "permission": "mcp-service:edit",
+      "title": "MCP客户端创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_mcp_client",
+      "handler": "UpdateMCPClient",
+      "method": "PUT",
+      "path": "/mcp-clients/:id",
+      "permission": "mcp-service:edit",
+      "title": "MCP客户端修改",
+      "admin_only": false
+    },
+    {
+      "name": "update_mcp_client_status",
+      "handler": "UpdateMCPClientStatus",
+      "method": "PUT",
+      "path": "/mcp-clients/:id/status",
+      "permission": "mcp-service:edit",
+      "title": "MCP客户端修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_mcp_client",
+      "handler": "DeleteMCPClient",
+      "method": "DELETE",
+      "path": "/mcp-clients/:id",
+      "permission": "mcp-service:edit",
+      "title": "MCP客户端删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_datasource_types",
+      "handler": "ListDatasourceTypes",
+      "method": "GET",
+      "path": "/datasource-types",
+      "permission": "datasource:list",
+      "title": "数据源类型查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_datasources_with_tunnel",
+      "handler": "ListDatasourcesWithTunnel",
+      "method": "GET",
+      "path": "/datasources",
+      "permission": "datasource:list",
+      "title": "数据源查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_datasource_with_tunnel",
+      "handler": "CreateDatasourceWithTunnel",
+      "method": "POST",
+      "path": "/datasources",
+      "permission": "datasource:create",
+      "title": "数据源创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "batch_update_datasource_status",
+      "handler": "BatchUpdateDatasourceStatus",
+      "method": "PUT",
+      "path": "/datasources/batch/status",
+      "permission": "datasource:edit",
+      "title": "数据源修改",
+      "admin_only": false
+    },
+    {
+      "name": "batch_delete_datasources",
+      "handler": "BatchDeleteDatasources",
+      "method": "DELETE",
+      "path": "/datasources/batch",
+      "permission": "datasource:delete",
+      "title": "数据源删除",
+      "admin_only": false
+    },
+    {
+      "name": "update_datasource_with_tunnel",
+      "handler": "UpdateDatasourceWithTunnel",
+      "method": "PUT",
+      "path": "/datasources/:id",
+      "permission": "datasource:edit",
+      "title": "数据源修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_datasource",
+      "handler": "DeleteDatasource",
+      "method": "DELETE",
+      "path": "/datasources/:id",
+      "permission": "datasource:delete",
+      "title": "数据源删除",
+      "admin_only": false
+    },
+    {
+      "name": "test_datasource_connection",
+      "handler": "TestDatasourceConnection",
+      "method": "POST",
+      "path": "/datasources/test",
+      "permission": "datasource:edit",
+      "title": "数据源创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "test_saved_datasource_connection",
+      "handler": "TestSavedDatasourceConnection",
+      "method": "POST",
+      "path": "/datasources/:id/test",
+      "permission": "datasource:edit",
+      "title": "数据源创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "get_datasource_auth",
+      "handler": "GetDatasourceAuth",
+      "method": "GET",
+      "path": "/datasources/:id",
+      "permission": "datasource:list",
+      "title": "数据源查询",
+      "admin_only": false
+    },
+    {
+      "name": "get_tunnel_options",
+      "handler": "GetTunnelOptions",
+      "method": "GET",
+      "path": "/tunnel-options",
+      "permission": "datasource:list",
+      "title": "隧道选项查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_datasource_groups",
+      "handler": "ListDatasourceGroups",
+      "method": "GET",
+      "path": "/datasource-groups",
+      "permission": "datasource:list",
+      "title": "数据源分组查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_datasource_group",
+      "handler": "CreateDatasourceGroup",
+      "method": "POST",
+      "path": "/datasource-groups",
+      "permission": "datasource:create",
+      "title": "数据源分组创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_datasource_group",
+      "handler": "UpdateDatasourceGroup",
+      "method": "PUT",
+      "path": "/datasource-groups/:id",
+      "permission": "datasource:edit",
+      "title": "数据源分组修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_datasource_group",
+      "handler": "DeleteDatasourceGroup",
+      "method": "DELETE",
+      "path": "/datasource-groups/:id",
+      "permission": "datasource:delete",
+      "title": "数据源分组删除",
+      "admin_only": false
+    },
+    {
+      "name": "prom_instant_query",
+      "handler": "PromInstantQuery",
+      "method": "POST",
+      "path": "/prometheus/query",
+      "permission": "datasource:list",
+      "title": "指标查询创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "prom_range_query",
+      "handler": "PromRangeQuery",
+      "method": "POST",
+      "path": "/prometheus/query_range",
+      "permission": "datasource:list",
+      "title": "指标查询创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "prom_metadata",
+      "handler": "PromMetadata",
+      "method": "GET",
+      "path": "/prometheus/metadata",
+      "permission": "datasource:list",
+      "title": "指标查询查询",
+      "admin_only": false
+    },
+    {
+      "name": "prom_datasources",
+      "handler": "PromDatasources",
+      "method": "GET",
+      "path": "/prometheus/datasources",
+      "permission": "datasource:list",
+      "title": "指标查询查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_prom_query_history",
+      "handler": "ListPromQueryHistory",
+      "method": "GET",
+      "path": "/prometheus/query-history",
+      "permission": "datasource:list",
+      "title": "指标查询查询",
+      "admin_only": false
+    },
+    {
+      "name": "clear_prom_query_history",
+      "handler": "ClearPromQueryHistory",
+      "method": "DELETE",
+      "path": "/prometheus/query-history",
+      "permission": "datasource:edit",
+      "title": "指标查询删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_tunnels",
+      "handler": "ListTunnels",
+      "method": "GET",
+      "path": "/tunnels",
+      "permission": "datasource:list",
+      "title": "连接隧道查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_tunnel",
+      "handler": "CreateTunnel",
+      "method": "POST",
+      "path": "/tunnels",
+      "permission": "datasource:create",
+      "title": "连接隧道创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_tunnel",
+      "handler": "UpdateTunnel",
+      "method": "PUT",
+      "path": "/tunnels/:id",
+      "permission": "datasource:edit",
+      "title": "连接隧道修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_tunnel",
+      "handler": "DeleteTunnel",
+      "method": "DELETE",
+      "path": "/tunnels/:id",
+      "permission": "datasource:delete",
+      "title": "连接隧道删除",
+      "admin_only": false
+    },
+    {
+      "name": "test_tunnel_connection",
+      "handler": "TestTunnelConnection",
+      "method": "POST",
+      "path": "/tunnels/:id/test",
+      "permission": "datasource:edit",
+      "title": "连接隧道创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "get_dashboard_overview",
+      "handler": "GetDashboardOverview",
+      "method": "GET",
+      "path": "/dashboard/overview",
+      "permission": "dashboard:list",
+      "title": "仪表盘概览查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_dashboard_cards",
+      "handler": "ListDashboardCards",
+      "method": "GET",
+      "path": "/dashboard-cards",
+      "permission": "dashboard:list",
+      "title": "仪表盘卡片查询",
+      "admin_only": false
+    },
+    {
+      "name": "reorder_dashboard_cards",
+      "handler": "ReorderDashboardCards",
+      "method": "PUT",
+      "path": "/dashboard-cards/order",
+      "permission": "dashboard:edit",
+      "title": "仪表盘卡片修改",
+      "admin_only": false
+    },
+    {
+      "name": "list_dashboards",
+      "handler": "ListDashboards",
+      "method": "GET",
+      "path": "/dashboards",
+      "permission": "dashboard:list",
+      "title": "仪表盘查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_dashboard",
+      "handler": "CreateDashboard",
+      "method": "POST",
+      "path": "/dashboards",
+      "permission": "dashboard:create",
+      "title": "仪表盘创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_dashboard",
+      "handler": "UpdateDashboard",
+      "method": "PUT",
+      "path": "/dashboards/:id",
+      "permission": "dashboard:edit",
+      "title": "仪表盘修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_dashboard",
+      "handler": "DeleteDashboard",
+      "method": "DELETE",
+      "path": "/dashboards/:id",
+      "permission": "dashboard:delete",
+      "title": "仪表盘删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_sls_dashboard_projects",
+      "handler": "ListSLSDashboardProjects",
+      "method": "GET",
+      "path": "/sls-dashboards/projects",
+      "permission": "dashboard:list",
+      "title": "SLS仪表盘查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_sls_dashboard_project",
+      "handler": "CreateSLSDashboardProject",
+      "method": "POST",
+      "path": "/sls-dashboards/projects",
+      "permission": "dashboard:create",
+      "title": "SLS仪表盘创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "reorder_sls_dashboard_projects",
+      "handler": "ReorderSLSDashboardProjects",
+      "method": "PUT",
+      "path": "/sls-dashboards/projects/order",
+      "permission": "dashboard:edit",
+      "title": "SLS仪表盘修改",
+      "admin_only": false
+    },
+    {
+      "name": "update_sls_dashboard_project",
+      "handler": "UpdateSLSDashboardProject",
+      "method": "PUT",
+      "path": "/sls-dashboards/projects/:id",
+      "permission": "dashboard:edit",
+      "title": "SLS仪表盘修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_sls_dashboard_project",
+      "handler": "DeleteSLSDashboardProject",
+      "method": "DELETE",
+      "path": "/sls-dashboards/projects/:id",
+      "permission": "dashboard:delete",
+      "title": "SLS仪表盘删除",
+      "admin_only": false
+    },
+    {
+      "name": "test_sls_dashboard_project",
+      "handler": "TestSLSDashboardProject",
+      "method": "POST",
+      "path": "/sls-dashboards/projects/test",
+      "permission": "dashboard:edit",
+      "title": "SLS仪表盘创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_sls_dashboard_logstores",
+      "handler": "ListSLSDashboardLogstores",
+      "method": "GET",
+      "path": "/sls-dashboards/:projectId/logstores",
+      "permission": "dashboard:list",
+      "title": "SLS仪表盘查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_cloud_monitor_workspaces",
+      "handler": "ListCloudMonitorWorkspaces",
+      "method": "GET",
+      "path": "/cloud-monitor-workspaces",
+      "permission": "dashboard:list",
+      "title": "云监控工作空间查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_cloud_monitor_workspace",
+      "handler": "CreateCloudMonitorWorkspace",
+      "method": "POST",
+      "path": "/cloud-monitor-workspaces",
+      "permission": "dashboard:create",
+      "title": "云监控工作空间创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_cloud_monitor_workspace",
+      "handler": "UpdateCloudMonitorWorkspace",
+      "method": "PUT",
+      "path": "/cloud-monitor-workspaces/:id",
+      "permission": "dashboard:edit",
+      "title": "云监控工作空间修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_cloud_monitor_workspace",
+      "handler": "DeleteCloudMonitorWorkspace",
+      "method": "DELETE",
+      "path": "/cloud-monitor-workspaces/:id",
+      "permission": "dashboard:delete",
+      "title": "云监控工作空间删除",
+      "admin_only": false
+    },
+    {
+      "name": "test_cloud_monitor_workspace",
+      "handler": "TestCloudMonitorWorkspace",
+      "method": "POST",
+      "path": "/cloud-monitor-workspaces/test",
+      "permission": "dashboard:edit",
+      "title": "云监控工作空间创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_inspection_rule_groups",
+      "handler": "ListInspectionRuleGroups",
+      "method": "GET",
+      "path": "/inspection-rule-groups",
+      "permission": "inspection:list",
+      "title": "拨测规则组查询",
+      "admin_only": false
+    },
+    {
+      "name": "get_inspection_rule_group",
+      "handler": "GetInspectionRuleGroup",
+      "method": "GET",
+      "path": "/inspection-rule-groups/:id",
+      "permission": "inspection:list",
+      "title": "拨测规则组查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_inspection_rule_group",
+      "handler": "CreateInspectionRuleGroup",
+      "method": "POST",
+      "path": "/inspection-rule-groups",
+      "permission": "inspection:create",
+      "title": "拨测规则组创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_inspection_rule_group",
+      "handler": "UpdateInspectionRuleGroup",
+      "method": "PUT",
+      "path": "/inspection-rule-groups/:id",
+      "permission": "inspection:edit",
+      "title": "拨测规则组修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_inspection_rule_group",
+      "handler": "DeleteInspectionRuleGroup",
+      "method": "DELETE",
+      "path": "/inspection-rule-groups/:id",
+      "permission": "inspection:delete",
+      "title": "拨测规则组删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_inspection_items",
+      "handler": "ListInspectionItems",
+      "method": "GET",
+      "path": "/inspection-items",
+      "permission": "inspection:list",
+      "title": "拨测任务查询",
+      "admin_only": false
+    },
+    {
+      "name": "export_inspection_items",
+      "handler": "ExportInspectionItems",
+      "method": "GET",
+      "path": "/inspection-items/export",
+      "permission": "inspection:list",
+      "title": "拨测任务查询",
+      "admin_only": false
+    },
+    {
+      "name": "import_inspection_items",
+      "handler": "ImportInspectionItems",
+      "method": "POST",
+      "path": "/inspection-items/import",
+      "permission": "inspection:edit",
+      "title": "拨测任务创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "get_inspection_item_overview",
+      "handler": "GetInspectionItemOverview",
+      "method": "GET",
+      "path": "/inspection-items/:id/overview",
+      "permission": "inspection:list",
+      "title": "拨测任务查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_inspection_item",
+      "handler": "CreateInspectionItem",
+      "method": "POST",
+      "path": "/inspection-items",
+      "permission": "inspection:create",
+      "title": "拨测任务创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "batch_update_inspection_item_status",
+      "handler": "BatchUpdateInspectionItemStatus",
+      "method": "PUT",
+      "path": "/inspection-items/batch/status",
+      "permission": "inspection:edit",
+      "title": "拨测任务修改",
+      "admin_only": false
+    },
+    {
+      "name": "batch_delete_inspection_items",
+      "handler": "BatchDeleteInspectionItems",
+      "method": "DELETE",
+      "path": "/inspection-items/batch",
+      "permission": "inspection:delete",
+      "title": "拨测任务删除",
+      "admin_only": false
+    },
+    {
+      "name": "update_inspection_item",
+      "handler": "UpdateInspectionItem",
+      "method": "PUT",
+      "path": "/inspection-items/:id",
+      "permission": "inspection:edit",
+      "title": "拨测任务修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_inspection_item",
+      "handler": "DeleteInspectionItem",
+      "method": "DELETE",
+      "path": "/inspection-items/:id",
+      "permission": "inspection:delete",
+      "title": "拨测任务删除",
+      "admin_only": false
+    },
+    {
+      "name": "run_inspection_item",
+      "handler": "RunInspectionItem",
+      "method": "POST",
+      "path": "/inspection-items/:id/run",
+      "permission": "inspection:run",
+      "title": "拨测任务创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "run_all_inspections",
+      "handler": "RunAllInspections",
+      "method": "POST",
+      "path": "/inspection-items/run-all",
+      "permission": "inspection:run",
+      "title": "拨测任务创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_inspection_records",
+      "handler": "ListInspectionRecords",
+      "method": "GET",
+      "path": "/inspection-records",
+      "permission": "inspection:list",
+      "title": "拨测记录查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_scripts",
+      "handler": "ListScripts",
+      "method": "GET",
+      "path": "/scripts",
+      "permission": "script:list",
+      "title": "脚本查询",
+      "admin_only": false
+    },
+    {
+      "name": "get_script",
+      "handler": "GetScript",
+      "method": "GET",
+      "path": "/scripts/:id",
+      "permission": "script:list",
+      "title": "脚本查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_script",
+      "handler": "CreateScript",
+      "method": "POST",
+      "path": "/scripts",
+      "permission": "script:create",
+      "title": "脚本创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_script",
+      "handler": "UpdateScript",
+      "method": "PUT",
+      "path": "/scripts/:id",
+      "permission": "script:edit",
+      "title": "脚本修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_script",
+      "handler": "DeleteScript",
+      "method": "DELETE",
+      "path": "/scripts/:id",
+      "permission": "script:delete",
+      "title": "脚本删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_script_executions",
+      "handler": "ListScriptExecutions",
+      "method": "GET",
+      "path": "/script-executions",
+      "permission": "script:list",
+      "title": "脚本执行记录查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_automation_tasks",
+      "handler": "ListAutomationTasks",
+      "method": "GET",
+      "path": "/automation-tasks",
+      "permission": "automation-task:list",
+      "title": "自动化任务查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_automation_task",
+      "handler": "CreateAutomationTask",
+      "method": "POST",
+      "path": "/automation-tasks",
+      "permission": "automation-task:create",
+      "title": "自动化任务创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_automation_task",
+      "handler": "UpdateAutomationTask",
+      "method": "PUT",
+      "path": "/automation-tasks/:id",
+      "permission": "automation-task:edit",
+      "title": "自动化任务修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_automation_task",
+      "handler": "DeleteAutomationTask",
+      "method": "DELETE",
+      "path": "/automation-tasks/:id",
+      "permission": "automation-task:delete",
+      "title": "自动化任务删除",
+      "admin_only": false
+    },
+    {
+      "name": "run_automation_task",
+      "handler": "RunAutomationTask",
+      "method": "POST",
+      "path": "/automation-tasks/:id/run",
+      "permission": "automation-task:run",
+      "title": "自动化任务创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_automation_executions",
+      "handler": "ListAutomationExecutions",
+      "method": "GET",
+      "path": "/automation-executions",
+      "permission": "automation-task:list",
+      "title": "自动化执行记录查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_git_repositories",
+      "handler": "ListGitRepositories",
+      "method": "GET",
+      "path": "/git-repositories",
+      "permission": "automation-task:list",
+      "title": "Git仓库查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_git_repository",
+      "handler": "CreateGitRepository",
+      "method": "POST",
+      "path": "/git-repositories",
+      "permission": "automation-task:create",
+      "title": "Git仓库创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_git_repository",
+      "handler": "UpdateGitRepository",
+      "method": "PUT",
+      "path": "/git-repositories/:id",
+      "permission": "automation-task:edit",
+      "title": "Git仓库修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_git_repository",
+      "handler": "DeleteGitRepository",
+      "method": "DELETE",
+      "path": "/git-repositories/:id",
+      "permission": "automation-task:delete",
+      "title": "Git仓库删除",
+      "admin_only": false
+    },
+    {
+      "name": "sync_git_repository",
+      "handler": "SyncGitRepository",
+      "method": "POST",
+      "path": "/git-repositories/:id/sync",
+      "permission": "automation-task:edit",
+      "title": "Git仓库创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_git_credentials",
+      "handler": "ListGitCredentials",
+      "method": "GET",
+      "path": "/git-credentials",
+      "permission": "git-credential:list",
+      "title": "Git认证查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_git_credential",
+      "handler": "CreateGitCredential",
+      "method": "POST",
+      "path": "/git-credentials",
+      "permission": "git-credential:edit",
+      "title": "Git认证创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_git_credential",
+      "handler": "UpdateGitCredential",
+      "method": "PUT",
+      "path": "/git-credentials/:id",
+      "permission": "git-credential:edit",
+      "title": "Git认证修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_git_credential",
+      "handler": "DeleteGitCredential",
+      "method": "DELETE",
+      "path": "/git-credentials/:id",
+      "permission": "git-credential:edit",
+      "title": "Git认证删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_workflows",
+      "handler": "ListWorkflows",
+      "method": "GET",
+      "path": "/workflows",
+      "permission": "workflow:list",
+      "title": "工作流查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_workflow",
+      "handler": "CreateWorkflow",
+      "method": "POST",
+      "path": "/workflows",
+      "permission": "workflow:create",
+      "title": "工作流创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_workflow",
+      "handler": "UpdateWorkflow",
+      "method": "PUT",
+      "path": "/workflows/:id",
+      "permission": "workflow:edit",
+      "title": "工作流修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_workflow",
+      "handler": "DeleteWorkflow",
+      "method": "DELETE",
+      "path": "/workflows/:id",
+      "permission": "workflow:delete",
+      "title": "工作流删除",
+      "admin_only": false
+    },
+    {
+      "name": "execute_workflow",
+      "handler": "ExecuteWorkflow",
+      "method": "POST",
+      "path": "/workflows/:id/run",
+      "permission": "workflow:run",
+      "title": "工作流创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_ai_models",
+      "handler": "ListAIModels",
+      "method": "GET",
+      "path": "/ai-models",
+      "permission": "system-setting:list",
+      "title": "AI模型查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_ai_model",
+      "handler": "SaveAIModel",
+      "method": "POST",
+      "path": "/ai-models",
+      "permission": "system-setting:edit",
+      "title": "AI模型创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_ai_model",
+      "handler": "SaveAIModel",
+      "method": "PUT",
+      "path": "/ai-models/:id",
+      "permission": "system-setting:edit",
+      "title": "AI模型修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_ai_model",
+      "handler": "DeleteAIModel",
+      "method": "DELETE",
+      "path": "/ai-models/:id",
+      "permission": "system-setting:edit",
+      "title": "AI模型删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_notification_channels",
+      "handler": "ListNotificationChannels",
+      "method": "GET",
+      "path": "/notification-channels",
+      "permission": "notification:channel:list",
+      "title": "通知对象查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_notification_channel",
+      "handler": "CreateNotificationChannel",
+      "method": "POST",
+      "path": "/notification-channels",
+      "permission": "notification:channel:edit",
+      "title": "通知对象创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_notification_channel",
+      "handler": "UpdateNotificationChannel",
+      "method": "PUT",
+      "path": "/notification-channels/:id",
+      "permission": "notification:channel:edit",
+      "title": "通知对象修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_notification_channel",
+      "handler": "DeleteNotificationChannel",
+      "method": "DELETE",
+      "path": "/notification-channels/:id",
+      "permission": "notification:channel:edit",
+      "title": "通知对象删除",
+      "admin_only": false
+    },
+    {
+      "name": "test_notification_channel",
+      "handler": "TestNotificationChannel",
+      "method": "POST",
+      "path": "/notification-channels/:id/test",
+      "permission": "notification:channel:edit",
+      "title": "通知对象创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_notification_records",
+      "handler": "ListNotificationRecords",
+      "method": "GET",
+      "path": "/notification-records",
+      "permission": "notification:record:list",
+      "title": "通知记录查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_notification_templates",
+      "handler": "ListNotificationTemplates",
+      "method": "GET",
+      "path": "/notification-templates",
+      "permission": "notification:template:list",
+      "title": "通知模板查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_notification_template",
+      "handler": "CreateNotificationTemplate",
+      "method": "POST",
+      "path": "/notification-templates",
+      "permission": "notification:template:edit",
+      "title": "通知模板创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_notification_template",
+      "handler": "UpdateNotificationTemplate",
+      "method": "PUT",
+      "path": "/notification-templates/:id",
+      "permission": "notification:template:edit",
+      "title": "通知模板修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_notification_template",
+      "handler": "DeleteNotificationTemplate",
+      "method": "DELETE",
+      "path": "/notification-templates/:id",
+      "permission": "notification:template:edit",
+      "title": "通知模板删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_alerts",
+      "handler": "ListAlerts",
+      "method": "GET",
+      "path": "/alerts",
+      "permission": "alert:event:list",
+      "title": "故障告警查询",
+      "admin_only": false
+    },
+    {
+      "name": "silence_alert",
+      "handler": "SilenceAlert",
+      "method": "PUT",
+      "path": "/alerts/:id/silence",
+      "permission": "alert:rule:edit",
+      "title": "故障告警修改",
+      "admin_only": false
+    },
+    {
+      "name": "unsilence_alert",
+      "handler": "UnsilenceAlert",
+      "method": "DELETE",
+      "path": "/alerts/:id/silence",
+      "permission": "alert:rule:edit",
+      "title": "故障告警删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_events",
+      "handler": "ListAlertEvents",
+      "method": "GET",
+      "path": "/alerts/:id/events",
+      "permission": "alert:event:list",
+      "title": "故障告警查询",
+      "admin_only": false
+    },
+    {
+      "name": "list_fault_centers",
+      "handler": "ListFaultCenters",
+      "method": "GET",
+      "path": "/fault-centers",
+      "permission": "alert:event:list",
+      "title": "故障中心查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_fault_center",
+      "handler": "CreateFaultCenter",
+      "method": "POST",
+      "path": "/fault-centers",
+      "permission": "alert:rule:create",
+      "title": "故障中心创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_fault_center",
+      "handler": "UpdateFaultCenter",
+      "method": "PUT",
+      "path": "/fault-centers/:id",
+      "permission": "alert:rule:edit",
+      "title": "故障中心修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_fault_center",
+      "handler": "DeleteFaultCenter",
+      "method": "DELETE",
+      "path": "/fault-centers/:id",
+      "permission": "alert:rule:delete",
+      "title": "故障中心删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_grouping_rules",
+      "handler": "ListAlertGroupingRules",
+      "method": "GET",
+      "path": "/fault-centers/:id/grouping-rules",
+      "permission": "alert:event:list",
+      "title": "故障中心查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_alert_grouping_rule",
+      "handler": "CreateAlertGroupingRule",
+      "method": "POST",
+      "path": "/fault-centers/:id/grouping-rules",
+      "permission": "alert:rule:create",
+      "title": "故障中心创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_grouping_rule",
+      "handler": "UpdateAlertGroupingRule",
+      "method": "PUT",
+      "path": "/fault-centers/:id/grouping-rules/:ruleId",
+      "permission": "alert:rule:edit",
+      "title": "故障中心修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_alert_grouping_rule",
+      "handler": "DeleteAlertGroupingRule",
+      "method": "DELETE",
+      "path": "/fault-centers/:id/grouping-rules/:ruleId",
+      "permission": "alert:rule:delete",
+      "title": "故障中心删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_inhibition_rules",
+      "handler": "ListAlertInhibitionRules",
+      "method": "GET",
+      "path": "/fault-centers/:id/inhibition-rules",
+      "permission": "alert:event:list",
+      "title": "故障中心查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_alert_inhibition_rule",
+      "handler": "CreateAlertInhibitionRule",
+      "method": "POST",
+      "path": "/fault-centers/:id/inhibition-rules",
+      "permission": "alert:rule:create",
+      "title": "故障中心创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_inhibition_rule",
+      "handler": "UpdateAlertInhibitionRule",
+      "method": "PUT",
+      "path": "/fault-centers/:id/inhibition-rules/:ruleId",
+      "permission": "alert:rule:edit",
+      "title": "故障中心修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_alert_inhibition_rule",
+      "handler": "DeleteAlertInhibitionRule",
+      "method": "DELETE",
+      "path": "/fault-centers/:id/inhibition-rules/:ruleId",
+      "permission": "alert:rule:delete",
+      "title": "故障中心删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_silence_rules",
+      "handler": "ListAlertSilenceRules",
+      "method": "GET",
+      "path": "/fault-centers/:id/silence-rules",
+      "permission": "alert:event:list",
+      "title": "故障中心查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_alert_silence_rule",
+      "handler": "CreateAlertSilenceRule",
+      "method": "POST",
+      "path": "/fault-centers/:id/silence-rules",
+      "permission": "alert:rule:create",
+      "title": "故障中心创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_silence_rule",
+      "handler": "UpdateAlertSilenceRule",
+      "method": "PUT",
+      "path": "/fault-centers/:id/silence-rules/:ruleId",
+      "permission": "alert:rule:edit",
+      "title": "故障中心修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_alert_silence_rule",
+      "handler": "DeleteAlertSilenceRule",
+      "method": "DELETE",
+      "path": "/fault-centers/:id/silence-rules/:ruleId",
+      "permission": "alert:rule:delete",
+      "title": "故障中心删除",
+      "admin_only": false
+    },
+    {
+      "name": "get_alert_notification_config",
+      "handler": "GetAlertNotificationConfig",
+      "method": "GET",
+      "path": "/fault-centers/:id/notification-config",
+      "permission": "alert:event:list",
+      "title": "故障中心查询",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_notification_config",
+      "handler": "UpdateAlertNotificationConfig",
+      "method": "PUT",
+      "path": "/fault-centers/:id/notification-config",
+      "permission": "alert:rule:edit",
+      "title": "故障中心修改",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_action_rules",
+      "handler": "ListAlertActionRules",
+      "method": "GET",
+      "path": "/fault-centers/:id/action-rules",
+      "permission": "alert:event:list",
+      "title": "故障中心查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_alert_action_rule",
+      "handler": "CreateAlertActionRule",
+      "method": "POST",
+      "path": "/fault-centers/:id/action-rules",
+      "permission": "alert:rule:create",
+      "title": "故障中心创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_action_rule",
+      "handler": "UpdateAlertActionRule",
+      "method": "PUT",
+      "path": "/fault-centers/:id/action-rules/:ruleId",
+      "permission": "alert:rule:edit",
+      "title": "故障中心修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_alert_action_rule",
+      "handler": "DeleteAlertActionRule",
+      "method": "DELETE",
+      "path": "/fault-centers/:id/action-rules/:ruleId",
+      "permission": "alert:rule:delete",
+      "title": "故障中心删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_rule_groups",
+      "handler": "ListAlertRuleGroups",
+      "method": "GET",
+      "path": "/alert-rule-groups",
+      "permission": "alert:rule:list",
+      "title": "告警规则组查询",
+      "admin_only": false
+    },
+    {
+      "name": "get_alert_rule_group",
+      "handler": "GetAlertRuleGroup",
+      "method": "GET",
+      "path": "/alert-rule-groups/:id",
+      "permission": "alert:rule:list",
+      "title": "告警规则组查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_alert_rule_group",
+      "handler": "CreateAlertRuleGroup",
+      "method": "POST",
+      "path": "/alert-rule-groups",
+      "permission": "alert:rule:create",
+      "title": "告警规则组创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_rule_group",
+      "handler": "UpdateAlertRuleGroup",
+      "method": "PUT",
+      "path": "/alert-rule-groups/:id",
+      "permission": "alert:rule:edit",
+      "title": "告警规则组修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_alert_rule_group",
+      "handler": "DeleteAlertRuleGroup",
+      "method": "DELETE",
+      "path": "/alert-rule-groups/:id",
+      "permission": "alert:rule:delete",
+      "title": "告警规则组删除",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_rules",
+      "handler": "ListAlertRules",
+      "method": "GET",
+      "path": "/alert-rules",
+      "permission": "alert:rule:list",
+      "title": "告警规则查询",
+      "admin_only": false
+    },
+    {
+      "name": "export_alert_rules",
+      "handler": "ExportAlertRules",
+      "method": "GET",
+      "path": "/alert-rules/export",
+      "permission": "alert:rule:list",
+      "title": "告警规则查询",
+      "admin_only": false
+    },
+    {
+      "name": "import_alert_rules",
+      "handler": "ImportAlertRules",
+      "method": "POST",
+      "path": "/alert-rules/import",
+      "permission": "alert:rule:edit",
+      "title": "告警规则创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "get_alert_rule",
+      "handler": "GetAlertRule",
+      "method": "GET",
+      "path": "/alert-rules/:id",
+      "permission": "alert:rule:list",
+      "title": "告警规则查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_alert_rule",
+      "handler": "CreateAlertRule",
+      "method": "POST",
+      "path": "/alert-rules",
+      "permission": "alert:rule:create",
+      "title": "告警规则创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "batch_update_alert_rule_status",
+      "handler": "BatchUpdateAlertRuleStatus",
+      "method": "PUT",
+      "path": "/alert-rules/batch/status",
+      "permission": "alert:rule:edit",
+      "title": "告警规则修改",
+      "admin_only": false
+    },
+    {
+      "name": "batch_delete_alert_rules",
+      "handler": "BatchDeleteAlertRules",
+      "method": "DELETE",
+      "path": "/alert-rules/batch",
+      "permission": "alert:rule:delete",
+      "title": "告警规则删除",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_rule",
+      "handler": "UpdateAlertRule",
+      "method": "PUT",
+      "path": "/alert-rules/:id",
+      "permission": "alert:rule:edit",
+      "title": "告警规则修改",
+      "admin_only": false
+    },
+    {
+      "name": "update_alert_rule_status",
+      "handler": "UpdateAlertRuleStatus",
+      "method": "PUT",
+      "path": "/alert-rules/:id/status",
+      "permission": "alert:rule:edit",
+      "title": "告警规则修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_alert_rule",
+      "handler": "DeleteAlertRule",
+      "method": "DELETE",
+      "path": "/alert-rules/:id",
+      "permission": "alert:rule:delete",
+      "title": "告警规则删除",
+      "admin_only": false
+    },
+    {
+      "name": "run_alert_rule",
+      "handler": "RunAlertRule",
+      "method": "POST",
+      "path": "/alert-rules/:id/run",
+      "permission": "alert:rule:run",
+      "title": "告警规则创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_alert_evaluation_records",
+      "handler": "ListAlertEvaluationRecords",
+      "method": "GET",
+      "path": "/alert-evaluations",
+      "permission": "alert:rule:list",
+      "title": "告警评估记录查询",
+      "admin_only": false
+    },
+    {
+      "name": "instant_probe",
+      "handler": "InstantProbe",
+      "method": "POST",
+      "path": "/instant-probe",
+      "permission": "inspection:run",
+      "title": "即时拨测创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_certificate_executors",
+      "handler": "ListCertificateExecutors",
+      "method": "GET",
+      "path": "/certificate-executors",
+      "permission": "certificate:executor:list",
+      "title": "执行节点查询",
+      "admin_only": false
+    },
+    {
+      "name": "create_certificate_executor",
+      "handler": "CreateCertificateExecutor",
+      "method": "POST",
+      "path": "/certificate-executors",
+      "permission": "certificate:executor:edit",
+      "title": "执行节点创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "update_certificate_executor",
+      "handler": "UpdateCertificateExecutor",
+      "method": "PUT",
+      "path": "/certificate-executors/:id",
+      "permission": "certificate:executor:edit",
+      "title": "执行节点修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_certificate_executor",
+      "handler": "DeleteCertificateExecutor",
+      "method": "DELETE",
+      "path": "/certificate-executors/:id",
+      "permission": "certificate:executor:edit",
+      "title": "执行节点删除",
+      "admin_only": false
+    },
+    {
+      "name": "test_certificate_executor",
+      "handler": "TestCertificateExecutor",
+      "method": "POST",
+      "path": "/certificate-executors/:id/test",
+      "permission": "certificate:executor:edit",
+      "title": "执行节点创建/执行",
+      "admin_only": false
+    },
+    {
+      "name": "list_agents",
+      "handler": "ListAgents",
+      "method": "GET",
+      "path": "/agents",
+      "permission": "certificate:executor:list",
+      "title": "Agent节点查询",
+      "admin_only": false
+    },
+    {
+      "name": "update_agent",
+      "handler": "UpdateAgent",
+      "method": "PUT",
+      "path": "/agents/:id",
+      "permission": "certificate:executor:edit",
+      "title": "Agent节点修改",
+      "admin_only": false
+    },
+    {
+      "name": "delete_agent",
+      "handler": "DeleteAgent",
+      "method": "DELETE",
+      "path": "/agents/:id",
+      "permission": "certificate:executor:edit",
+      "title": "Agent节点删除",
+      "admin_only": false
+    },
+    {
+      "name": "run_agent_command",
+      "handler": "RunAgentCommand",
+      "method": "POST",
+      "path": "/agents/:id/run",
+      "permission": "certificate:executor:edit",
+      "title": "Agent节点创建/执行",
+      "admin_only": false
+    }
+  ],
+  "excluded": [
+    {
+      "method": "GET",
+      "path": "/user/info",
+      "reason": "当前身份由认证上下文提供"
+    },
+    {
+      "method": "PUT",
+      "path": "/user/password",
+      "reason": "个人密码由账户界面管理"
+    },
+    {
+      "method": "GET",
+      "path": "/mcp",
+      "reason": "MCP协议入口，不递归调用"
+    },
+    {
+      "method": "POST",
+      "path": "/mcp",
+      "reason": "MCP协议入口，不递归调用"
+    },
+    {
+      "method": "DELETE",
+      "path": "/mcp",
+      "reason": "MCP协议入口，不递归调用"
+    },
+    {
+      "method": "POST",
+      "path": "/sls-dashboards/:projectId/logstores/:logstore/session",
+      "reason": "浏览器交互会话，不将登录凭证返回模型"
+    },
+    {
+      "method": "POST",
+      "path": "/cloud-monitor-workspaces/:id/session",
+      "reason": "浏览器交互会话，不将登录凭证返回模型"
+    },
+    {
+      "method": "GET",
+      "path": "/conversations",
+      "reason": "助手会话由聊天界面管理"
+    },
+    {
+      "method": "POST",
+      "path": "/conversations",
+      "reason": "助手会话由聊天界面管理"
+    },
+    {
+      "method": "DELETE",
+      "path": "/conversations/:id",
+      "reason": "助手会话由聊天界面管理"
+    },
+    {
+      "method": "GET",
+      "path": "/conversations/:id/messages",
+      "reason": "助手会话由聊天界面管理"
+    },
+    {
+      "method": "GET",
+      "path": "/chat/models",
+      "reason": "聊天模型选择由会话界面管理"
+    },
+    {
+      "method": "POST",
+      "path": "/chat",
+      "reason": "聊天流式入口，不递归调用"
+    },
+    {
+      "method": "PUT",
+      "path": "/users/:id/reset-password",
+      "reason": "密码或一次性令牌需要安全交付，不能经模型上下文回传；保留账户/凭据页面操作"
+    },
+    {
+      "method": "POST",
+      "path": "/api-tokens",
+      "reason": "密码或一次性令牌需要安全交付，不能经模型上下文回传；保留账户/凭据页面操作"
+    },
+    {
+      "method": "POST",
+      "path": "/api-tokens/:id/regenerate",
+      "reason": "密码或一次性令牌需要安全交付，不能经模型上下文回传；保留账户/凭据页面操作"
+    },
+    {
+      "method": "POST",
+      "path": "/agents",
+      "reason": "密码或一次性令牌需要安全交付，不能经模型上下文回传；保留账户/凭据页面操作"
+    },
+    {
+      "method": "POST",
+      "path": "/agents/:id/rotate-token",
+      "reason": "密码或一次性令牌需要安全交付，不能经模型上下文回传；保留账户/凭据页面操作"
+    },
+    {
+      "method": "GET",
+      "path": "/query/logs/datasources",
+      "reason": "日志查询首期仅开放交互页面，AI 日志工具待单独设计结果裁剪与查询上下文。"
+    },
+    {
+      "method": "POST",
+      "path": "/query/logs",
+      "reason": "原始日志可能包含大量业务数据，AI 日志工具待单独设计结果裁剪与查询上下文。"
+    },
+    {
+      "method": "GET",
+      "path": "/query/datasources",
+      "reason": "统一查询工作台交互接口，AI 工具输出结构与结果裁剪另行设计。"
+    },
+    {
+      "method": "POST",
+      "path": "/query/sql",
+      "reason": "统一查询工作台交互接口，AI 工具输出结构与结果裁剪另行设计。"
+    },
+    {
+      "method": "POST",
+      "path": "/query/traces",
+      "reason": "统一查询工作台交互接口，AI 工具输出结构与结果裁剪另行设计。"
+    }
+  ]
+}

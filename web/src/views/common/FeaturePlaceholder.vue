@@ -157,15 +157,15 @@ const feature = computed(() => features[route.path] || fallback)
 <style scoped>
 .page-container { display: flex; flex-direction: column; gap: 12px; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.page-title { font-size: 18px; font-weight: 700; color: #303133; }
-.page-subtitle { margin: 8px 0 0; max-width: 760px; color: #606266; line-height: 1.6; }
+.page-title { font-size: 18px; font-weight: 700; color: var(--ops-text); }
+.page-subtitle { margin: 8px 0 0; max-width: 760px; color: var(--ops-muted); line-height: 1.6; }
 .overview-band {
-  background: #fff;
-  border: 1px solid #e4e7ed;
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
   border-radius: 8px;
   padding: 16px;
 }
-.section-title { font-size: 14px; font-weight: 700; color: #303133; margin-bottom: 12px; }
+.section-title { font-size: 14px; font-weight: 700; color: var(--ops-text); margin-bottom: 12px; }
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -178,9 +178,9 @@ const feature = computed(() => features[route.path] || fallback)
   min-height: 38px;
   padding: 8px 10px;
   background: #f7f9fc;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--ops-border-soft);
   border-radius: 6px;
-  color: #303133;
+  color: var(--ops-text);
   font-size: 13px;
 }
 .feature-item .el-icon { color: #67c23a; }

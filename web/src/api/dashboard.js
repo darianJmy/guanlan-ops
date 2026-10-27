@@ -78,3 +78,11 @@ export function createCloudMonitorSession(id) {
 export function getDashboardOverview(range = 'today') {
   return request({ url: '/dashboard/overview', method: 'get', params: { range } })
 }
+
+export function getDashboardCards() {
+  return request({ url: '/dashboard-cards', method: 'get' })
+}
+
+export function reorderDashboardCards(items) {
+  return request({ url: '/dashboard-cards/order', method: 'put', data: { items } })
+}

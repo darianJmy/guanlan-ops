@@ -117,7 +117,7 @@
         <el-form-item v-if="form.type === 'email'" label="收件人邮箱" prop="email_recipients">
           <el-select v-model="form.email_recipients" multiple filterable allow-create default-first-option :reserve-keyword="false" placeholder="输入邮箱后按回车，可添加多个" />
         </el-form-item>
-        <el-form-item prop="template_id">
+        <el-form-item v-if="!['webhook', 'customhook'].includes(form.type)" prop="template_id">
           <template #label>
             <span class="form-label">
               通知模板
@@ -159,6 +159,7 @@ import feishuIcon from '../../assets/feishu.svg'
 import emailIcon from '../../assets/email.svg'
 import dingdingIcon from '../../assets/dingding.svg'
 import qywechatIcon from '../../assets/qywechat.svg'
+import webhookIcon from '../../assets/customhook.svg'
 import {
   createNotificationChannel,
   deleteNotificationChannel,
@@ -213,6 +214,13 @@ const notificationTypes = [
     label: '邮件',
     icon: emailIcon,
 
+  },
+  {
+    value: 'webhook',
+    label: '自定义 Webhook',
+    icon: webhookIcon,
+    webhookPlaceholder: 'https://example.com/webhook',
+    webhookHint: '向此地址发送 JSON POST 请求，直接发送结构化事件数据，不使用通知模板；HTTP 2xx 表示发送成功',
   },
 ]
 
@@ -276,7 +284,7 @@ const rules = {
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
   webhook_url: [{ required: true, validator: validateWebhook, trigger: 'blur' }],
   sign_secret: [{ validator: validateSignSecret, trigger: 'blur' }],
-  template_id: [{ required: true, message: '请选择通知模板', trigger: 'change' }],
+  template_id: [{ validator: (_rule, value, done) => ['webhook', 'customhook'].includes(form.type) || value ? done() : done(new Error('请选择通知模板')), trigger: 'change' }],
 }
 
 onMounted(() => {
@@ -344,7 +352,7 @@ async function save() {
     const payload = {
       name: form.name,
       type: form.type,
-      template_id: form.template_id,
+      template_id: ['webhook', 'customhook'].includes(form.type) ? 0 : form.template_id,
       webhook_url: form.type === 'email' ? '' : normalizedWebhookURL(),
       sign_secret: ['feishu', 'dingding'].includes(form.type) ? normalizedSignSecret() : '',
       email_recipients: form.type === 'email' ? form.email_recipients : undefined,
@@ -422,7 +430,7 @@ function formatTime(value) {
 </script>
 
 <style scoped>
-.task-page { --border: #e1e8f1; display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.task-page { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 260px 120px 100px auto; gap: 8px; }
 .filter-bar > * { min-width: 0; width: 100%; }
@@ -510,7 +518,7 @@ function formatTime(value) {
 }
 
 :deep(.channel-drawer .el-drawer__body) {
-  background: #fff;
+  background: var(--ops-surface);
   padding: 18px 20px;
 }
 
@@ -531,11 +539,11 @@ function formatTime(value) {
   height: 32px;
   padding: 0 8px;
   font-size: 14px;
-  color: #3b6ea8;
+  color: var(--ops-primary);
 }
 
 .drawer-title {
-  color: #303133;
+  color: var(--ops-text);
   font-size: 16px;
   font-weight: 600;
 }
@@ -545,7 +553,7 @@ function formatTime(value) {
   align-items: center;
   gap: 10px;
   margin-bottom: 18px;
-  color: #1f2937;
+  color: var(--ops-text);
   font-weight: 700;
 }
 
@@ -566,7 +574,7 @@ function formatTime(value) {
 
 .type-card-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px;
   width: 100%;
 }
@@ -581,7 +589,7 @@ function formatTime(value) {
   height: 100px;
   padding: 0;
   cursor: pointer;
-  background: #fff;
+  background: var(--ops-surface);
   border: 1px solid #d9d9d9;
   border-radius: 6px;
   outline: 1px solid transparent;
@@ -600,7 +608,7 @@ function formatTime(value) {
 }
 
 .type-card:hover {
-  border-color: #409eff;
+  border-color: var(--ops-primary);
   box-shadow: 0 2px 8px rgba(31, 45, 61, .08);
 }
 
@@ -622,7 +630,7 @@ function formatTime(value) {
 .type-card .type-option > span {
   display: block;
   margin-top: 5px;
-  color: #303133;
+  color: var(--ops-text);
   font-size: 12px;
   line-height: 18px;
   text-align: center;

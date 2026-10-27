@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"guanlan/internal/models"
+	"guanlan/pkg/httpclient"
 	"io"
 	"net/http"
 	"strings"
@@ -62,7 +63,8 @@ func TestDatasourceRequestTransportAddsAuthAndCustomHeaders(t *testing.T) {
 		AuthType: "basic", AuthConfig: `{"username":"ops","password":"secret"}`,
 		Config: `{"custom_headers":{"X-API-Key":"token-123"}}`,
 	}
-	client := &http.Client{Transport: datasourceRoundTripper(ds, base)}
+	cfg := datasourceHTTPConfig(ds)
+	client := &http.Client{Transport: httpclient.Transport{Base: base, Auth: cfg.Auth, Headers: cfg.Headers}}
 	resp, err := client.Get("http://example.test")
 	if err != nil {
 		t.Fatalf("request failed: %v", err)

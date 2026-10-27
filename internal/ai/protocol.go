@@ -8,6 +8,8 @@ import (
 type RiskLevel string
 
 const (
+	// RiskWriteAuthorized executes user-requested operations through a per-operation RBAC allowlist.
+	RiskWriteAuthorized   RiskLevel = "write_authorized"
 	RiskWriteLow          RiskLevel = "write_low"
 	RiskReadonlyLow       RiskLevel = "readonly_low"
 	RiskReadonlyExpensive RiskLevel = "readonly_expensive"

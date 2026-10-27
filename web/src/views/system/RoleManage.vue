@@ -270,7 +270,7 @@ function formatTime(value) { return value ? new Date(value).toLocaleString('zh-C
 </script>
 
 <style scoped>
-.task-page { --ink: #17233b; --muted: #758399; --border: #e1e8f1; display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.task-page { --ink: var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 260px 110px auto; gap: 8px; }
 .task-search, .filter-select { width: 100%; }

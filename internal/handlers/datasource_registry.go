@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"io"
 	"net/http"
 	"strings"
@@ -29,6 +30,10 @@ type datasourceDefinition struct {
 var datasourceDefinitions = []datasourceDefinition{
 	{Type: "prometheus", Name: "Prometheus", Category: "observability", Capabilities: []string{"metrics"}, Protocol: "promql", URLPlaceholder: "http://prometheus.example.com:9090", URLHelp: "填写 Prometheus 服务地址，不包含 /api/v1/query。", testConnection: testPrometheus},
 	{Type: "victoriametrics", Name: "VictoriaMetrics", Category: "observability", Capabilities: []string{"metrics"}, Protocol: "promql", URLPlaceholder: "http://victoriametrics.example.com:8428", URLHelp: "单机版：http://host:8428；集群版：http://vmselect:8481/select/0/prometheus（0 为租户 ID）。填写查询地址，不要填写 vminsert 写入地址。", testConnection: testVictoriaMetrics},
+	{Type: "loki", Name: "Loki", Category: "observability", Capabilities: []string{"logs"}, Protocol: "logql", URLPlaceholder: "http://loki.example.com:3100", URLHelp: "填写 Loki 查询服务地址，不包含 /loki/api/v1。多租户可在高级配置添加 X-Scope-OrgID。", testConnection: testLoki},
+	{Type: "elasticsearch", Name: "Elasticsearch", Category: "observability", Capabilities: []string{"logs"}, Protocol: "elasticsearch", URLPlaceholder: "http://elasticsearch.example.com:9200", URLHelp: "填写 Elasticsearch HTTP/HTTPS 地址，索引在日志配置中填写。支持自定义 HTTP 头配置 ApiKey 认证。", testConnection: testLogSource},
+	{Type: "clickhouse", Name: "ClickHouse", Category: "database", Capabilities: []string{"sql", "logs"}, Protocol: "clickhouse", URLPlaceholder: "http://clickhouse.example.com:8123", URLHelp: "填写 ClickHouse HTTP 地址（常用端口 8123；HTTPS 8443），使用具备目标日志表读取权限的账号。", testConnection: testClickHouseExplore},
+	{Type: "jaeger", Name: "Jaeger", Category: "observability", Capabilities: []string{"traces"}, Protocol: "jaeger", URLPlaceholder: "http://jaeger.example.com:16686", URLHelp: "填写 Jaeger Query HTTP 服务地址，支持按 Trace ID 查询。", testConnection: testJaegerExplore},
 }
 
 func datasourceDefinitionFor(kind string) (datasourceDefinition, bool) {
@@ -77,7 +82,7 @@ func isMetricDatasourceType(kind string) bool {
 }
 
 func ListDatasourceTypes(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": datasourceDefinitions})
+	resp.Success(c, http.StatusOK, "成功", datasourceDefinitions)
 }
 
 // A constant query validates the actual read endpoint, including tenant path and auth.

@@ -25,6 +25,9 @@ func scriptProbeTestDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { database.DB = previous; cleanup() })
+	if err := db.Create(&models.InspectionRuleGroup{ID: 1, Name: "script probes"}).Error; err != nil {
+		t.Fatal(err)
+	}
 	return db
 }
 
@@ -204,14 +207,12 @@ func TestScriptProbeUnavailableNodesAndTruncation(t *testing.T) {
 	}
 }
 
-func TestScriptProbeSchedulerAndRetiredTasks(t *testing.T) {
+func TestScriptProbeScheduler(t *testing.T) {
 	db := scriptProbeTestDB(t)
 	script := models.Script{Name: "scheduled probe", Type: "shell", Content: "printf 'scheduled'", Status: 1}
 	db.Create(&script)
 	item := models.InspectionItem{GroupID: 1, Name: "scheduled probe", Type: "script", Target: script.Name, Config: fmt.Sprintf(`{"script_id":%d,"timeout_ms":2000,"execution_nodes":[{"node_type":"direct"}]}`, script.ID), IntervalSeconds: 10, FailureThreshold: 1, RecoveryThreshold: 1, Status: 1}
 	db.Create(&item)
-	legacy := models.ScheduledTask{Name: "old cron", Type: "script", TargetID: script.ID, CronExpr: "* * * * *", Status: 1}
-	db.Create(&legacy)
 	now := time.Now()
 	runDueInspectionItems(now)
 	deadline := time.Now().Add(5 * time.Second)
@@ -224,15 +225,6 @@ func TestScriptProbeSchedulerAndRetiredTasks(t *testing.T) {
 	db.First(&item, item.ID)
 	if item.LastStatus != "success" || item.LastRunAt == nil {
 		t.Fatalf("script probe was not scheduled: %+v", item)
-	}
-	db.First(&legacy, legacy.ID)
-	if legacy.LastRunAt != nil {
-		t.Fatal("retired scheduled task executed")
-	}
-	var legacyRecords int64
-	db.Model(&models.ScheduledTaskExecution{}).Count(&legacyRecords)
-	if legacyRecords != 0 {
-		t.Fatal("retired task execution record created")
 	}
 	var records int64
 	db.Model(&models.InspectionRecord{}).Where("item_id = ?", item.ID).Count(&records)

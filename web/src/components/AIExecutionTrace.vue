@@ -41,6 +41,6 @@ function formatDuration(value) { return `${(Math.max(0, Number(value) || 0) / 10
 </script>
 
 <style scoped>
-.ai-execution-trace{margin-top:8px;padding:8px 10px;border:1px solid var(--ops-border,#dcdfe6);border-radius:6px;font-size:12px;color:var(--ops-muted,#606266);background:var(--ops-surface,#fff)}
-summary{cursor:pointer}.trace-id{margin-top:8px;overflow-wrap:anywhere;font-size:11px}ol{padding-left:20px;margin-bottom:0}li{padding:5px 0}li span{display:block}small{color:var(--el-color-danger,#f56c6c)}
+.ai-execution-trace{margin-top:8px;padding:8px 10px;border:1px solid var(--ops-border,var(--ops-border));border-radius:6px;font-size:12px;color:var(--ops-muted,var(--ops-muted));background:var(--ops-surface,#fff)}
+summary{cursor:pointer}.trace-id{margin-top:8px;overflow-wrap:anywhere;font-size:11px}ol{padding-left:20px;margin-bottom:0}li{padding:5px 0}li span{display:block}small{color:var(--el-color-danger,var(--ops-danger))}
 </style>

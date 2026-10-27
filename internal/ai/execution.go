@@ -34,7 +34,7 @@ func (o *Orchestrator) execute(ctx context.Context, call ToolCall) ToolResult {
 	if !ok {
 		return denied("UNKNOWN_TOOL", "工具未注册")
 	}
-	if tool.Spec.Risk != RiskReadonlyLow && tool.Spec.Risk != RiskReadonlyExpensive && tool.Spec.Risk != RiskWriteLow {
+	if tool.Spec.Risk != RiskReadonlyLow && tool.Spec.Risk != RiskReadonlyExpensive && tool.Spec.Risk != RiskWriteLow && tool.Spec.Risk != RiskWriteAuthorized {
 		return denied("READ_ONLY_REQUIRED", "该风险等级的操作尚未向 AI 助手开放")
 	}
 	if err := validateParams(tool.Spec, call.Params); err != nil {

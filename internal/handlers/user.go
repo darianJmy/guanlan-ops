@@ -3,6 +3,7 @@ package handlers
 import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 
@@ -40,15 +41,11 @@ func ListUsers(c *gin.Context) {
 	tx.Count(&total)
 	tx.Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize).Preload("Roles").Find(&users)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "成功",
-		"data": gin.H{
-			"list":      users,
-			"total":     total,
-			"page":      query.Page,
-			"page_size": query.PageSize,
-		},
+	resp.Success(c, http.StatusOK, "成功", gin.H{
+		"list":      users,
+		"total":     total,
+		"page":      query.Page,
+		"page_size": query.PageSize,
 	})
 }
 
@@ -64,7 +61,7 @@ type CreateUserReq struct {
 func CreateUser(c *gin.Context) {
 	var req CreateUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
@@ -83,11 +80,11 @@ func CreateUser(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&user).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "用户名已存在"})
+		resp.Error(c, http.StatusOK, resp.CodeBadRequest, "用户名已存在")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 type UpdateUserReq struct {
@@ -101,7 +98,7 @@ func UpdateUser(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req UpdateUserReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
@@ -112,18 +109,18 @@ func UpdateUser(c *gin.Context) {
 		"status":   req.Status,
 	})
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 	var user models.User
 	if err := database.DB.First(&user, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "用户不存在")
 		return
 	}
 	database.DB.Select("Roles").Delete(&user)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 type AssignUserRolesReq struct {
@@ -134,13 +131,13 @@ func AssignUserRoles(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req AssignUserRolesReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
 	var user models.User
 	if err := database.DB.First(&user, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "用户不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "用户不存在")
 		return
 	}
 
@@ -150,12 +147,12 @@ func AssignUserRoles(c *gin.Context) {
 	}
 	database.DB.Model(&user).Association("Roles").Replace(roles)
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "分配成功"})
+	resp.Success(c, http.StatusOK, "分配成功")
 }
 
 func ResetPassword(c *gin.Context) {
 	id := c.Param("id")
 	hashed, _ := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.DefaultCost)
 	database.DB.Model(&models.User{}).Where("id = ?", id).Update("password", string(hashed))
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "密码已重置为 123456"})
+	resp.Success(c, http.StatusOK, "密码已重置为 123456")
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"time"
 
@@ -56,7 +57,7 @@ type dashboardOverview struct {
 func GetDashboardOverview(c *gin.Context) {
 	rangeKey := c.DefaultQuery("range", "today")
 	if rangeKey != "today" && rangeKey != "7d" && rangeKey != "30d" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "统计范围仅支持 today、7d、30d"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "统计范围仅支持 today、7d、30d")
 		return
 	}
 	var result dashboardOverview
@@ -66,10 +67,10 @@ func GetDashboardOverview(c *gin.Context) {
 		return err
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取运维概览失败，请稍后重试"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取运维概览失败，请稍后重试")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": result})
+	resp.Success(c, http.StatusOK, "成功", result)
 }
 
 func loadDashboardOverview(db *gorm.DB, now time.Time, rangeKey string) (dashboardOverview, error) {

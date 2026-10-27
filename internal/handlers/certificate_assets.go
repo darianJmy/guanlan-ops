@@ -3,20 +3,18 @@ package handlers
 import (
 	"archive/zip"
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
-	"crypto/sha256"
+	"guanlan/pkg/certutil"
+
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/hex"
+
 	"encoding/json"
-	"encoding/pem"
+
 	"errors"
 	"fmt"
+	authutil "guanlan/internal/auth"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
-	"guanlan/internal/utils"
+	"guanlan/pkg/resp"
 	"net"
 	"net/http"
 	"net/url"
@@ -50,27 +48,27 @@ func ListCertificates(c *gin.Context) {
 		tx = tx.Where("name LIKE ? OR domains LIKE ?", like, like)
 	}
 	tx.Find(&certs)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": certs})
+	resp.Success(c, http.StatusOK, "成功", certs)
 }
 
 func CreateCertificate(c *gin.Context) {
 	var req createCertificateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写证书名称、公钥证书和私钥"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写证书名称、公钥证书和私钥")
 		return
 	}
 
-	parsed, err := parseCertificateAndKey(req.Certificate, req.PrivateKey)
+	parsed, err := certutil.ParsePair(req.Certificate, req.PrivateKey)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 
-	domains := normalizeDomains(append(req.Domains, parsed.Domains...))
+	domains := certutil.NormalizeDomains(append(req.Domains, parsed.Domains...))
 	domainsJSON, _ := json.Marshal(domains)
 	keyCipher, err := encryptSecret(req.PrivateKey)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "私钥加密失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "私钥加密失败")
 		return
 	}
 
@@ -79,10 +77,10 @@ func CreateCertificate(c *gin.Context) {
 	name := strings.TrimSpace(req.Name)
 	var existing models.Certificate
 	if err := database.DB.Where("name = ?", name).First(&existing).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "证书名称已存在，请换一个名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "证书名称已存在，请换一个名称")
 		return
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "校验证书名称失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "校验证书名称失败")
 		return
 	}
 
@@ -124,45 +122,45 @@ func CreateCertificate(c *gin.Context) {
 		}
 		return tx.Model(&cert).Update("current_version_id", version.ID).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存证书失败: " + err.Error()})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存证书失败: "+err.Error())
 		return
 	}
 
 	database.DB.First(&cert, cert.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": cert})
+	resp.Success(c, http.StatusOK, "创建成功", cert)
 }
 
 func ListCertificateVersions(c *gin.Context) {
 	id := c.Param("id")
 	var versions []models.CertificateVersion
 	database.DB.Where("certificate_id = ?", id).Order("id DESC").Find(&versions)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": versions})
+	resp.Success(c, http.StatusOK, "成功", versions)
 }
 
 func UpdateCertificate(c *gin.Context) {
 	var cert models.Certificate
 	if err := database.DB.First(&cert, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "证书不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "证书不存在")
 		return
 	}
 
 	var req updateCertificateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写公钥证书和私钥"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写公钥证书和私钥")
 		return
 	}
-	parsed, err := parseCertificateAndKey(req.Certificate, req.PrivateKey)
+	parsed, err := certutil.ParsePair(req.Certificate, req.PrivateKey)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	keyCipher, err := encryptSecret(req.PrivateKey)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "私钥加密失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "私钥加密失败")
 		return
 	}
 
-	domains := normalizeDomains(parsed.Domains)
+	domains := certutil.NormalizeDomains(parsed.Domains)
 	domainsJSON, _ := json.Marshal(domains)
 	now := time.Now()
 	versionName := now.Format("20060102150405")
@@ -204,18 +202,18 @@ func UpdateCertificate(c *gin.Context) {
 			"current_version_id": version.ID,
 		}).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新证书失败: " + err.Error()})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新证书失败: "+err.Error())
 		return
 	}
 
 	database.DB.First(&cert, cert.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": cert})
+	resp.Success(c, http.StatusOK, "更新成功", cert)
 }
 
 func DownloadCertificate(c *gin.Context) {
 	var cert models.Certificate
 	if err := database.DB.First(&cert, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "证书不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "证书不存在")
 		return
 	}
 
@@ -225,28 +223,28 @@ func DownloadCertificate(c *gin.Context) {
 		tx = tx.Where("id = ?", cert.CurrentVersionID)
 	}
 	if err := tx.Order("id DESC").First(&version).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "证书材料不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "证书材料不存在")
 		return
 	}
 
 	privateKey, err := decryptSecret(version.PrivateKeyCipher)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "私钥解密失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "私钥解密失败")
 		return
 	}
 
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
 	if err := writeZipFile(zipWriter, "certificate.pem", strings.TrimSpace(version.CertPEM)+"\n"); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成证书压缩包失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成证书压缩包失败")
 		return
 	}
 	if err := writeZipFile(zipWriter, "private_key.pem", strings.TrimSpace(privateKey)+"\n"); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成证书压缩包失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成证书压缩包失败")
 		return
 	}
 	if err := zipWriter.Close(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成证书压缩包失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成证书压缩包失败")
 		return
 	}
 
@@ -261,7 +259,7 @@ func DeleteCertificate(c *gin.Context) {
 	var taskNames []string
 	database.DB.Model(&models.AutomationTask{}).Where("certificate_id = ?", id).Order("id ASC").Limit(6).Pluck("name", &taskNames)
 	if len(taskNames) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "证书已被自动化任务引用，不能删除：" + strings.Join(taskNames, "、")})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "证书已被自动化任务引用，不能删除："+strings.Join(taskNames, "、"))
 		return
 	}
 	if err := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -270,10 +268,10 @@ func DeleteCertificate(c *gin.Context) {
 		}
 		return tx.Delete(&models.Certificate{}, id).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除证书失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除证书失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func boundCertificateDomainNames(column string, id string) []string {
@@ -322,7 +320,7 @@ func ListCertificateDomains(c *gin.Context) {
 
 	if _, ok := c.GetQuery("page"); !ok {
 		tx.Order("id DESC").Find(&domains)
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": domains})
+		resp.Success(c, http.StatusOK, "成功", domains)
 		return
 	}
 
@@ -341,31 +339,27 @@ func ListCertificateDomains(c *gin.Context) {
 	var total int64
 	tx.Count(&total)
 	tx.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&domains)
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "成功",
-		"data": gin.H{
-			"list":      domains,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		},
+	resp.Success(c, http.StatusOK, "成功", gin.H{
+		"list":      domains,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
 func CreateCertificateDomain(c *gin.Context) {
 	var req saveDomainReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if err := validateCertificateDomainFaultCenter(req.FaultCenterID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	severity, err := validateCertificateDomainAlertPolicy(req.ExpiryAlertDays, req.Severity)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 
@@ -392,23 +386,23 @@ func CreateCertificateDomain(c *gin.Context) {
 		database.DB.Model(&item).Update("monitor_enabled", false)
 		item.MonitorEnabled = false
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": item})
+	resp.Success(c, http.StatusOK, "创建成功", item)
 }
 
 func UpdateCertificateDomain(c *gin.Context) {
 	id := c.Param("id")
 	var req saveDomainReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if err := validateCertificateDomainFaultCenter(req.FaultCenterID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	severity, err := validateCertificateDomainAlertPolicy(req.ExpiryAlertDays, req.Severity)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 
@@ -436,7 +430,7 @@ func UpdateCertificateDomain(c *gin.Context) {
 		updates["monitor_enabled"] = *req.MonitorEnabled
 	}
 	database.DB.Model(&models.CertificateDomain{}).Where("id = ?", id).Updates(updates)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func validateCertificateDomainFaultCenter(id uint) error {
@@ -465,14 +459,14 @@ func validateCertificateDomainAlertPolicy(expiryAlertDays int, severityValue str
 func DeleteCertificateDomain(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "域名 ID 无效"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "域名 ID 无效")
 		return
 	}
 	if err := deleteCertificateDomain(database.DB, uint(id), time.Now()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除域名失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除域名失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 // Keep alert history while atomically ending monitoring for the deleted domain.
@@ -507,14 +501,14 @@ func deleteCertificateDomain(db *gorm.DB, id uint, now time.Time) error {
 func CheckCertificateDomain(c *gin.Context) {
 	var item models.CertificateDomain
 	if err := database.DB.First(&item, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "域名不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "域名不存在")
 		return
 	}
 	if err := checkAndSaveDomain(&item); err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error(), "data": item})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error(), item)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "采集完成", "data": item})
+	resp.Success(c, http.StatusOK, "采集完成", item)
 }
 
 func CheckAllCertificateDomains(c *gin.Context) {
@@ -526,7 +520,7 @@ func CheckAllCertificateDomains(c *gin.Context) {
 			success++
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": fmt.Sprintf("完成 %d/%d", success, len(domains)), "data": gin.H{"success": success, "total": len(domains)}})
+	resp.Success(c, http.StatusOK, fmt.Sprintf("完成 %d/%d", success, len(domains)), gin.H{"success": success, "total": len(domains)})
 }
 
 func RunDueCertificateDomainChecks() {
@@ -538,87 +532,6 @@ func RunDueCertificateDomainChecks() {
 			continue
 		}
 		_ = checkAndSaveDomain(&domains[i])
-	}
-}
-
-type parsedCert struct {
-	Domains      []string
-	Issuer       string
-	Subject      string
-	SerialNumber string
-	Fingerprint  string
-	NotBefore    time.Time
-	NotAfter     time.Time
-}
-
-func parseCertificateAndKey(certPEM, keyPEM string) (parsedCert, error) {
-	block, _ := pem.Decode([]byte(strings.TrimSpace(certPEM)))
-	if block == nil || block.Type != "CERTIFICATE" {
-		return parsedCert{}, errors.New("公钥证书格式错误")
-	}
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return parsedCert{}, errors.New("解析公钥证书失败，请确认上传的是 PEM 格式证书")
-	}
-	keyBlock, _ := pem.Decode([]byte(strings.TrimSpace(keyPEM)))
-	if keyBlock == nil {
-		return parsedCert{}, errors.New("私钥格式错误")
-	}
-	key, err := parsePrivateKey(keyBlock.Bytes)
-	if err != nil {
-		return parsedCert{}, err
-	}
-	if !publicKeyMatches(cert.PublicKey, key) {
-		return parsedCert{}, errors.New("证书和私钥不匹配")
-	}
-	return parsedFromX509(cert), nil
-}
-
-func parsePrivateKey(der []byte) (interface{}, error) {
-	if key, err := x509.ParsePKCS1PrivateKey(der); err == nil {
-		return &key.PublicKey, nil
-	}
-	if key, err := x509.ParsePKCS8PrivateKey(der); err == nil {
-		switch k := key.(type) {
-		case *rsa.PrivateKey:
-			return &k.PublicKey, nil
-		case *ecdsa.PrivateKey:
-			return &k.PublicKey, nil
-		case ed25519.PrivateKey:
-			return k.Public(), nil
-		default:
-			return nil, errors.New("不支持的 PKCS8 私钥类型")
-		}
-	}
-	if key, err := x509.ParseECPrivateKey(der); err == nil {
-		return &key.PublicKey, nil
-	}
-	return nil, errors.New("解析私钥失败，请确认上传的是 RSA、EC 或 Ed25519 PEM 私钥")
-}
-
-func publicKeyMatches(certKey, privatePublicKey interface{}) bool {
-	a, errA := x509.MarshalPKIXPublicKey(certKey)
-	b, errB := x509.MarshalPKIXPublicKey(privatePublicKey)
-	return errA == nil && errB == nil && string(a) == string(b)
-}
-
-func parsedFromX509(cert *x509.Certificate) parsedCert {
-	sum := sha256.Sum256(cert.Raw)
-	domains := append([]string{}, cert.DNSNames...)
-	for _, ip := range cert.IPAddresses {
-		domains = append(domains, ip.String())
-	}
-	if len(domains) == 0 && cert.Subject.CommonName != "" {
-		domains = append(domains, cert.Subject.CommonName)
-	}
-	return parsedCert{
-		Domains:      normalizeDomains(domains),
-		Issuer:       cert.Issuer.String(),
-		Subject:      cert.Subject.String(),
-		SerialNumber: cert.SerialNumber.String(),
-		Fingerprint:  strings.ToUpper(hex.EncodeToString(sum[:])),
-		NotBefore:    cert.NotBefore,
-		NotAfter:     cert.NotAfter,
 	}
 }
 
@@ -660,28 +573,12 @@ func checkAndSaveDomain(item *models.CertificateDomain) error {
 	return nil
 }
 
-func fetchTLSCertificate(domain string, port int) (parsedCert, error) {
-	name := normalizeTLSName(domain)
-	address := net.JoinHostPort(name, strconv.Itoa(defaultPort(port)))
-	dialer := &net.Dialer{Timeout: 8 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", address, &tls.Config{ServerName: name, InsecureSkipVerify: true})
-	if err != nil {
-		return parsedCert{}, err
-	}
-	defer conn.Close()
-	certs := conn.ConnectionState().PeerCertificates
-	if len(certs) == 0 {
-		return parsedCert{}, errors.New("未获取到线上证书")
-	}
-	return parsedFromX509(certs[0]), nil
-}
-
 func encryptSecret(plain string) (string, error) {
-	return utils.EncryptSecret(plain)
+	return authutil.EncryptSecret(plain)
 }
 
 func decryptSecret(ciphertext string) (string, error) {
-	return utils.DecryptSecret(ciphertext)
+	return authutil.DecryptSecret(ciphertext)
 }
 
 func safeDownloadName(value string) string {
@@ -763,4 +660,10 @@ func defaultAlertDays(value string) string {
 		return "30,15,7,3,1"
 	}
 	return value
+}
+
+func fetchTLSCertificate(domain string, port int) (certutil.Info, error) {
+	name := normalizeTLSName(domain)
+	address := net.JoinHostPort(name, strconv.Itoa(defaultPort(port)))
+	return certutil.Fetch(address, &tls.Config{ServerName: name, InsecureSkipVerify: true}, 8*time.Second)
 }

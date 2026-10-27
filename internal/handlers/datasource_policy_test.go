@@ -78,7 +78,7 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 		endpoint += "/select/42/prometheus"
 	}
 	valid := map[string]interface{}{"name": "prod", "type": kind, "url": endpoint, "auth_type": "bearer", "auth_config": `{"token":"secret"}`, "config": `{"custom_headers":{"X-Scope-OrgID":"prod"}}`, "labels": `{"env":"prod"}`, "status": 1}
-	for _, kind := range []string{"mysql", "postgresql", "redis", "k8s", "aliyun_ecs", "sls", "cls", "nacos", "kafka", "loki", "http", "unknown"} {
+	for _, kind := range []string{"mysql", "postgresql", "redis", "k8s", "aliyun_ecs", "sls", "cls", "nacos", "kafka", "http", "unknown"} {
 		valid["type"] = kind
 		_, body := call(http.MethodPost, "/sources", valid)
 		if body["code"] == float64(0) {
@@ -196,10 +196,15 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 	}
 	group := models.DatasourceGroup{Name: "production"}
 	db.Create(&group)
-	db.Create(&models.DatasourceGroupMember{GroupID: group.ID, DatasourceID: prom.ID})
-	_, body = call(http.MethodDelete, fmt.Sprintf("/sources/%d", prom.ID), nil)
-	if body["code"] == float64(0) {
-		t.Fatal("deleted grouped instance")
+	db.Create(&models.DatasourceGroupMember{GroupID: group.ID, DatasourceID: disabled.ID})
+	_, body = call(http.MethodDelete, fmt.Sprintf("/sources/%d", disabled.ID), nil)
+	if body["code"] != float64(0) {
+		t.Fatalf("delete grouped instance: %+v", body)
+	}
+	var remaining int64
+	db.Model(&models.DatasourceGroupMember{}).Where("datasource_id = ?", disabled.ID).Count(&remaining)
+	if remaining != 0 {
+		t.Fatal("left orphan group membership")
 	}
 	db.Where("group_id = ?", group.ID).Delete(&models.DatasourceGroupMember{})
 	db.Create(&models.AlertRuleDatasource{RuleID: 77, DatasourceID: prom.ID})

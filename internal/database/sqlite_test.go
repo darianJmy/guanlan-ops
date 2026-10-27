@@ -119,6 +119,9 @@ func TestSQLiteRuntimeInitializesOnce(t *testing.T) {
 		}
 		counts[table] = count
 	}
+	if counts["inspection_rule_groups"] != 0 {
+		t.Fatal("fresh database created a default probe rule group")
+	}
 	cleanup()
 	db, cleanup, err = New(cfg)
 	if err != nil {

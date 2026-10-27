@@ -1,6 +1,6 @@
 <template>
   <div class="sls-page">
-    <template v-if="viewMode === 'projects'">
+    <template v-if="!props.embedded && viewMode === 'projects'">
       <section class="project-intro" role="note" aria-label="日志仪表盘简介">
         <el-icon class="intro-icon" aria-hidden="true"><InfoFilled /></el-icon>
         <span class="intro-message">集中维护阿里云 SLS 与腾讯云 CLS 日志入口，按 Project 或 Topic 浏览日志，通过临时免登录会话快速进入日志查询。</span>
@@ -102,13 +102,10 @@
       </el-card>
     </template>
 
-    <template v-else>
+    <template v-else-if="viewMode === 'preview'">
       <div class="preview-header">
         <el-button link type="primary" :icon="ArrowLeft" @click="backToLogstores">返回</el-button>
-        <div class="toolbar-actions">
-          <el-button :loading="sessionLoading" @click="createSession">刷新</el-button>
-          <el-button type="primary" :disabled="!previewUrl" @click="openNewWindow">新窗口打开</el-button>
-        </div>
+        <DashboardPreviewActions :url="previewUrl" :loading="sessionLoading" @refresh="createSession" />
       </div>
       <div class="iframe-shell">
         <div v-if="sessionLoading || iframeLoading" class="iframe-state">
@@ -120,15 +117,16 @@
     </template>
 
     <el-drawer v-model="drawerVisible" class="sls-config-drawer" size="min(460px, 94vw)" direction="rtl" :show-close="false" :close-on-click-modal="false">
-      <template #header>
+      <template #header="{ titleId }">
         <div class="drawer-header">
-          <DrawerBackButton @click="drawerVisible = false" />
-          <span class="drawer-title">{{ form.id ? '编辑日志仪表盘' : '创建日志仪表盘' }}</span>
+          <DrawerBackButton :disabled="saving" @click="backFromForm" />
+          <span :id="titleId" class="drawer-accessible-title">{{ providerMeta(form.provider).label }}</span>
         </div>
       </template>
 
+      <DashboardTypeIdentity :icon="providerMeta(form.provider).icon" :label="providerMeta(form.provider).label" wide />
       <el-form ref="formRef" :model="form" :rules="formRules" label-position="top" class="sls-config-form">
-        <el-form-item label="日志服务类型" prop="provider">
+        <el-form-item v-if="!props.embedded" label="日志服务类型" prop="provider">
           <div class="provider-selector">
             <button
               v-for="option in providerOptions"
@@ -240,9 +238,14 @@
 </template>
 
 <script setup>
+const props = defineProps({ embedded: Boolean })
+const emit = defineEmits(['changed', 'view-change', 'select-type'])
+defineExpose({ create: openCreate, edit: openEdit, open: openProject })
+import DashboardPreviewActions from './DashboardPreviewActions.vue'
+import DashboardTypeIdentity from './DashboardTypeIdentity.vue'
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import PageEmpty from '../../components/PageEmpty.vue'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, Check, Delete, Edit, InfoFilled, Loading, Plus, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -324,7 +327,8 @@ const credentialIDLabel = computed(() => form.provider === 'tencent_cls' ? 'Secr
 const credentialSecretLabel = computed(() => form.provider === 'tencent_cls' ? 'SecretKey' : 'AccessKey Secret')
 const currentRegionOptions = computed(() => form.provider === 'tencent_cls' ? tencentRegionOptions : aliyunRegionOptions)
 
-onMounted(fetchProjects)
+onMounted(() => { if (!props.embedded) fetchProjects() })
+watch(viewMode, mode => emit('view-change', mode !== 'projects'))
 
 function searchProjects() {
   projectKeyword.value = projectSearchInput.value
@@ -390,6 +394,7 @@ function onProjectDragEnd() {
 }
 
 async function fetchProjects() {
+  if (props.embedded) { emit('changed'); return }
   projectLoading.value = true
   try {
     const res = await getSLSDashboardProjects()
@@ -407,8 +412,9 @@ async function openProject(project) {
   await fetchLogstores()
 }
 
-function openCreate() {
-  Object.assign(form, { id: null, provider: 'aliyun_sls', name: '', project: '', region: 'cn-hangzhou', role_arn: '', access_key_id: '', access_key_secret: '', description: '' })
+function openCreate(provider = 'aliyun_sls') {
+  if (!providerOptions.some(option => option.value === provider)) provider = 'aliyun_sls'
+  Object.assign(form, { id: null, provider, name: '', project: '', region: provider === 'tencent_cls' ? 'ap-shanghai' : 'cn-hangzhou', role_arn: '', access_key_id: '', access_key_secret: '', description: '' })
   formRef.value?.clearValidate()
   drawerVisible.value = true
 }
@@ -517,27 +523,30 @@ function backToLogstores() {
   currentResource.value = null
 }
 
-function openNewWindow() {
-  if (previewUrl.value) window.open(previewUrl.value, '_blank', 'noopener,noreferrer')
+function backFromForm() {
+  drawerVisible.value = false
+  if (props.embedded && !form.id) emit('select-type')
 }
 </script>
 
 <style scoped>
+.drawer-accessible-title { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
 .sls-page { display: flex; min-height: 100%; flex-direction: column; gap: 16px; }
 .page-toolbar, .subpage-header, .preview-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.project-intro { display: flex; min-height: 36px; align-items: center; gap: 9px; padding: 7px 12px; color: #536f91; background: #eaf5ff; font-size: 11px; }
-.intro-icon { flex: none; color: #409eff; font-size: 14px; }
-.intro-message { min-width: 0; overflow: hidden; color: #718096; text-overflow: ellipsis; white-space: nowrap; }
+.project-intro { display: flex; min-height: 36px; align-items: center; gap: 9px; padding: 7px 12px; color: var(--ops-muted); background: var(--ops-primary-soft); font-size: 11px; }
+.intro-icon { flex: none; color: var(--ops-primary); font-size: 14px; }
+.intro-message { min-width: 0; overflow: hidden; color: var(--ops-muted); text-overflow: ellipsis; white-space: nowrap; }
 .project-toolbar { padding: 0; border: 0; background: transparent; }
 .project-search-actions { display: flex; align-items: center; }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
 .project-search { width: 240px; }
 .project-grid { display: grid; min-height: 120px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.project-card { display: flex; min-width: 0; overflow: hidden; flex-direction: column; background: #fff; border: 1px solid #ebeef5; border-radius: 10px; cursor: grab; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.project-card { display: flex; min-width: 0; overflow: hidden; flex-direction: column; background: var(--ops-surface); border: 1px solid var(--ops-border-soft); border-radius: 10px; cursor: grab; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
 .project-card:active { cursor: grabbing; }
-.project-card:hover { border-color: #409eff; box-shadow: 0 4px 16px rgba(64, 158, 255, .12); transform: translateY(-2px); }
+.project-card:hover { border-color: var(--ops-primary); box-shadow: 0 4px 16px rgba(64, 158, 255, .12); transform: translateY(-2px); }
 .project-card.dragging { opacity: .4; transform: scale(.95); }
-.project-card.over { background: #ecf5ff; border-color: #409eff; border-style: dashed; }
+.project-card.over { background: var(--ops-primary-soft); border-color: var(--ops-primary); border-style: dashed; }
 .project-card.is-sort-disabled { cursor: default; }
 .project-open { display: flex; width: 100%; min-width: 0; flex: 1; align-items: center; gap: 14px; padding: 20px 20px 14px; color: inherit; text-align: left; cursor: inherit; background: transparent; border: 0; }
 .project-open:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -3px; }
@@ -547,15 +556,15 @@ function openNewWindow() {
 .project-logo.is-tencent_cls { background: #edf5ff; }
 .project-logo img { width: 30px; max-height: 30px; }
 .project-content { display: flex; min-width: 0; flex: 1; flex-direction: column; }
-.project-content strong { overflow: hidden; color: #303133; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.project-description { display: -webkit-box; margin-top: 4px; overflow: hidden; color: #909399; font-size: 12px; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.project-card-footer { display: flex; align-items: center; justify-content: flex-end; padding: 10px 20px; background: #fafbfc; border-top: 1px solid #f5f5f5; }
+.project-content strong { overflow: hidden; color: var(--ops-text); font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.project-description { display: -webkit-box; margin-top: 4px; overflow: hidden; color: var(--ops-muted); font-size: 12px; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.project-card-footer { display: flex; align-items: center; justify-content: flex-end; padding: 10px 20px; background: var(--ops-surface-soft); border-top: 1px solid #f5f5f5; }
 .logstore-card { border-color: var(--ops-border); }
 .logstore-name { padding: 0; color: var(--ops-primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 650; text-align: left; cursor: pointer; background: transparent; border: 0; }
 .logstore-name:hover { text-decoration: underline; }
 .logstore-name:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: 3px; }
 .pagination { display: flex; justify-content: flex-end; padding-top: 16px; }
-.iframe-shell { position: relative; min-height: 620px; flex: 1; overflow: hidden; background: #fff; border: 1px solid var(--ops-border); border-radius: 8px; }
+.iframe-shell { position: relative; min-height: 620px; flex: 1; overflow: hidden; background: var(--ops-surface); border: 1px solid var(--ops-border); border-radius: 8px; }
 .iframe-shell iframe { display: block; width: 100%; height: calc(100vh - 150px); min-height: 620px; border: 0; }
 .iframe-state { display: flex; position: absolute; z-index: 2; inset: 0; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: var(--ops-muted); background: rgba(255, 255, 255, .92); }
 :global(.sls-config-drawer.el-drawer) { border-radius: 0; }
@@ -563,18 +572,17 @@ function openNewWindow() {
 :global(.sls-config-drawer .el-drawer__body) { padding: 20px; }
 :global(.sls-config-drawer .el-drawer__footer) { padding: 12px 20px; border-top: 1px solid var(--ops-border); }
 .drawer-header { display: flex; width: 100%; align-items: center; gap: 12px; }
-.drawer-back { margin-left: -8px; color: #3b6ea8; }
-.drawer-title { color: #303133; font-size: 16px; font-weight: 600; }
+.drawer-back { margin-left: -8px; color: var(--ops-primary); }
 .sls-config-form :deep(.el-select) { width: 100%; }
 .provider-selector { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.provider-option { display: grid; position: relative; min-width: 0; grid-template-columns: 38px minmax(0, 1fr) 18px; align-items: center; gap: 10px; padding: 13px 12px; border: 1px solid #dfe4eb; border-radius: 8px; color: #344054; background: #fff; text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s, background-color .2s; }
+.provider-option { display: grid; position: relative; min-width: 0; grid-template-columns: 38px minmax(0, 1fr) 18px; align-items: center; gap: 10px; padding: 13px 12px; border: 1px solid #dfe4eb; border-radius: 8px; color: #344054; background: var(--ops-surface); text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s, background-color .2s; }
 .provider-option:hover:not(:disabled) { border-color: #9ac7f5; }
 .provider-option.selected { border-color: var(--ops-primary); background: #f3f8ff; box-shadow: 0 0 0 2px rgba(64, 158, 255, .1); }
 .provider-option:disabled { cursor: default; opacity: .78; }
 .provider-option img { width: 34px; max-height: 30px; object-fit: contain; }
 .provider-option > span { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .provider-option strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.provider-option small { color: #98a2b3; font-size: 10px; }
+.provider-option small { color: var(--ops-subtle); font-size: 10px; }
 .provider-option > .el-icon { color: var(--ops-primary); }
 .field-label { display: inline-flex; align-items: center; gap: 5px; }
 .field-help-button {

@@ -61,19 +61,23 @@
             </svg>
           </button>
           <el-dropdown trigger="click" placement="bottom-end" @command="handleThemeCommand">
-            <button type="button" class="theme-trigger" aria-label="切换主题" title="主题">
-              <el-icon><component :is="themeIcon" /></el-icon>
+            <button type="button" class="theme-trigger" aria-label="选择主题" title="选择主题">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                  <path d="M12 22a1 1 0 0 1 0-20a10 9 0 0 1 10 9a5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z" />
+                  <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                  <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                  <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                  <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                </g>
+              </svg>
             </button>
             <template #dropdown>
               <el-dropdown-menu class="theme-menu">
-                <el-dropdown-item command="light">
-                  <el-icon><Sunny /></el-icon><span>浅色</span><el-icon v-if="activeTheme === 'light'" class="theme-check"><Check /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item command="dark">
-                  <el-icon><Moon /></el-icon><span>深色</span><el-icon v-if="activeTheme === 'dark'" class="theme-check"><Check /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item command="system">
-                  <el-icon><Monitor /></el-icon><span>跟随系统</span><el-icon v-if="activeTheme === 'system'" class="theme-check"><Check /></el-icon>
+                <el-dropdown-item v-for="theme in themes" :key="theme.id" :command="theme.id" :class="{ 'is-selected': activeTheme === theme.id }" :aria-label="`${theme.label}${activeTheme === theme.id ? '，已选择' : ''}`">
+                  <el-icon><component :is="theme.dark ? 'Moon' : 'Sunny'" /></el-icon>
+                  <span>{{ theme.label }}</span>
+                  <el-icon v-if="activeTheme === theme.id" class="theme-check"><Check /></el-icon>
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -129,6 +133,7 @@
 </template>
 
 <script setup>
+import { themes } from '../theme'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
@@ -200,7 +205,6 @@ const menus = computed(() => store.menus)
 const currentTitle = computed(() => route.meta.title)
 const activeMenu = computed(() => route.meta.activeMenu || route.path)
 const activeTheme = computed(() => platform.themePreference || platform.defaultTheme)
-const themeIcon = computed(() => ({ light: 'Sunny', dark: 'Moon', system: 'Monitor' }[activeTheme.value] || 'Monitor'))
 const userInitial = computed(() => {
   const name = store.userInfo?.nickname || store.userInfo?.username || 'U'
   return String(name).slice(0, 1).toUpperCase()
@@ -430,7 +434,7 @@ async function handleChangePassword() {
   width: 30px;
   height: 30px;
   padding: 0;
-  color: #98a2b3;
+  color: var(--ops-subtle);
   cursor: pointer;
   background: transparent;
   border: 0;
@@ -498,8 +502,8 @@ async function handleChangePassword() {
   place-items: center;
   width: 30px;
   height: 30px;
-  color: #fff;
-  background: #172033;
+  color: var(--ops-surface);
+  background: var(--ops-text);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 800;
@@ -517,10 +521,12 @@ async function handleChangePassword() {
 .theme-menu .el-dropdown-menu__item {
   display: grid;
   min-width: 148px;
+  padding: 9px 14px;
   grid-template-columns: 20px 1fr 18px;
   gap: 8px;
 }
 
+.theme-menu .is-selected { background: var(--ops-primary-soft); color: var(--ops-primary); }
 .theme-menu .theme-check {
   color: var(--ops-primary);
 }

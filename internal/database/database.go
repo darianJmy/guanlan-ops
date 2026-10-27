@@ -14,7 +14,7 @@ import (
 
 var DB *gorm.DB
 
-const CurrentSchemaVersion = "2026102201"
+const CurrentSchemaVersion = "2026102601"
 
 // New opens SQLite and atomically initializes a fresh database on first startup.
 // DB is the shared connection used by the HTTP and tool handlers.
@@ -38,11 +38,25 @@ func New(cfg config.Config) (*gorm.DB, func(), error) {
 }
 
 func prepareDatabase(db *gorm.DB) error {
-	return sqldb.Initialize(db, CurrentSchemaVersion, createCurrentSchema, func(tx *gorm.DB) error {
-		if err := tx.Create(&models.InspectionRuleGroup{ID: 1, Name: "默认规则组", Description: "默认拨测任务规则组"}).Error; err != nil {
-			return err
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := sqldb.RequireSchemaVersion(tx, "2026102201"); err == nil && sqldb.RequireSchemaVersion(tx, CurrentSchemaVersion) != nil {
+			if err := tx.Migrator().AddColumn(&models.DatasourceGroup{}, "ParentID"); err != nil {
+				return err
+			}
+			if err := tx.Migrator().DropIndex(&models.DatasourceGroup{}, "idx_datasource_groups_name"); err != nil {
+				return err
+			}
+			if err := tx.Migrator().CreateIndex(&models.DatasourceGroup{}, "idx_datasource_group_parent_name"); err != nil {
+				return err
+			}
+			if err := tx.Migrator().CreateIndex(&models.DatasourceGroup{}, "ParentID"); err != nil {
+				return err
+			}
+			if err := sqldb.RecordSchemaVersion(tx, CurrentSchemaVersion); err != nil {
+				return err
+			}
 		}
-		return seedInitialData(tx)
+		return sqldb.Initialize(tx, CurrentSchemaVersion, createCurrentSchema, seedInitialData)
 	})
 }
 
@@ -84,8 +98,6 @@ func createCurrentSchema(db *gorm.DB) error {
 		&models.ChatConversation{},
 		&models.ChatMessage{},
 		&models.ChatMemory{},
-		&models.ScheduledTask{},
-		&models.ScheduledTaskExecution{},
 		&models.Certificate{},
 		&models.CertificateVersion{},
 		&models.CertificateDomain{},

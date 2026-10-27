@@ -108,10 +108,10 @@ async function save() {
 </script>
 
 <style scoped>
-.script-editor-page { --ink:#17233b; --muted:#758399; --border:#dfe6ef; display:flex; min-height:calc(100vh - 100px); flex-direction:column; gap:14px; padding-bottom:72px; }
+.script-editor-page { --ink:var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); display:flex; min-height:calc(100vh - 100px); flex-direction:column; gap:14px; padding-bottom:72px; }
 .preview-header { display:flex; align-items:center; justify-content:space-between; gap:20px; }
 .editor-form { display:flex; min-width:0; flex:1; flex-direction:column; gap:14px; }
-.form-section { padding:20px 22px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 5px 18px rgba(31,50,81,.035); }
+.form-section { padding:20px 22px; background:var(--ops-surface); border:1px solid var(--border); border-radius:10px; box-shadow:0 5px 18px rgba(31,50,81,.035); }
 .section-heading { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; }
 .section-title,.field-label { display:inline-flex; align-items:center; gap:5px; }
 .section-heading strong { color:var(--ink); font-size:15px; }
@@ -123,9 +123,9 @@ async function save() {
 .code-section { min-width:0; padding-bottom:22px; }
 .code-heading { margin-bottom:12px; }
 .code-heading .language-badge { padding:5px 9px; color:#3c6aa1; background:#edf5ff; border-radius:5px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10px; font-weight:700; letter-spacing:.4px; }
-.dashboard-intro { display:flex; min-height:36px; align-items:center; gap:9px; margin-bottom:12px; padding:7px 12px; color:#536f91; background:#eaf5ff; font-size:11px; }
-.intro-icon { flex:none; color:#409eff; font-size:14px; }
-.intro-message { min-width:0; color:#718096; line-height:1.7; }
+.dashboard-intro { display:flex; min-height:36px; align-items:center; gap:9px; margin-bottom:12px; padding:7px 12px; color:var(--ops-muted); background:var(--ops-primary-soft); font-size:11px; }
+.intro-icon { flex:none; color:var(--ops-primary); font-size:14px; }
+.intro-message { min-width:0; color:var(--ops-muted); line-height:1.7; }
 .intro-message code { color:#315f95; font:10px ui-monospace,SFMono-Regular,Menlo,monospace; }
 .code-field { margin-bottom:0; }
 :deep(.el-select) { width:100%; }

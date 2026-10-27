@@ -52,7 +52,7 @@ func aiToolPolicy(userID uint) func(context.Context, aicore.ToolSpec, aicore.Too
 			if tool.Annotations["readOnlyHint"] != true && !tool.AssistantWritable {
 				return fmt.Errorf("助手不支持写操作")
 			}
-			return authorizeAIPermission(ctx, userID, tool.Permission)
+			return authorizeAssistantMCPTool(ctx, userID, tool)
 		}
 		return authorizeAITool(ctx, userID)
 	}

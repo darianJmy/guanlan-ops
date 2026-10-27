@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
+	"guanlan/pkg/textutil"
 	"io"
 	"net/http"
 	"sort"
@@ -57,7 +60,7 @@ func ListAlertActionRules(c *gin.Context) {
 	for i := range rows {
 		result = append(result, alertActionRuleResponse(rows[i]))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": result})
+	resp.Success(c, http.StatusOK, "成功", result)
 }
 
 func CreateAlertActionRule(c *gin.Context) {
@@ -67,23 +70,23 @@ func CreateAlertActionRule(c *gin.Context) {
 	}
 	var req saveAlertActionRuleReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "自动化处置规则格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "自动化处置规则格式不正确")
 		return
 	}
 	rule, err := buildAlertActionRule(centerID, req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if alertActionRuleNameExists(centerID, rule.Name, 0) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则名称已存在")
 		return
 	}
 	if err := database.DB.Create(&rule).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建自动化处置规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建自动化处置规则失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "自动化处置规则已创建", "data": alertActionRuleResponse(rule)})
+	resp.Success(c, http.StatusOK, "自动化处置规则已创建", alertActionRuleResponse(rule))
 }
 
 func UpdateAlertActionRule(c *gin.Context) {
@@ -94,21 +97,21 @@ func UpdateAlertActionRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	var existing models.AlertActionRule
 	if ruleID < 1 || database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).First(&existing).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "自动化处置规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "自动化处置规则不存在")
 		return
 	}
 	var req saveAlertActionRuleReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "自动化处置规则格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "自动化处置规则格式不正确")
 		return
 	}
 	rule, err := buildAlertActionRule(centerID, req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if alertActionRuleNameExists(centerID, rule.Name, existing.ID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "规则名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "规则名称已存在")
 		return
 	}
 	updates := map[string]interface{}{
@@ -122,11 +125,11 @@ func UpdateAlertActionRule(c *gin.Context) {
 		"webhook_url_cipher":      "", "webhook_secret_cipher": "",
 	}
 	if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新自动化处置规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新自动化处置规则失败")
 		return
 	}
 	database.DB.First(&existing, existing.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "自动化处置规则已更新", "data": alertActionRuleResponse(existing)})
+	resp.Success(c, http.StatusOK, "自动化处置规则已更新", alertActionRuleResponse(existing))
 }
 
 func DeleteAlertActionRule(c *gin.Context) {
@@ -137,13 +140,13 @@ func DeleteAlertActionRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	var rule models.AlertActionRule
 	if ruleID < 1 || database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).First(&rule).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "自动化处置规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "自动化处置规则不存在")
 		return
 	}
 	now := time.Now()
 	database.DB.Model(&models.AlertActionExecution{}).Where("rule_id = ? AND status = ?", rule.ID, actionStatusQueued).Updates(map[string]interface{}{"status": actionStatusCanceled, "finished_at": now, "error": "处置规则已删除", "next_run_at": nil})
 	database.DB.Delete(&rule)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "自动化处置规则已删除"})
+	resp.Success(c, http.StatusOK, "自动化处置规则已删除")
 }
 
 func buildAlertActionRule(centerID uint, req saveAlertActionRuleReq) (models.AlertActionRule, error) {
@@ -312,7 +315,7 @@ func runAlertActionExecution(execution *models.AlertActionExecution, now time.Ti
 	}
 	if execution.Attempt < execution.MaxAttempts {
 		due := time.Now().Add(alertActionRetryDelay(execution.Attempt))
-		database.DB.Model(execution).Updates(map[string]interface{}{"status": actionStatusQueued, "output": truncate(output, 8000), "error": err.Error(), "next_run_at": due, "lease_until": nil})
+		database.DB.Model(execution).Updates(map[string]interface{}{"status": actionStatusQueued, "output": textutil.Ellipsis(output, 8000), "error": err.Error(), "next_run_at": due, "lease_until": nil})
 		return
 	}
 	finishAlertActionExecution(execution, actionStatusFailed, output, err.Error(), time.Now())
@@ -320,14 +323,14 @@ func runAlertActionExecution(execution *models.AlertActionExecution, now time.Ti
 }
 
 func finishAlertActionExecution(execution *models.AlertActionExecution, status, output, errorMessage string, now time.Time) {
-	database.DB.Model(execution).Updates(map[string]interface{}{"status": status, "output": truncate(output, 8000), "error": truncate(errorMessage, 2000), "next_run_at": nil, "lease_until": nil, "finished_at": now})
+	database.DB.Model(execution).Updates(map[string]interface{}{"status": status, "output": textutil.Ellipsis(output, 8000), "error": textutil.Ellipsis(errorMessage, 2000), "next_run_at": nil, "lease_until": nil, "finished_at": now})
 }
 
 func alertActionRetryDelay(attempt int) time.Duration {
 	if attempt < 1 {
 		attempt = 1
 	}
-	seconds := 5 << minInt(attempt-1, 5)
+	seconds := 5 << min(attempt-1, 5)
 	return time.Duration(seconds) * time.Second
 }
 
@@ -435,7 +438,7 @@ func notifyAlertActionResult(rule models.AlertActionRule, alert models.AlertInst
 		"title": title, "content": title, "alert_id": alert.ID, "fault_center_id": alert.FaultCenterID,
 		"rule_id": rule.ID, "rule_name": rule.Name, "automation_task_id": rule.TargetID,
 		"status": map[bool]string{true: "success", false: "failed"}[success],
-		"output": truncate(output, 4000), "error": truncate(errorMessage, 1000),
+		"output": textutil.Ellipsis(output, 4000), "error": textutil.Ellipsis(errorMessage, 1000),
 	}
 	_ = sendNotificationToChannel(channel, eventType, fmt.Sprintf("alert-action:%d:%s", execution.ID, payload["status"]), title, payload)
 }
@@ -453,7 +456,7 @@ func executeAlertActionScript(script models.Script, nodeType string, nodeID uint
 	if script.SourceType == "git" {
 		commandName, content = "bash", buildGitScriptCommand(script)
 	}
-	output, _, _, err := executeRemoteProbeCommand(ProbeReq{NodeType: nodeType, NodeID: nodeID}, buildShellCommand(commandName, []string{"-c", content}), timeout)
+	output, _, _, err := executeRemoteProbeCommand(ProbeReq{NodeType: nodeType, NodeID: nodeID}, shellutil.Command(commandName, []string{"-c", content}), timeout)
 	if err != nil {
 		return "fail", strings.TrimSpace(output + "\n" + err.Error()), time.Since(startedAt).Milliseconds()
 	}
@@ -505,13 +508,6 @@ func alertActionWebhookSignature(secret, body []byte) string {
 	digest := hmac.New(sha256.New, secret)
 	_, _ = digest.Write(body)
 	return "sha256=" + hex.EncodeToString(digest.Sum(nil))
-}
-
-func minInt(first, second int) int {
-	if first < second {
-		return first
-	}
-	return second
 }
 
 func sortedAlertActionMatcherSummary(matchers []models.AlertLabelMatcher) string {

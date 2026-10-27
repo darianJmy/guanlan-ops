@@ -90,6 +90,13 @@ func SetupRouter() *gin.Engine {
 			auth.PUT("/datasource-groups/:id", handlers.UpdateDatasourceGroup)
 			auth.DELETE("/datasource-groups/:id", handlers.DeleteDatasourceGroup)
 
+			auth.GET("/query/datasources", handlers.ExploreDatasources)
+			auth.POST("/query/sql", middleware.RequirePermission("query:sql"), handlers.QuerySQL)
+			auth.GET("/query/traces/metadata", middleware.RequirePermission("observability:traces"), handlers.TraceMetadata)
+			auth.POST("/query/traces", middleware.RequirePermission("observability:traces"), handlers.QueryTraces)
+			auth.GET("/query/logs/datasources", middleware.RequirePermission("observability:logs"), handlers.LogDatasources)
+			auth.POST("/query/logs", middleware.RequirePermission("observability:logs"), handlers.QueryLogs)
+
 			auth.POST("/prometheus/query", handlers.PromInstantQuery)
 			auth.POST("/prometheus/query_range", handlers.PromRangeQuery)
 			auth.GET("/prometheus/metadata", handlers.PromMetadata)
@@ -104,6 +111,8 @@ func SetupRouter() *gin.Engine {
 			auth.POST("/tunnels/:id/test", handlers.TestTunnelConnection)
 
 			auth.GET("/dashboard/overview", middleware.RequirePermission("dashboard:list"), handlers.GetDashboardOverview)
+			auth.GET("/dashboard-cards", middleware.RequirePermission("dashboard:list"), handlers.ListDashboardCards)
+			auth.PUT("/dashboard-cards/order", middleware.RequirePermission("dashboard:edit"), handlers.ReorderDashboardCards)
 			auth.GET("/dashboards", handlers.ListDashboards)
 			auth.POST("/dashboards", handlers.CreateDashboard)
 			auth.PUT("/dashboards/:id", handlers.UpdateDashboard)

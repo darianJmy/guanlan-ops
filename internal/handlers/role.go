@@ -3,6 +3,7 @@ package handlers
 import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 
@@ -12,7 +13,7 @@ import (
 func ListRoles(c *gin.Context) {
 	var roles []models.Role
 	database.DB.Preload("Permissions").Preload("Menus").Order("id ASC").Find(&roles)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": roles})
+	resp.Success(c, http.StatusOK, "成功", roles)
 }
 
 type CreateRoleReq struct {
@@ -25,7 +26,7 @@ type CreateRoleReq struct {
 func CreateRole(c *gin.Context) {
 	var req CreateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
@@ -41,11 +42,11 @@ func CreateRole(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&role).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 400, "message": "角色编码已存在"})
+		resp.Error(c, http.StatusOK, resp.CodeBadRequest, "角色编码已存在")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 type UpdateRoleReq struct {
@@ -58,7 +59,7 @@ func UpdateRole(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req UpdateRoleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
@@ -68,18 +69,18 @@ func UpdateRole(c *gin.Context) {
 		"status":      req.Status,
 	})
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteRole(c *gin.Context) {
 	id := c.Param("id")
 	var role models.Role
 	if err := database.DB.First(&role, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "角色不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "角色不存在")
 		return
 	}
 	database.DB.Select("Permissions", "Menus").Delete(&role)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 type AssignPermissionsReq struct {
@@ -90,13 +91,13 @@ func AssignRolePermissions(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req AssignPermissionsReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
 	var role models.Role
 	if err := database.DB.First(&role, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "角色不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "角色不存在")
 		return
 	}
 
@@ -106,7 +107,7 @@ func AssignRolePermissions(c *gin.Context) {
 	}
 	database.DB.Model(&role).Association("Permissions").Replace(perms)
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "分配成功"})
+	resp.Success(c, http.StatusOK, "分配成功")
 }
 
 type AssignMenusReq struct {
@@ -117,13 +118,13 @@ func AssignRoleMenus(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req AssignMenusReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
 	var role models.Role
 	if err := database.DB.First(&role, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "角色不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "角色不存在")
 		return
 	}
 
@@ -133,5 +134,5 @@ func AssignRoleMenus(c *gin.Context) {
 	}
 	database.DB.Model(&role).Association("Menus").Replace(menus)
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "分配成功"})
+	resp.Success(c, http.StatusOK, "分配成功")
 }

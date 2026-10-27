@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -93,64 +95,64 @@ func ListFaultCenters(c *gin.Context) {
 			Where("fault_center_id = ? AND status IN ? AND silenced_until > ?", rows[i].ID, []string{alertStatusPending, alertStatusFiring, alertStatusRecovering}, now).
 			Count(&rows[i].SilencedCount)
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": rows})
+	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
 func CreateFaultCenter(c *gin.Context) {
 	var req saveFaultCenterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写故障中心名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写故障中心名称")
 		return
 	}
 	if err := validateFaultCenterReq(req, 0); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	row := models.FaultCenter{Name: strings.TrimSpace(req.Name), Description: strings.TrimSpace(req.Description), Status: req.Status}
 	if err := database.DB.Create(&row).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建故障中心失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建故障中心失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": row})
+	resp.Success(c, http.StatusOK, "创建成功", row)
 }
 
 func UpdateFaultCenter(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var row models.FaultCenter
 	if id < 1 || database.DB.First(&row, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "故障中心不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "故障中心不存在")
 		return
 	}
 	var req saveFaultCenterReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写故障中心名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写故障中心名称")
 		return
 	}
 	if err := validateFaultCenterReq(req, row.ID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	database.DB.Model(&row).Updates(map[string]interface{}{"name": strings.TrimSpace(req.Name), "description": strings.TrimSpace(req.Description), "status": req.Status})
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteFaultCenter(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var center models.FaultCenter
 	if id < 1 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "故障中心不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "故障中心不存在")
 		return
 	}
 	if err := database.DB.First(&center, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "故障中心不存在"})
+			resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "故障中心不存在")
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询故障中心失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询故障中心失败")
 		}
 		return
 	}
 	if center.IsDefault {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "默认故障中心不能删除"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "默认故障中心不能删除")
 		return
 	}
 	var taskCount, alertCount, certificateDomainCount int64
@@ -158,7 +160,7 @@ func DeleteFaultCenter(c *gin.Context) {
 	database.DB.Model(&models.AlertInstance{}).Where("fault_center_id = ?", id).Count(&alertCount)
 	database.DB.Model(&models.CertificateDomain{}).Where("fault_center_id = ?", id).Count(&certificateDomainCount)
 	if taskCount > 0 || alertCount > 0 || certificateDomainCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "故障中心已有拨测任务、证书域名或告警，请先迁移后再删除"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "故障中心已有拨测任务、证书域名或告警，请先迁移后再删除")
 		return
 	}
 	result := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -184,14 +186,14 @@ func DeleteFaultCenter(c *gin.Context) {
 		return nil
 	})
 	if result == gorm.ErrRecordNotFound {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "故障中心不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "故障中心不存在")
 		return
 	}
 	if result != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除故障中心失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除故障中心失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func validateFaultCenterReq(req saveFaultCenterReq, excludeID uint) error {
@@ -273,10 +275,10 @@ func ListAlerts(c *gin.Context) {
 	}
 	pending, firing, recovering, resolved, terminated := countStatus(alertStatusPending), countStatus(alertStatusFiring), countStatus(alertStatusRecovering), countStatus(alertStatusResolved), countStatus(alertStatusTerminated)
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"list": rows, "total": total, "page": page, "page_size": pageSize,
 		"summary": gin.H{"pending": pending, "firing": firing, "recovering": recovering, "resolved": resolved, "terminated": terminated},
-	}})
+	})
 }
 
 func applyAlertTriggerDateFilters(tx *gorm.DB, startDateValue, endDateValue string) *gorm.DB {
@@ -375,15 +377,15 @@ func ListAlertEvents(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var alert models.AlertInstance
 	if id < 1 || database.DB.First(&alert, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警不存在")
 		return
 	}
 	var rows []models.AlertEvent
 	if err := database.DB.Where("alert_id = ?", id).Order("created_at ASC, id ASC").Find(&rows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警时间线失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询告警时间线失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": rows})
+	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
 func recordAlertEvent(tx *gorm.DB, alert models.AlertInstance, eventType, fromStatus, toStatus, fromSeverity, toSeverity, reason, value, evaluationStatus string, now time.Time) error {
@@ -392,7 +394,7 @@ func recordAlertEvent(tx *gorm.DB, alert models.AlertInstance, eventType, fromSt
 	}
 	if err := tx.Create(&models.AlertEvent{
 		AlertID: alert.ID, EventType: eventType, FromStatus: fromStatus, ToStatus: toStatus,
-		FromSeverity: fromSeverity, ToSeverity: toSeverity, Reason: reason, Value: truncate(value, 255),
+		FromSeverity: fromSeverity, ToSeverity: toSeverity, Reason: reason, Value: textutil.Ellipsis(value, 255),
 		Labels: alert.Labels, EvaluationStatus: evaluationStatus, CreatedAt: now,
 	}).Error; err != nil {
 		return err
@@ -521,14 +523,14 @@ func ListAlertGroupingRules(c *gin.Context) {
 	}
 	var rows []models.AlertGroupingRule
 	if err := database.DB.Where("fault_center_id = ?", centerID).Order("priority ASC, id ASC").Find(&rows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取分组策略失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "获取分组策略失败")
 		return
 	}
 	for i := range rows {
 		rows[i].Matchers = decodeAlertLabelMatchers(rows[i].MatchersJSON)
 		rows[i].GroupBy = decodeAlertGroupingSelectors(rows[i].GroupByJSON)
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": rows})
+	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
 func CreateAlertGroupingRule(c *gin.Context) {
@@ -541,12 +543,12 @@ func CreateAlertGroupingRule(c *gin.Context) {
 		return
 	}
 	if err := database.DB.Create(&rule).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建分组策略失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建分组策略失败")
 		return
 	}
 	rule.Matchers = decodeAlertLabelMatchers(rule.MatchersJSON)
 	rule.GroupBy = decodeAlertGroupingSelectors(rule.GroupByJSON)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": rule})
+	resp.Success(c, http.StatusOK, "创建成功", rule)
 }
 
 func UpdateAlertGroupingRule(c *gin.Context) {
@@ -557,7 +559,7 @@ func UpdateAlertGroupingRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	var existing models.AlertGroupingRule
 	if ruleID < 1 || database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).First(&existing).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "分组策略不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "分组策略不存在")
 		return
 	}
 	rule, ok := bindAlertGroupingRule(c, centerID, existing.ID)
@@ -575,10 +577,10 @@ func UpdateAlertGroupingRule(c *gin.Context) {
 		return resetAlertGroupingRuleState(tx, centerID, existing.ID)
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新分组策略失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新分组策略失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteAlertGroupingRule(c *gin.Context) {
@@ -589,7 +591,7 @@ func DeleteAlertGroupingRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	var rule models.AlertGroupingRule
 	if ruleID < 1 || database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).First(&rule).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "分组策略不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "分组策略不存在")
 		return
 	}
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -599,39 +601,39 @@ func DeleteAlertGroupingRule(c *gin.Context) {
 		return tx.Delete(&rule).Error
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除分组策略失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除分组策略失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func bindAlertGroupingRule(c *gin.Context, centerID, excludeID uint) (models.AlertGroupingRule, bool) {
 	var req saveGroupingReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "分组策略格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "分组策略格式不正确")
 		return models.AlertGroupingRule{}, false
 	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" || len([]rune(name)) > 128 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "策略名称不能为空且不能超过 128 个字符"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "策略名称不能为空且不能超过 128 个字符")
 		return models.AlertGroupingRule{}, false
 	}
 	if req.WaitSeconds < 0 || req.WaitSeconds > 86400 || req.IntervalSeconds < 60 || req.IntervalSeconds > 86400 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "等待时间需在 0 到 86400 秒之间，间隔时间需在 60 到 86400 秒之间"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "等待时间需在 0 到 86400 秒之间，间隔时间需在 60 到 86400 秒之间")
 		return models.AlertGroupingRule{}, false
 	}
 	if req.Priority < 1 || req.Priority > 9999 || (req.Status != 0 && req.Status != 1) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "优先级或启用状态不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "优先级或启用状态不正确")
 		return models.AlertGroupingRule{}, false
 	}
 	matchers, err := normalizeAlertLabelMatchers(req.Matchers)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return models.AlertGroupingRule{}, false
 	}
 	groupBy, err := normalizeAlertGroupingSelectors(req.GroupBy)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return models.AlertGroupingRule{}, false
 	}
 	query := database.DB.Model(&models.AlertGroupingRule{}).Where("fault_center_id = ? AND name = ?", centerID, name)
@@ -640,7 +642,7 @@ func bindAlertGroupingRule(c *gin.Context, centerID, excludeID uint) (models.Ale
 	}
 	var count int64
 	if query.Count(&count); count > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "分组策略名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "分组策略名称已存在")
 		return models.AlertGroupingRule{}, false
 	}
 	return models.AlertGroupingRule{
@@ -677,7 +679,7 @@ func ListAlertInhibitionRules(c *gin.Context) {
 		rows[i].TargetMatchers = decodeAlertLabelMatchers(rows[i].TargetMatchersJSON)
 		rows[i].EqualLabels = decodeAlertLabelSelectors(rows[i].EqualLabelsJSON)
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": rows})
+	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
 func CreateAlertInhibitionRule(c *gin.Context) {
@@ -687,11 +689,11 @@ func CreateAlertInhibitionRule(c *gin.Context) {
 	}
 	var req saveInhibitionRuleReq
 	if err := c.ShouldBindJSON(&req); err != nil || validateInhibitionRule(req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请完整填写规则名称、源标签和目标标签"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请完整填写规则名称、源标签和目标标签")
 		return
 	}
 	if inhibitionRuleNameExists(centerID, strings.TrimSpace(req.Name), 0) {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "抑制规则名称已存在"})
+		resp.Error(c, http.StatusConflict, resp.CodeConflict, "抑制规则名称已存在")
 		return
 	}
 	sourceMatchers, _ := normalizeAlertLabelMatchers(req.SourceMatchers)
@@ -700,7 +702,7 @@ func CreateAlertInhibitionRule(c *gin.Context) {
 	row := models.AlertInhibitionRule{FaultCenterID: centerID, Name: strings.TrimSpace(req.Name), SourceMatchersJSON: encodeJSON(sourceMatchers), TargetMatchersJSON: encodeJSON(targetMatchers), EqualLabelsJSON: encodeJSON(equalLabels), SourceMatchers: sourceMatchers, TargetMatchers: targetMatchers, EqualLabels: equalLabels, Status: req.Status}
 	database.DB.Create(&row)
 	reconcileFaultCenterNotificationSuppressions(centerID, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "抑制规则已创建", "data": row})
+	resp.Success(c, http.StatusOK, "抑制规则已创建", row)
 }
 
 func UpdateAlertInhibitionRule(c *gin.Context) {
@@ -711,16 +713,16 @@ func UpdateAlertInhibitionRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	var row models.AlertInhibitionRule
 	if ruleID < 1 || database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).First(&row).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "抑制规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "抑制规则不存在")
 		return
 	}
 	var req saveInhibitionRuleReq
 	if err := c.ShouldBindJSON(&req); err != nil || validateInhibitionRule(req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请完整填写规则名称、源标签和目标标签"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请完整填写规则名称、源标签和目标标签")
 		return
 	}
 	if inhibitionRuleNameExists(centerID, strings.TrimSpace(req.Name), row.ID) {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "抑制规则名称已存在"})
+		resp.Error(c, http.StatusConflict, resp.CodeConflict, "抑制规则名称已存在")
 		return
 	}
 	sourceMatchers, _ := normalizeAlertLabelMatchers(req.SourceMatchers)
@@ -728,7 +730,7 @@ func UpdateAlertInhibitionRule(c *gin.Context) {
 	equalLabels, _ := normalizeAlertLabelSelectors(req.EqualLabels)
 	database.DB.Model(&row).Updates(map[string]interface{}{"name": strings.TrimSpace(req.Name), "source_matchers": encodeJSON(sourceMatchers), "target_matchers": encodeJSON(targetMatchers), "equal_labels_v2": encodeJSON(equalLabels), "status": req.Status})
 	reconcileFaultCenterNotificationSuppressions(centerID, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "抑制规则已更新"})
+	resp.Success(c, http.StatusOK, "抑制规则已更新")
 }
 
 func DeleteAlertInhibitionRule(c *gin.Context) {
@@ -739,11 +741,11 @@ func DeleteAlertInhibitionRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	result := database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).Delete(&models.AlertInhibitionRule{})
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "抑制规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "抑制规则不存在")
 		return
 	}
 	reconcileFaultCenterNotificationSuppressions(centerID, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "抑制规则已删除"})
+	resp.Success(c, http.StatusOK, "抑制规则已删除")
 }
 
 func GetAlertNotificationConfig(c *gin.Context) {
@@ -762,7 +764,7 @@ func GetAlertNotificationConfig(c *gin.Context) {
 	}
 	var routes []models.AlertNotificationRoute
 	database.DB.Where("fault_center_id = ?", centerID).Order("id ASC").Find(&routes)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": notificationConfigResponse(config, defaultIDs, routes)})
+	resp.Success(c, http.StatusOK, "成功", notificationConfigResponse(config, defaultIDs, routes))
 }
 
 func UpdateAlertNotificationConfig(c *gin.Context) {
@@ -772,7 +774,7 @@ func UpdateAlertNotificationConfig(c *gin.Context) {
 	}
 	var req saveNotificationConfigReq
 	if c.ShouldBindJSON(&req) != nil || req.RepeatIntervalSeconds < 60 || req.RepeatIntervalSeconds > 604800 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "通知配置参数不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "通知配置参数不正确")
 		return
 	}
 	allChannelIDs := append([]uint{}, req.DefaultChannelIDs...)
@@ -782,14 +784,14 @@ func UpdateAlertNotificationConfig(c *gin.Context) {
 		route.LabelNamespace, route.LabelKey, route.LabelValue = strings.TrimSpace(route.LabelNamespace), strings.TrimSpace(route.LabelKey), strings.TrimSpace(route.LabelValue)
 		key := route.LabelNamespace + "\x00" + route.LabelKey + "\x00" + route.LabelValue
 		if !validAlertLabelKey(route.LabelNamespace, route.LabelKey) || route.LabelValue == "" || len(route.ChannelIDs) == 0 || seenRoutes[key] || (route.Status != 0 && route.Status != 1) {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请完整填写告警路由，且标签条件不能重复"})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请完整填写告警路由，且标签条件不能重复")
 			return
 		}
 		seenRoutes[key] = true
 		allChannelIDs = append(allChannelIDs, route.ChannelIDs...)
 	}
 	if !activeNotificationChannelsExist(allChannelIDs) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "通知对象不存在或已停用"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "通知对象不存在或已停用")
 		return
 	}
 	defaultChannelIDs := normalizeChannelIDs(req.DefaultChannelIDs)
@@ -819,10 +821,10 @@ func UpdateAlertNotificationConfig(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存通知配置失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存通知配置失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "通知配置已保存"})
+	resp.Success(c, http.StatusOK, "通知配置已保存")
 }
 
 func notificationConfigResponse(config models.AlertNotificationConfig, defaultIDs []uint, routes []models.AlertNotificationRoute) gin.H {
@@ -895,7 +897,7 @@ func ListAlertSilenceRules(c *gin.Context) {
 		rows[i].Matchers = decodeAlertLabelMatchers(rows[i].MatchersJSON)
 		_ = json.Unmarshal([]byte(rows[i].WeekdaysJSON), &rows[i].Weekdays)
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": rows})
+	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
 func CreateAlertSilenceRule(c *gin.Context) {
@@ -905,12 +907,12 @@ func CreateAlertSilenceRule(c *gin.Context) {
 	}
 	var req saveSilenceRuleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "静默策略格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "静默策略格式不正确")
 		return
 	}
 	rule, err := buildSilenceRule(centerID, req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	desiredStatus := rule.Status
@@ -923,12 +925,12 @@ func CreateAlertSilenceRule(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建静默策略失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建静默策略失败")
 		return
 	}
 	rule.Status = desiredStatus
 	reconcileFaultCenterSilences(centerID, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "静默策略已创建", "data": rule})
+	resp.Success(c, http.StatusOK, "静默策略已创建", rule)
 }
 
 func UpdateAlertSilenceRule(c *gin.Context) {
@@ -939,17 +941,17 @@ func UpdateAlertSilenceRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	var existing models.AlertSilenceRule
 	if ruleID < 1 || database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).First(&existing).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "静默策略不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "静默策略不存在")
 		return
 	}
 	var req saveSilenceRuleReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "静默策略格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "静默策略格式不正确")
 		return
 	}
 	rule, err := buildSilenceRule(centerID, req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Model(&existing).Updates(map[string]interface{}{
@@ -957,11 +959,11 @@ func UpdateAlertSilenceRule(c *gin.Context) {
 		"weekdays": rule.WeekdaysJSON, "start_time": rule.StartTime, "end_time": rule.EndTime,
 		"start_at": rule.StartAt, "end_at": rule.EndAt, "status": rule.Status,
 	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新静默策略失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新静默策略失败")
 		return
 	}
 	reconcileFaultCenterSilences(centerID, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "静默策略已更新"})
+	resp.Success(c, http.StatusOK, "静默策略已更新")
 }
 
 func DeleteAlertSilenceRule(c *gin.Context) {
@@ -972,11 +974,11 @@ func DeleteAlertSilenceRule(c *gin.Context) {
 	ruleID, _ := strconv.Atoi(c.Param("ruleId"))
 	result := database.DB.Where("id = ? AND fault_center_id = ?", ruleID, centerID).Delete(&models.AlertSilenceRule{})
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "静默策略不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "静默策略不存在")
 		return
 	}
 	reconcileFaultCenterSilences(centerID, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "静默策略已删除"})
+	resp.Success(c, http.StatusOK, "静默策略已删除")
 }
 
 func buildSilenceRule(centerID uint, req saveSilenceRuleReq) (models.AlertSilenceRule, error) {
@@ -1064,16 +1066,16 @@ func SilenceAlert(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var row models.AlertInstance
 	if id < 1 || database.DB.First(&row, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警不存在")
 		return
 	}
 	if row.Status == alertStatusResolved {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "已恢复告警不能静默"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "已恢复告警不能静默")
 		return
 	}
 	var req silenceAlertReq
 	if err := c.ShouldBindJSON(&req); err != nil || req.DurationMinutes < 5 || req.DurationMinutes > 10080 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "静默时长需在 5 分钟到 7 天之间"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "静默时长需在 5 分钟到 7 天之间")
 		return
 	}
 	until := time.Now().Add(time.Duration(req.DurationMinutes) * time.Minute)
@@ -1083,25 +1085,25 @@ func SilenceAlert(c *gin.Context) {
 	}
 	database.DB.Model(&row).Updates(map[string]interface{}{"silenced_until": until, "silence_reason": reason, "silence_rule_id": nil, "notification_status": notificationStatusSilenced, "notification_reason": reason, "next_notification_at": nil})
 	_ = recordAlertEvent(database.DB, row, "silenced", row.Status, row.Status, row.Severity, row.Severity, strings.TrimSpace(req.Reason), "", row.LastProbeStatus, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "告警已静默", "data": gin.H{"silenced_until": until}})
+	resp.Success(c, http.StatusOK, "告警已静默", gin.H{"silenced_until": until})
 }
 
 func UnsilenceAlert(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var alert models.AlertInstance
 	if id < 1 || database.DB.First(&alert, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警不存在")
 		return
 	}
 	result := database.DB.Model(&alert).Updates(map[string]interface{}{"silenced_until": nil, "silence_reason": "", "silence_rule_id": nil})
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警不存在")
 		return
 	}
 	alert.SilencedUntil, alert.SilenceRuleID, alert.SilenceReason = nil, nil, ""
 	reconcileAlertNotificationSuppression(&alert, time.Now())
 	_ = recordAlertEvent(database.DB, alert, "unsilenced", alert.Status, alert.Status, alert.Severity, alert.Severity, "manual_unsilence", "", alert.LastProbeStatus, time.Now())
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "静默已解除"})
+	resp.Success(c, http.StatusOK, "静默已解除")
 }
 
 func requireFaultCenter(c *gin.Context) (uint, bool) {
@@ -1109,7 +1111,7 @@ func requireFaultCenter(c *gin.Context) (uint, bool) {
 	var count int64
 	database.DB.Model(&models.FaultCenter{}).Where("id = ?", id).Count(&count)
 	if id < 1 || count == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "故障中心不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "故障中心不存在")
 		return 0, false
 	}
 	return uint(id), true
@@ -1620,7 +1622,7 @@ func buildInspectionNodeAlertSnapshot(item models.InspectionItem, node inspectio
 }
 
 func syncInspectionAlert(item models.InspectionItem, node inspectionExecutionNode, probeStatus, result string, failures int, recoveryDue bool, now time.Time) (string, string, error) {
-	runtimeLabels, snapshot := buildInspectionNodeAlertSnapshot(item, node, probeStatus, truncate(result, 4000))
+	runtimeLabels, snapshot := buildInspectionNodeAlertSnapshot(item, node, probeStatus, textutil.Ellipsis(result, 4000))
 	fingerprint := inspectionAlertFingerprint(item.ID, node)
 	var alert models.AlertInstance
 	tx := database.DB.Where("source = ? AND source_id = ? AND fingerprint = ? AND status IN ?", "probe-task", item.ID, fingerprint, []string{alertStatusPending, alertStatusFiring, alertStatusRecovering}).

@@ -1,114 +1,103 @@
 <template>
   <div class="group-page">
-    <div class="group-toolbar">
-      <div class="search-area" role="search" aria-label="数据源分组筛选">
-        <el-input v-model="keyword" :prefix-icon="Search" clearable placeholder="搜索数据源分组名称" @keyup.enter="handleSearch" @clear="handleSearch" />
-        <el-button :icon="Search" @click="handleSearch">查询</el-button>
-      </div>
-      <div class="toolbar-actions">
-        <el-button :icon="Refresh" :loading="loading" @click="loadGroups">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="openDrawer()">创建</el-button>
-      </div>
+    <div class="group-layout">
+      <aside class="group-sidebar" aria-label="实例分组">
+        <div class="sidebar-heading">
+          <el-icon><Grid /></el-icon><strong>实例分组</strong><span class="group-count">{{ groups.length }}</span>
+          <el-button v-permission="['datasource:create']" text size="small" :icon="Plus" aria-label="新增实例分组" title="新增分组" @click="openDialog()" />
+        </div>
+        <div class="group-search">
+          <el-input v-model="keyword" :prefix-icon="Search" clearable size="small" aria-label="搜索实例分组" placeholder="搜索分组" />
+        </div>
+        <nav v-loading="loading" class="group-menu" aria-label="选择实例分组">
+          <el-tree :data="filteredTree" node-key="id" :props="{ label: 'name', children: 'children' }" :indent="0" default-expand-all highlight-current :current-node-key="selectedGroupId" :expand-on-click-node="false" @node-click="group => selectedGroupId = group.id">
+            <template #default="{ node, data: group }">
+              <span class="group-tree-item" :class="{ active: selectedGroupId === group.id, 'root-group': node.level === 1 }" :title="group.path">
+                <span class="group-name">{{ group.name }}</span><span class="member-count">{{ group.scope_member_count ?? group.member_count }}</span>
+                <span class="group-node-actions" @click.stop @keydown.stop>
+                  <button v-permission="['datasource:edit']" type="button" class="group-node-action" :aria-label="`编辑分组 ${group.name}`" title="编辑分组" @click.stop="openDialog(group)"><el-icon><Edit /></el-icon></button>
+                  <button v-permission="['datasource:create']" type="button" class="group-node-action" :disabled="group.depth >= 5" :aria-label="`在 ${group.name} 下新增子分组`" :title="group.depth >= 5 ? '已达 5 级，不能继续添加子分组' : '新增子分组'" @click.stop="openDialog(null, group.id)"><el-icon><Plus /></el-icon></button>
+                  <button v-permission="['datasource:delete']" type="button" class="group-node-action danger" :aria-label="`删除分组 ${group.name}`" title="删除分组" @click.stop="removeGroup(group)"><el-icon><Minus /></el-icon></button>
+                </span>
+              </span>
+            </template>
+          </el-tree>
+          <p v-if="!loading && !filteredTree.length" class="sidebar-empty">{{ keyword.trim() ? '未找到匹配分组' : '暂无分组，点击 + 创建' }}</p>
+        </nav>
+      </aside>
+
+      <section v-loading="loading" class="group-content" aria-label="分组实例列表">
+        <DatasourceManage :group-id="selectedGroupId" :group-name="selectedGroup?.path || ''" :refresh-key="refreshKey" require-group @changed="loadGroups" />
+      </section>
     </div>
 
-    <section class="group-card">
-      <el-table v-loading="loading" :data="pagedGroups" row-key="id" border>
-        <el-table-column prop="name" label="分组名称" min-width="180" />
-        <el-table-column label="数据源" min-width="320">
-          <template #default="{ row }">
-            <div class="source-list">
-              <el-tag v-for="name in row.datasource_names" :key="name" size="small" effect="plain">{{ name }}</el-tag>
-            </div>
-          </template>
-        </el-table-column>
-        <el-table-column label="描述" min-width="240" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.description || '' }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" :icon="Edit" aria-label="编辑数据源分组" title="编辑" @click="openDrawer(row)" />
-            <el-button link type="danger" :icon="Delete" aria-label="删除数据源分组" title="删除" @click="removeGroup(row)" />
-          </template>
-        </el-table-column>
-        <template #empty><TableEmpty /></template>
-      </el-table>
-      <div class="pagination-wrap">
-        <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50]" :total="filteredGroups.length" layout="total, sizes, prev, pager, next" />
-      </div>
-    </section>
-
-    <el-drawer v-model="drawerVisible" class="datasource-group-drawer" size="min(460px, 94vw)" :close-on-click-modal="false" destroy-on-close>
-      <template #header>
-        <div class="drawer-header"><DrawerBackButton @click="drawerVisible = false" /><strong>{{ form.id ? '编辑数据源分组' : '新增数据源分组' }}</strong></div>
-      </template>
-      <el-form ref="formRef" :model="form" :rules="formRules" label-position="top">
-        <el-form-item label="分组名称" prop="name"><el-input v-model="form.name" maxlength="128" show-word-limit /></el-form-item>
-        <el-form-item label="数据源" prop="datasource_ids">
-          <el-select v-model="form.datasource_ids" multiple filterable collapse-tags :max-collapse-tags="5" style="width: 100%">
-            <el-option v-for="item in datasources" :key="item.id" :label="item.name" :value="item.id" />
-          </el-select>
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑分组' : '创建分组'" width="min(380px, 92vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving" destroy-on-close @opened="groupNameInput?.focus()">
+      <el-form ref="formRef" :model="form" :rules="formRules" @submit.prevent="saveGroup">
+        <el-form-item prop="name">
+          <el-input ref="groupNameInput" v-model="form.name" placeholder="输入分组名称，如生产环境、eu" aria-label="分组名称" maxlength="128" :disabled="saving" />
         </el-form-item>
-        <el-form-item label="描述"><el-input v-model="form.description" type="textarea" :rows="5" maxlength="500" show-word-limit /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="drawerVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="saveGroup">保存</el-button></template>
-    </el-drawer>
+      <template #footer><el-button :disabled="saving" @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="saveGroup">{{ form.id ? '保存' : '创建' }}</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Edit, Grid, Minus, Plus, Search } from '@element-plus/icons-vue'
 import { createDatasourceGroup, deleteDatasourceGroup, getDatasourceGroups, updateDatasourceGroup } from '../../api/datasourceGroup'
-import { getPromDatasources } from '../../api/prometheus'
+import DatasourceManage from './DatasourceManage.vue'
+import { datasourceGroupTree, filterDatasourceGroupTree } from '../../utils/datasourceGroups'
 
-const groups = ref([]), datasources = ref([]), keyword = ref(''), appliedKeyword = ref('')
-const loading = ref(false), saving = ref(false), drawerVisible = ref(false), formRef = ref()
-const page = ref(1), pageSize = ref(10)
-const emptyForm = () => ({ id: null, name: '', description: '', datasource_ids: [] })
+const groups = ref([]), keyword = ref(''), selectedGroupId = ref(null)
+const loading = ref(false), saving = ref(false), dialogVisible = ref(false), formRef = ref(), groupNameInput = ref()
+const refreshKey = ref(0)
+const emptyForm = () => ({ id: null, parent_id: 0, name: '', description: '', datasource_ids: [] })
 const form = reactive(emptyForm())
 const formRules = {
-  name: [{ required: true, message: '请输入数据源分组名称', trigger: 'blur' }],
-  datasource_ids: [{ type: 'array', required: true, min: 1, message: '请至少选择一个数据源', trigger: 'change' }],
+  name: [{ required: true, whitespace: true, message: '请输入数据源分组名称', trigger: 'blur' }],
 }
-const filteredGroups = computed(() => {
-  const value = appliedKeyword.value.toLowerCase()
-  if (!value) return groups.value
-  return groups.value.filter(item => `${item.name} ${item.description || ''}`.toLowerCase().includes(value))
-})
-const pagedGroups = computed(() => filteredGroups.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
-watch(pageSize, () => { page.value = 1 })
-
-onMounted(() => Promise.all([loadGroups(), loadDatasources()]))
+const groupTree = computed(() => datasourceGroupTree(groups.value))
+const filteredTree = computed(() => filterDatasourceGroupTree(groupTree.value, keyword.value))
+const selectedGroup = computed(() => groups.value.find(group => group.id === selectedGroupId.value))
+onMounted(loadGroups)
 
 async function loadGroups() {
   loading.value = true
-  try { groups.value = (await getDatasourceGroups()).data || [] }
+  try {
+    groups.value = (await getDatasourceGroups()).data || []
+    if (!groups.value.some(group => group.id === selectedGroupId.value)) selectedGroupId.value = groups.value[0]?.id ?? null
+  }
   finally { loading.value = false }
 }
-async function loadDatasources() { datasources.value = (await getPromDatasources()).data || [] }
-function handleSearch() { appliedKeyword.value = keyword.value.trim(); page.value = 1 }
-function openDrawer(row) {
-  Object.assign(form, row ? { id: row.id, name: row.name, description: row.description || '', datasource_ids: [...(row.datasource_ids || [])] } : emptyForm())
-  drawerVisible.value = true
+async function refresh() { refreshKey.value++; await loadGroups() }
+function openDialog(row, parentID = 0) {
+  Object.assign(form, row ? { id: row.id, parent_id: row.parent_id || 0, name: row.name, description: row.description || '', datasource_ids: [...(row.datasource_ids || [])] } : { ...emptyForm(), parent_id: parentID })
+  dialogVisible.value = true
 }
 async function saveGroup() {
+  if (saving.value) return
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
   saving.value = true
   try {
-    const payload = { name: form.name.trim(), description: form.description.trim(), datasource_ids: form.datasource_ids }
+    const payload = { parent_id: form.parent_id || 0, name: form.name.trim(), description: form.description.trim(), datasource_ids: form.datasource_ids }
     if (form.id) await updateDatasourceGroup(form.id, payload)
-    else await createDatasourceGroup(payload)
+    else {
+      const response = await createDatasourceGroup(payload)
+      selectedGroupId.value = response.data.id
+      keyword.value = ''
+    }
     ElMessage.success(form.id ? '数据源分组已更新' : '数据源分组已创建')
-    drawerVisible.value = false
-    await loadGroups()
+    dialogVisible.value = false
+    await refresh()
   } finally { saving.value = false }
 }
 async function removeGroup(row) {
+  if ((row.scope_member_count ?? row.member_count ?? row.datasource_ids?.length ?? 0) > 0) { ElMessage.warning('分组内存在数据源，不能删除'); return }
   if (row.rule_count > 0) { ElMessage.warning(`该数据源分组仍关联 ${row.rule_count} 条告警规则，请先解除关联。`); return }
-  await ElMessageBox.confirm(`确认删除数据源分组“${row.name}”？`, '删除数据源分组', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' })
+  if (!await ElMessageBox.confirm(`确认删除数据源分组“${row.name}”？`, '删除数据源分组', { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }).then(() => true).catch(() => false)) return
   await deleteDatasourceGroup(row.id)
   ElMessage.success('数据源分组已删除')
   await loadGroups()
@@ -116,7 +105,55 @@ async function removeGroup(row) {
 </script>
 
 <style scoped>
-.group-page { display: flex; flex-direction: column; gap: 16px; }.group-toolbar, .search-area, .toolbar-actions, .source-list, .drawer-header { display: flex; align-items: center; gap: 8px; }.group-toolbar { justify-content: space-between; padding: 16px; border: 1px solid #e5e9f0; border-radius: 8px; background: #fff; }.toolbar-actions :deep(.el-button + .el-button) { margin-left: 0; }.search-area .el-input { width: 280px; }.group-card { padding: 16px; border: 1px solid #e5e9f0; border-radius: 8px; background: #fff; }.source-list { flex-wrap: wrap; }.source-list :deep(.el-tag) { border-radius: 0; }.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }.drawer-header { gap: 12px; }.drawer-header .el-button { margin-left: -10px; }
-:global(.datasource-group-drawer.el-drawer) { border-radius: 0 !important; }:global(.datasource-group-drawer .el-drawer__header) { margin-bottom: 0; padding: 16px 20px; border-bottom: 1px solid #e5e9f0; }:global(.datasource-group-drawer .el-drawer__body) { padding: 22px 24px; }:global(.datasource-group-drawer .el-drawer__footer) { padding: 12px 20px; border-top: 1px solid #e5e9f0; }
-@media (max-width: 720px) { .group-toolbar { align-items: stretch; flex-direction: column; }.search-area { flex-wrap: wrap; }.search-area .el-input { width: min(100%, 280px); }.toolbar-actions { justify-content: flex-end; }.pagination-wrap { overflow-x: auto; justify-content: flex-start; } }
+.group-node-actions { display: inline-flex; align-items: center; gap: 1px; flex-shrink: 0; }
+.group-node-action { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--ops-subtle); cursor: pointer; font-size: 12px; }
+.group-node-action:hover:not(:disabled) { color: var(--ops-primary); background: var(--ops-primary-soft); }
+.group-node-action.danger:hover { color: var(--ops-danger); background: color-mix(in srgb, var(--ops-danger) 10%, var(--ops-surface)); }
+.group-node-action:disabled { opacity: .3; cursor: not-allowed; }
+.group-node-action:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
+
+.group-tree-item { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; padding: 0 6px 0 0; font-size: 12px; }
+.root-group .group-name { font-weight: 600; color: var(--ops-text); }
+.root-group.active .group-name { color: inherit; }
+.group-tree-item.active { color: var(--ops-warning); font-weight: 500; }
+.group-menu :deep(.el-tree) { background: transparent; }
+.group-menu :deep(.el-tree-node) { position: relative; }
+.group-menu :deep(.el-tree-node__content) { position: relative; height: 34px; margin-bottom: 2px; border: 1px solid transparent; border-radius: 6px; }
+.group-menu :deep(.el-tree > .el-tree-node + .el-tree-node) { margin-top: 6px; }
+.group-menu :deep(.el-tree-node__children) { margin-left: 9px; padding-left: 9px; }
+.group-menu :deep(.el-tree-node__children > .el-tree-node::before) { content: ''; position: absolute; left: -9px; top: 0; bottom: 0; border-left: 1px solid var(--ops-border); pointer-events: none; }
+.group-menu :deep(.el-tree-node__children > .el-tree-node:last-child::before) { bottom: auto; height: 17px; }
+.group-menu :deep(.el-tree-node__children > .el-tree-node > .el-tree-node__content::before) { content: ''; position: absolute; left: -10px; top: 16px; width: 9px; border-top: 1px solid var(--ops-border); pointer-events: none; }
+.group-menu :deep(.el-tree-node__content:hover) { background: var(--ops-surface-soft); }
+.group-menu :deep(.el-tree-node.is-current > .el-tree-node__content) { background: color-mix(in srgb, #a78753 13%, var(--ops-surface)); border-color: color-mix(in srgb, #a78753 45%, var(--ops-surface)); }
+.group-menu :deep(.el-tree-node__expand-icon) { padding: 4px; font-size: 12px; }
+.group-menu :deep(.el-tree-node__expand-icon:not(.is-leaf)) { color: var(--ops-muted); }
+
+.group-layout { display: flex; align-items: stretch; gap: 16px; min-height: 480px; }
+.group-sidebar { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; max-height: calc(100vh - 120px); min-height: 320px; border: 1px solid var(--ops-border-soft); border-radius: 10px; background: var(--ops-surface); box-shadow: 0 1px 4px #0000000f; }
+.sidebar-heading { display: flex; align-items: center; gap: 6px; padding: 10px 12px; color: var(--ops-muted); font-size: 14px; }
+.sidebar-heading strong { color: var(--ops-text); font-size: 13px; }
+.sidebar-heading .el-button { margin-left: auto; padding: 4px; }
+.group-count, .member-count { flex-shrink: 0; padding: 2px 6px; border-radius: 8px; background: var(--ops-surface-soft); color: var(--ops-subtle); font-size: 11px; font-weight: 400; }
+.group-search { padding: 0 8px 10px; }
+.group-menu { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+.group-item { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 6px; padding: 9px 12px; border: 1px solid var(--ops-border-soft); border-radius: 7px; background: var(--ops-surface); color: var(--ops-text); box-shadow: 0 .5px 2px #0000000a; cursor: pointer; text-align: left; font: inherit; font-size: 12px; transition: background .12s, border-color .12s; }
+.group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-item > .el-icon { flex-shrink: 0; color: var(--ops-muted); }
+.group-item:hover { background: var(--ops-surface-soft); border-color: var(--ops-border); }
+.group-item.active { background: color-mix(in srgb, #a78753 13%, var(--ops-surface)); border-color: color-mix(in srgb, #a78753 45%, var(--ops-surface)); color: var(--ops-warning); box-shadow: 0 1px 4px #a787531f; font-weight: 500; }
+.group-item.active > .el-icon { color: inherit; }
+.group-item:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
+.sidebar-empty { padding: 12px 4px; text-align: center; color: var(--ops-subtle); font-size: 12px; }
+.group-content { flex: 1; min-width: 0; }
+.group-content :deep(.datasource-table-card) { border: 1px solid var(--ops-border); border-radius: 8px; box-shadow: none; background: var(--ops-surface); }
+.group-content :deep(.datasource-table-card > .el-card__body) { padding: 16px; }
+.instance-name .el-icon { color: var(--ops-subtle); }
+.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; overflow-x: auto; }
+@media (max-width: 720px) {
+  .group-layout { flex-direction: column; }
+  .group-sidebar { width: 100%; min-height: 0; max-height: 260px; }
+  .group-menu { min-height: 60px; }
+  .pagination-wrap { justify-content: flex-start; }
+}
 </style>

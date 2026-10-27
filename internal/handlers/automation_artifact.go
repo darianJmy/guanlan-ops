@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/textutil"
 	"io"
 	"io/fs"
 	"os"
@@ -129,7 +130,7 @@ func buildRepositoryArtifact(repository models.GitRepository, ref string) (repos
 		return repositoryArtifact{}, errors.New("拉取 Git 仓库超时")
 	}
 	if err != nil {
-		return repositoryArtifact{}, fmt.Errorf("拉取 Git 仓库失败：%s", truncate(strings.TrimSpace(string(output)), 1000))
+		return repositoryArtifact{}, fmt.Errorf("拉取 Git 仓库失败：%s", textutil.Ellipsis(strings.TrimSpace(string(output)), 1000))
 	}
 	revisionOutput, err := exec.Command("git", "-C", repoDir, "rev-parse", "HEAD").Output()
 	if err != nil {

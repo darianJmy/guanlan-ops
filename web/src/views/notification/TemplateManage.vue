@@ -291,7 +291,7 @@ function formatTime(value) {
 </script>
 
 <style scoped>
-.task-page { --border: #e1e8f1; display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.task-page { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 260px 120px auto; gap: 8px; }
 .filter-bar > * { min-width: 0; width: 100%; }
@@ -362,7 +362,7 @@ function formatTime(value) {
 }
 
 :deep(.template-drawer .el-drawer__body) {
-  background: #fff;
+  background: var(--ops-surface);
   padding: 18px 20px;
 }
 
@@ -383,11 +383,11 @@ function formatTime(value) {
   height: 32px;
   padding: 0 8px;
   font-size: 14px;
-  color: #3b6ea8;
+  color: var(--ops-primary);
 }
 
 .drawer-title {
-  color: #303133;
+  color: var(--ops-text);
   font-size: 16px;
   font-weight: 600;
 }
@@ -425,7 +425,7 @@ function formatTime(value) {
   height: 100px;
   padding: 0;
   cursor: pointer;
-  background: #fff;
+  background: var(--ops-surface);
   border: 1px solid #d9d9d9;
   border-radius: 6px;
   outline: 1px solid transparent;
@@ -439,7 +439,7 @@ function formatTime(value) {
 }
 
 .type-card:hover {
-  border-color: #409eff;
+  border-color: var(--ops-primary);
   box-shadow: 0 2px 8px rgba(31, 45, 61, .08);
 }
 
@@ -456,7 +456,7 @@ function formatTime(value) {
 .type-card .type-option > span {
   display: block;
   margin-top: 5px;
-  color: #303133;
+  color: var(--ops-text);
   font-size: 12px;
   line-height: 18px;
   text-align: center;
@@ -482,14 +482,14 @@ function formatTime(value) {
   gap: 9px;
   margin-bottom: 16px;
   padding: 7px 12px;
-  color: #536f91;
-  background: #eaf5ff;
+  color: var(--ops-muted);
+  background: var(--ops-primary-soft);
   font-size: 11px;
 }
 
 .intro-icon {
   flex: none;
-  color: #409eff;
+  color: var(--ops-primary);
   font-size: 14px;
 }
 
@@ -497,12 +497,12 @@ function formatTime(value) {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: #718096;
+  color: var(--ops-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.intro-message strong { color: #536f91; }
+.intro-message strong { color: var(--ops-muted); }
 
 .template-fields {
   margin-bottom: 16px;
@@ -537,7 +537,7 @@ function formatTime(value) {
 
 .field-item code {
   overflow: hidden;
-  color: #1769d2;
+  color: var(--ops-primary);
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -1,6 +1,6 @@
 <template>
   <div class="cloud-monitor-page">
-    <template v-if="viewMode === 'list'">
+    <template v-if="!props.embedded && viewMode === 'list'">
       <section class="page-intro" role="note" aria-label="云监控2.0简介">
         <el-icon class="intro-icon" aria-hidden="true"><InfoFilled /></el-icon>
         <span>集中维护阿里云云监控 2.0 Workspace。名称用于平台内展示，Workspace 填写阿里云中的真实标识；AccessKey 加密保存且不会在页面中回显。</span>
@@ -55,13 +55,10 @@
       <PageEmpty v-if="!loading && items.length === 0" :description="keyword ? '没有匹配的云监控 Workspace' : '暂无云监控2.0仪表盘'" />
     </template>
 
-    <template v-else>
+    <template v-else-if="viewMode === 'preview'">
       <header class="preview-header">
         <el-button link type="primary" :icon="ArrowLeft" @click="backToList">返回</el-button>
-        <div class="preview-actions">
-          <el-button :loading="sessionLoading" @click="refreshSession">刷新</el-button>
-          <el-button type="primary" :disabled="!previewUrl" @click="openNewWindow">新窗口打开</el-button>
-        </div>
+        <DashboardPreviewActions :url="previewUrl" :loading="sessionLoading" @refresh="refreshSession" />
       </header>
       <div class="iframe-shell">
         <div v-if="sessionLoading || iframeLoading" class="iframe-state">
@@ -79,12 +76,13 @@
     </template>
 
     <el-drawer v-model="drawerVisible" class="cloud-monitor-drawer" size="min(460px, 94vw)" direction="rtl" :show-close="false" :close-on-click-modal="false">
-      <template #header>
+      <template #header="{ titleId }">
         <div class="drawer-header">
-          <DrawerBackButton @click="drawerVisible = false" />
-          <span class="drawer-title">{{ form.id ? '编辑云监控 Workspace' : '创建云监控 Workspace' }}</span>
+          <DrawerBackButton :disabled="saving" @click="backFromForm" />
+          <span :id="titleId" class="drawer-accessible-title">{{ '云监控2.0' }}</span>
         </div>
       </template>
+      <DashboardTypeIdentity :icon="aliyunCloudLogo" label="云监控2.0" />
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="workspace-form">
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" maxlength="128" aria-label="名称" />
@@ -140,9 +138,14 @@
 </template>
 
 <script setup>
+const props = defineProps({ embedded: Boolean })
+const emit = defineEmits(['changed', 'view-change', 'select-type'])
+defineExpose({ create: openCreate, edit: openEdit, open: openWorkspace })
+import DashboardPreviewActions from './DashboardPreviewActions.vue'
+import DashboardTypeIdentity from './DashboardTypeIdentity.vue'
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import PageEmpty from '../../components/PageEmpty.vue'
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, Delete, Edit, InfoFilled, Loading, Plus, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import aliyunCloudLogo from '../../assets/aliyun_cloud.svg'
@@ -187,7 +190,8 @@ const rules = {
   access_key_secret: [{ required: true, message: '请输入 AccessKey Secret', trigger: 'blur' }],
 }
 
-onMounted(fetchData)
+onMounted(() => { if (!props.embedded) fetchData() })
+watch(viewMode, mode => emit('view-change', mode !== 'list'))
 
 function search() {
   keyword.value = searchInput.value.trim()
@@ -195,6 +199,7 @@ function search() {
 }
 
 async function fetchData() {
+  if (props.embedded) { emit('changed'); return }
   loading.value = true
   try {
     const res = await getCloudMonitorWorkspaces(keyword.value ? { keyword: keyword.value } : undefined)
@@ -283,21 +288,23 @@ function backToList() {
   currentWorkspace.value = null
 }
 
-function openNewWindow() {
-  if (previewUrl.value) window.open(previewUrl.value, '_blank', 'noopener,noreferrer')
+function backFromForm() {
+  drawerVisible.value = false
+  if (props.embedded && !form.id) emit('select-type')
 }
 </script>
 
 <style scoped>
+.drawer-accessible-title { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .cloud-monitor-page { display: flex; min-height: 100%; flex-direction: column; gap: 16px; }
-.page-intro { display: flex; min-height: 36px; align-items: center; gap: 9px; padding: 7px 12px; color: #718096; background: #eaf5ff; font-size: 11px; }
-.intro-icon { flex: none; color: #409eff; font-size: 14px; }
+.page-intro { display: flex; min-height: 36px; align-items: center; gap: 9px; padding: 7px 12px; color: var(--ops-muted); background: var(--ops-primary-soft); font-size: 11px; }
+.intro-icon { flex: none; color: var(--ops-primary); font-size: 14px; }
 .page-toolbar, .preview-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .workspace-search { width: 240px; }
 .toolbar-actions, .preview-actions { display: flex; align-items: center; gap: 10px; }
 .project-grid { display: grid; min-height: 120px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.project-card { display: flex; min-width: 0; overflow: hidden; flex-direction: column; background: #fff; border: 1px solid #ebeef5; border-radius: 10px; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.project-card:hover { border-color: #409eff; box-shadow: 0 4px 16px rgba(64, 158, 255, .12); transform: translateY(-2px); }
+.project-card { display: flex; min-width: 0; overflow: hidden; flex-direction: column; background: var(--ops-surface); border: 1px solid var(--ops-border-soft); border-radius: 10px; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.project-card:hover { border-color: var(--ops-primary); box-shadow: 0 4px 16px rgba(64, 158, 255, .12); transform: translateY(-2px); }
 .project-open { display: flex; width: 100%; min-width: 0; flex: 1; align-items: center; gap: 14px; padding: 20px 20px 14px; color: inherit; text-align: left; cursor: pointer; background: transparent; border: 0; }
 .project-open:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -3px; }
 .project-actions { display: flex; align-items: center; gap: 8px; }
@@ -305,9 +312,9 @@ function openNewWindow() {
 .project-logo { display: grid; width: 52px; height: 52px; flex: 0 0 52px; place-items: center; background: #fff3e8; border-radius: 12px; }
 .project-logo img { width: 34px; max-height: 34px; }
 .project-content { display: flex; min-width: 0; flex: 1; flex-direction: column; }
-.project-content strong { overflow: hidden; color: #303133; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.project-description { display: -webkit-box; margin-top: 4px; overflow: hidden; color: #909399; font-size: 12px; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.project-card-footer { display: flex; align-items: center; justify-content: flex-end; padding: 10px 20px; background: #fafbfc; border-top: 1px solid #f5f5f5; }
+.project-content strong { overflow: hidden; color: var(--ops-text); font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.project-description { display: -webkit-box; margin-top: 4px; overflow: hidden; color: var(--ops-muted); font-size: 12px; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.project-card-footer { display: flex; align-items: center; justify-content: flex-end; padding: 10px 20px; background: var(--ops-surface-soft); border-top: 1px solid #f5f5f5; }
 .iframe-shell { position: relative; min-height: 620px; flex: 1; overflow: hidden; background: var(--ops-card); border: 1px solid var(--ops-border); }
 .iframe-shell iframe { display: block; width: 100%; height: calc(100vh - 150px); min-height: 620px; border: 0; }
 .iframe-state { display: flex; position: absolute; z-index: 2; inset: 0; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: var(--ops-muted); background: color-mix(in srgb, var(--ops-card) 92%, transparent); }
@@ -317,7 +324,6 @@ function openNewWindow() {
 :global(.cloud-monitor-drawer .el-drawer__footer) { padding: 12px 20px; border-top: 1px solid var(--ops-border); }
 .drawer-header { display: flex; width: 100%; align-items: center; gap: 12px; }
 .drawer-back { margin-left: -8px; color: var(--ops-primary); }
-.drawer-title { color: var(--ops-text); font-size: 16px; font-weight: 600; }
 .workspace-form :deep(.el-select) { width: 100%; }
 .field-label { display: inline-flex; align-items: center; gap: 5px; }
 .field-help { color: #a3abb8; cursor: help; }

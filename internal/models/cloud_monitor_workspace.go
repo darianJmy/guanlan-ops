@@ -5,6 +5,7 @@ import "time"
 // CloudMonitorWorkspace stores an Aliyun Cloud Monitor 2.0 workspace and its
 // encrypted access credentials. Credentials are deliberately excluded from JSON.
 type CloudMonitorWorkspace struct {
+	Sort                  int       `gorm:"not null;default:0;index" json:"sort"`
 	ID                    uint      `gorm:"primaryKey" json:"id"`
 	Name                  string    `gorm:"size:128;not null;default:''" json:"name"`
 	Workspace             string    `gorm:"size:128;not null;uniqueIndex:idx_cloud_monitor_region_workspace" json:"workspace"`

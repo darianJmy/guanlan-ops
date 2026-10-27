@@ -73,8 +73,15 @@ func TestInspectionRuleGroupLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	call("PUT", fmt.Sprintf("/groups/%d", group.ID), gin.H{"name": "生产", "description": "production probes"}, 200)
-	call("DELETE", "/groups/1", nil, 400)
+	call("DELETE", "/groups/1", nil, 200)
+	// ID 1 is an ordinary group and may be created again after deletion.
+	if err := tx.Create(&models.InspectionRuleGroup{ID: 1, Name: "another group"}).Error; err != nil {
+		t.Fatal(err)
+	}
 	req := CreateInspectionItemReq{GroupID: group.ID, Name: "same-name", Type: "http", Target: "https://example.invalid", Config: `{"target":"https://example.invalid","execution_nodes":[{"node_type":"direct"}]}`, IntervalSeconds: 60, FailureThreshold: 3, RecoveryThreshold: 3, Severity: "P2", FaultCenterID: center.ID, Status: 1}
+	missingGroup := req
+	missingGroup.GroupID = 0
+	call("POST", "/items", missingGroup, 400)
 	call("POST", "/items", req, 200)
 	var item models.InspectionItem
 	tx.Where("group_id = ?", group.ID).First(&item)
@@ -99,6 +106,9 @@ func TestInspectionRuleGroupLifecycle(t *testing.T) {
 	if !strings.Contains(exported, fmt.Sprintf("group_id: %d", group.ID)) {
 		t.Fatal(exported)
 	}
+	withoutGroup := strings.ReplaceAll(exported, fmt.Sprintf("group_id: %d", group.ID), "group_id: 0")
+	call("POST", "/import", gin.H{"content": withoutGroup, "dry_run": true}, 400)
+	call("POST", "/import", gin.H{"content": withoutGroup, "group_id": group.ID, "dry_run": true}, 200)
 	// Duplicate names in an unrelated group must not block this group's import.
 	for i := 0; i < 2; i++ {
 		other := models.InspectionItem{GroupID: 1, Name: "same-name", Type: "http", Target: "unrelated"}
@@ -116,6 +126,7 @@ func TestInspectionRuleGroupLifecycle(t *testing.T) {
 	if imported.ID == 0 || imported.ID == item.ID {
 		t.Fatal("import overwrote a different group's task")
 	}
+	call("DELETE", "/groups/1", nil, 400)
 	req.GroupID = 999999
 	call("POST", "/items", req, 400)
 	req.GroupID = 1

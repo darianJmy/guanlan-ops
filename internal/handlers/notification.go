@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"io"
 	"net/http"
 	"strconv"
@@ -52,33 +53,33 @@ func ListNotificationChannels(c *gin.Context) {
 	for _, row := range rows {
 		data = append(data, notificationChannelResponse(row))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": data})
+	resp.Success(c, http.StatusOK, "成功", data)
 }
 
 func ListNotificationTemplates(c *gin.Context) {
 	var rows []models.NotificationTemplate
 	database.DB.Order("id DESC").Find(&rows)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": rows})
+	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
 func CreateNotificationTemplate(c *gin.Context) {
 	var req saveNotificationTemplateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写名称和告警模板"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写名称和告警模板")
 		return
 	}
 	name := strings.TrimSpace(req.Name)
 	content := strings.TrimSpace(req.Content)
 	if name == "" || content == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写名称和告警模板"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写名称和告警模板")
 		return
 	}
 	if err := validateNotificationTemplateContent(content); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Markdown 模板语法不正确：" + err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Markdown 模板语法不正确："+err.Error())
 		return
 	}
 	if notificationTemplateNameExists(name, 0) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "模板名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "模板名称已存在")
 		return
 	}
 	item := models.NotificationTemplate{
@@ -90,36 +91,36 @@ func CreateNotificationTemplate(c *gin.Context) {
 		Status:       normalizedStatus(req.Status),
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建通知模板失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建通知模板失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": item})
+	resp.Success(c, http.StatusOK, "创建成功", item)
 }
 
 func UpdateNotificationTemplate(c *gin.Context) {
 	var existing models.NotificationTemplate
 	if err := database.DB.First(&existing, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "通知模板不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "通知模板不存在")
 		return
 	}
 	var req saveNotificationTemplateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写名称和告警模板"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写名称和告警模板")
 		return
 	}
 	name := strings.TrimSpace(req.Name)
 	content := strings.TrimSpace(req.Content)
 	if name == "" || content == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写名称和告警模板"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写名称和告警模板")
 		return
 	}
 	if err := validateNotificationTemplateContent(content); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Markdown 模板语法不正确：" + err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Markdown 模板语法不正确："+err.Error())
 		return
 	}
 	id, _ := strconv.Atoi(c.Param("id"))
 	if notificationTemplateNameExists(name, uint(id)) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "模板名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "模板名称已存在")
 		return
 	}
 	updates := map[string]interface{}{
@@ -131,15 +132,15 @@ func UpdateNotificationTemplate(c *gin.Context) {
 		"status":        normalizedStatus(req.Status),
 	}
 	if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新通知模板失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新通知模板失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteNotificationTemplate(c *gin.Context) {
 	database.DB.Delete(&models.NotificationTemplate{}, c.Param("id"))
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func notificationTemplateNameExists(name string, excludeID uint) bool {
@@ -155,17 +156,19 @@ func notificationTemplateNameExists(name string, excludeID uint) bool {
 func CreateNotificationChannel(c *gin.Context) {
 	var req saveNotificationChannelReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写通知对象名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写通知对象名称")
 		return
 	}
-	if req.TemplateID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择高级模板"})
+	if isCustomWebhook(req.Type) {
+		req.TemplateID = 0
+	} else if req.TemplateID == 0 {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择高级模板")
 		return
 	}
 	channelType := notificationType(req.Type)
 	config, err := prepareNotificationChannel(req, nil)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	item := models.NotificationChannel{
@@ -179,25 +182,27 @@ func CreateNotificationChannel(c *gin.Context) {
 		Description:         strings.TrimSpace(req.Description),
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建通知对象失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建通知对象失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": notificationChannelResponse(item)})
+	resp.Success(c, http.StatusOK, "创建成功", notificationChannelResponse(item))
 }
 
 func UpdateNotificationChannel(c *gin.Context) {
 	var req saveNotificationChannelReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写通知对象名称"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写通知对象名称")
 		return
 	}
 	var existing models.NotificationChannel
 	if err := database.DB.First(&existing, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "通知对象不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "通知对象不存在")
 		return
 	}
-	if req.TemplateID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择高级模板"})
+	if isCustomWebhook(req.Type) {
+		req.TemplateID = 0
+	} else if req.TemplateID == 0 {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择高级模板")
 		return
 	}
 	channelType := notificationType(req.Type)
@@ -209,22 +214,22 @@ func UpdateNotificationChannel(c *gin.Context) {
 		"description": strings.TrimSpace(req.Description),
 	}
 	if channelType != existing.Type {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "通知类型不能修改，请新建通知对象"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "通知类型不能修改，请新建通知对象")
 		return
 	}
 	config, err := prepareNotificationChannel(req, &existing)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	updates["webhook_url_cipher"] = config.WebhookURLCipher
 	updates["sign_secret_cipher"] = config.SignSecretCipher
 	updates["email_recipients_json"] = config.EmailRecipientsJSON
 	if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新通知对象失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新通知对象失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func notificationChannelResponse(item models.NotificationChannel) gin.H {
@@ -248,13 +253,13 @@ func DeleteNotificationChannel(c *gin.Context) {
 	id := c.Param("id")
 	database.DB.Model(&models.CertificateDomain{}).Where("notification_channel_id = ?", id).Update("notification_channel_id", 0)
 	database.DB.Delete(&models.NotificationChannel{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func TestNotificationChannel(c *gin.Context) {
 	var channel models.NotificationChannel
 	if err := database.DB.First(&channel, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "通知对象不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "通知对象不存在")
 		return
 	}
 	var req testNotificationReq
@@ -278,10 +283,10 @@ func TestNotificationChannel(c *gin.Context) {
 	}
 	recordTitle := fmt.Sprint(payload["title"])
 	if err := sendNotificationToChannel(channel, "notification.test", fmt.Sprintf("test:%d", channel.ID), recordTitle, payload); err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": err.Error()})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "发送成功"})
+	resp.Success(c, http.StatusOK, "发送成功")
 }
 
 func ListNotificationRecords(c *gin.Context) {
@@ -311,7 +316,7 @@ func ListNotificationRecords(c *gin.Context) {
 	var rows []models.NotificationRecord
 	tx.Count(&total)
 	tx.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{"list": rows, "total": total, "page": page, "page_size": pageSize}})
+	resp.Success(c, http.StatusOK, "成功", gin.H{"list": rows, "total": total, "page": page, "page_size": pageSize})
 }
 
 func SendCertificateDomainAlert(item models.CertificateDomain, reason string) {
@@ -367,8 +372,16 @@ func ShouldNotifyCertificateDomain(item models.CertificateDomain) (string, bool)
 }
 
 func sendNotificationToChannel(channel models.NotificationChannel, eventType, eventKey, title string, payload map[string]interface{}) error {
-	applyChannelTemplate(channel, payload)
-	applySystemNotificationEnvelope(payload)
+	// Keep channel-specific rendering from changing another recipient's event.
+	event := make(map[string]interface{}, len(payload))
+	for key, value := range payload {
+		event[key] = value
+	}
+	payload = event
+	if !isCustomWebhook(channel.Type) {
+		applyChannelTemplate(channel, payload)
+		applySystemNotificationEnvelope(payload)
+	}
 	if payloadTitle := notificationStringFromMap(payload, "title"); payloadTitle != "" {
 		title = payloadTitle
 	}
@@ -393,8 +406,10 @@ func sendNotificationToChannel(channel models.NotificationChannel, eventType, ev
 	return nil
 }
 
+func isCustomWebhook(kind string) bool { return kind == "webhook" || kind == "customhook" }
+
 func applyChannelTemplate(channel models.NotificationChannel, payload map[string]interface{}) {
-	if channel.TemplateID == 0 {
+	if isCustomWebhook(channel.Type) || channel.TemplateID == 0 {
 		return
 	}
 	var tpl models.NotificationTemplate

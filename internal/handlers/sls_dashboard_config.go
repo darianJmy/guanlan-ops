@@ -4,24 +4,27 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type slsDashboardProjectView struct {
-	ID                    uint   `json:"id"`
-	Provider              string `json:"provider"`
-	Name                  string `json:"name"`
-	Project               string `json:"project"`
-	Region                string `json:"region"`
-	RoleArn               string `json:"role_arn"`
-	Description           string `json:"description"`
-	Sort                  int    `json:"sort"`
-	CredentialsConfigured bool   `json:"credentials_configured"`
+	CreatedAt             time.Time `json:"created_at"`
+	ID                    uint      `json:"id"`
+	Provider              string    `json:"provider"`
+	Name                  string    `json:"name"`
+	Project               string    `json:"project"`
+	Region                string    `json:"region"`
+	RoleArn               string    `json:"role_arn"`
+	Description           string    `json:"description"`
+	Sort                  int       `json:"sort"`
+	CredentialsConfigured bool      `json:"credentials_configured"`
 }
 
 type slsDashboardProjectReq struct {
@@ -39,41 +42,33 @@ type slsDashboardProjectReq struct {
 func CreateSLSDashboardProject(c *gin.Context) {
 	var req slsDashboardProjectReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if message := validateSLSDashboardProjectReq(req, true); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	accessKeyIDCipher, err := encryptSecret(req.AccessKeyID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey 加密失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey 加密失败")
 		return
 	}
 	accessKeySecretCipher, err := encryptSecret(req.AccessKeySecret)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey 加密失败"})
-		return
-	}
-	var order struct {
-		MaxSort int `gorm:"column:max_sort"`
-	}
-	if err := database.DB.Model(&models.SLSDashboardProject{}).Select("COALESCE(MAX(sort), -1) AS max_sort").Scan(&order).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取 SLS 项目排序失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey 加密失败")
 		return
 	}
 	project := models.SLSDashboardProject{
 		Provider: normalizeLogDashboardProvider(req.Provider), Name: strings.TrimSpace(req.Name), Project: strings.TrimSpace(req.Project), Region: strings.TrimSpace(req.Region),
 		RoleArn:           strings.TrimSpace(req.RoleArn),
 		AccessKeyIDCipher: accessKeyIDCipher, AccessKeySecretCipher: accessKeySecretCipher, Description: strings.TrimSpace(req.Description),
-		Sort: order.MaxSort + 1,
 	}
-	if err := database.DB.Create(&project).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建 SLS 项目失败"})
+	if err := createDashboardAtFront(&project); err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建 SLS 项目失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": gin.H{"id": project.ID}})
+	resp.Success(c, http.StatusOK, "创建成功", gin.H{"id": project.ID})
 }
 
 type reorderSLSDashboardProjectsReq struct {
@@ -83,17 +78,17 @@ type reorderSLSDashboardProjectsReq struct {
 func ReorderSLSDashboardProjects(c *gin.Context) {
 	var req reorderSLSDashboardProjectsReq
 	if err := c.ShouldBindJSON(&req); err != nil || !validSLSDashboardProjectOrder(req.IDs) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "项目排序参数不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "项目排序参数不正确")
 		return
 	}
 
 	var count int64
 	if err := database.DB.Model(&models.SLSDashboardProject{}).Where("id IN ?", req.IDs).Count(&count).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "校验 SLS 项目排序失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "校验 SLS 项目排序失败")
 		return
 	}
 	if count != int64(len(req.IDs)) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "排序中包含不存在的 SLS 项目"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "排序中包含不存在的 SLS 项目")
 		return
 	}
 
@@ -105,10 +100,10 @@ func ReorderSLSDashboardProjects(c *gin.Context) {
 		}
 		return nil
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "保存 SLS 项目排序失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "保存 SLS 项目排序失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "排序已保存"})
+	resp.Success(c, http.StatusOK, "排序已保存")
 }
 
 func validSLSDashboardProjectOrder(ids []uint) bool {
@@ -131,21 +126,21 @@ func validSLSDashboardProjectOrder(ids []uint) bool {
 func UpdateSLSDashboardProject(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "SLS 项目 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "SLS 项目 ID 不正确")
 		return
 	}
 	var project models.SLSDashboardProject
 	if err := database.DB.First(&project, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "SLS 项目不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "SLS 项目不存在")
 		return
 	}
 	var req slsDashboardProjectReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if message := validateSLSDashboardProjectReq(req, false); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	updates := map[string]interface{}{
@@ -155,7 +150,7 @@ func UpdateSLSDashboardProject(c *gin.Context) {
 	if value := strings.TrimSpace(req.AccessKeyID); value != "" {
 		ciphertext, err := encryptSecret(value)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey ID 加密失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey ID 加密失败")
 			return
 		}
 		updates["access_key_id_cipher"] = ciphertext
@@ -163,49 +158,49 @@ func UpdateSLSDashboardProject(c *gin.Context) {
 	if value := strings.TrimSpace(req.AccessKeySecret); value != "" {
 		ciphertext, err := encryptSecret(value)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "AccessKey Secret 加密失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "AccessKey Secret 加密失败")
 			return
 		}
 		updates["access_key_secret_cipher"] = ciphertext
 	}
 	if err := database.DB.Model(&project).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新 SLS 项目失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新 SLS 项目失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteSLSDashboardProject(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "SLS 项目 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "SLS 项目 ID 不正确")
 		return
 	}
 	result := database.DB.Delete(&models.SLSDashboardProject{}, id)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除 SLS 项目失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除 SLS 项目失败")
 		return
 	}
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "SLS 项目不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "SLS 项目不存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func TestSLSDashboardProject(c *gin.Context) {
 	var req slsDashboardProjectReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if message := validateSLSDashboardProjectReq(req, req.ID == 0); message != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": message})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, message)
 		return
 	}
 	auth, err := resolveSLSDashboardCredentials(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if normalizeLogDashboardProvider(req.Provider) == "tencent_cls" {
@@ -221,10 +216,10 @@ func TestSLSDashboardProject(c *gin.Context) {
 		}
 	}
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "连接失败: " + err.Error()})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "连接失败: "+err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "连接成功"})
+	resp.Success(c, http.StatusOK, "连接成功")
 }
 
 func validateSLSDashboardProjectReq(req slsDashboardProjectReq, requireCredentials bool) string {

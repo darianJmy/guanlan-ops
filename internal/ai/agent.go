@@ -63,7 +63,7 @@ func (o *Orchestrator) Run(parent context.Context, req RunRequest) (response Run
 	traced := &tracedModel{ToolCallingChatModel: o.Model, runtime: runtime}
 	tools := make([]tool.BaseTool, 0, len(o.Registry.Specs()))
 	for _, spec := range o.Registry.Specs() {
-		if spec.Risk != RiskReadonlyLow && spec.Risk != RiskReadonlyExpensive && spec.Risk != RiskWriteLow {
+		if spec.Risk != RiskReadonlyLow && spec.Risk != RiskReadonlyExpensive && spec.Risk != RiskWriteLow && spec.Risk != RiskWriteAuthorized {
 			continue
 		}
 		tools = append(tools, &policyTool{spec: spec, runtime: runtime})

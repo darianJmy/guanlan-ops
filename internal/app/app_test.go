@@ -66,3 +66,16 @@ func setArgs(t *testing.T, args ...string) {
 	os.Args = append([]string{"guanlan"}, args...)
 	t.Cleanup(func() { os.Args = previous })
 }
+
+func TestNewRouterDevelopmentWithoutAssets(t *testing.T) {
+	t.Setenv("APP_WEB_DEV", "1")
+	router, err := newRouter(&gorm.DB{}, fstest.MapFS{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/datasource-groups", nil))
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("API must be registered: %d %s", response.Code, response.Body.String())
+	}
+}

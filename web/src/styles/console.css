@@ -1,45 +1,109 @@
-:root {
-  --ops-bg: #f6f8fb;
+/* Theme tokens: page surfaces, content and all Element Plus states share one palette. */
+:root, html[data-theme="light"] {
+  --ops-bg: #f5f5f5;
   --ops-surface: #ffffff;
-  --ops-surface-soft: #f9fbfd;
-  --ops-border: #dfe6ef;
-  --ops-border-soft: #ecf1f6;
-  --ops-text: #172033;
-  --ops-muted: #667085;
-  --ops-subtle: #98a2b3;
-  --ops-primary: #1769e0;
-  --ops-primary-soft: #eaf2ff;
-  --ops-accent: #0f9f8f;
-  --ops-warning: #b7791f;
-  --ops-danger: #d92d20;
-  --ops-success: #12805c;
-  --ops-radius: 8px;
-  --ops-radius-sm: 6px;
-  --ops-shadow: 0 14px 36px rgba(16, 24, 40, 0.08);
+  --ops-surface-soft: #fafafa;
+  --ops-overlay: #ffffff;
+  --ops-border: #dedede;
+  --ops-border-soft: #ebebeb;
+  --ops-text: #20242d;
+  --ops-muted: #606a79;
+  --ops-subtle: #737e8d;
+  --ops-primary: #0875d1;
+  --ops-on-primary: #ffffff;
+  --ops-success: #16805d;
+  --ops-warning: #a96810;
+  --ops-danger: #d33443;
 }
 
 html.dark {
-  --ops-bg: #111827;
-  --ops-surface: #182230;
-  --ops-surface-soft: #202b3a;
-  --ops-border: #344054;
-  --ops-border-soft: #2a3646;
-  --ops-text: #e5e7eb;
-  --ops-muted: #a3adbd;
-  --ops-subtle: #7d899a;
-  --ops-primary-soft: #172b4d;
-  --el-bg-color: #182230;
-  --el-bg-color-page: #111827;
-  --el-bg-color-overlay: #202b3a;
-  --el-fill-color-blank: #182230;
-  --el-fill-color-light: #202b3a;
-  --el-fill-color-lighter: #263244;
-  --el-border-color: #344054;
-  --el-border-color-light: #2f3c4e;
-  --el-border-color-lighter: #2a3646;
-  --el-text-color-primary: #e5e7eb;
-  --el-text-color-regular: #c4cbd5;
-  --el-text-color-secondary: #a3adbd;
+  --ops-bg: #101012;
+  --ops-surface: #18181b;
+  --ops-surface-soft: #232326;
+  --ops-overlay: #232326;
+  --ops-border: #3e3e45;
+  --ops-border-soft: #2e2e34;
+  --ops-text: #ededf0;
+  --ops-muted: #b0b0bc;
+  --ops-subtle: #92929f;
+  --ops-primary: #79a9ff;
+  --ops-on-primary: #101827;
+  --ops-success: #64cba4;
+  --ops-warning: #e5b467;
+  --ops-danger: #f18590;
+}
+
+:root, html.dark, html[data-theme] {
+  --ops-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --el-font-family: var(--ops-font-family);
+  --el-font-size-base: 14px;
+  --el-font-weight-primary: 400;
+  --ops-radius: 8px;
+  --ops-radius-sm: 6px;
+  --ops-shadow: 0 14px 36px #00000018;
+  --ops-accent: var(--ops-success);
+  --ops-primary-soft: color-mix(in srgb, var(--ops-primary) 12%, var(--ops-surface));
+  --el-color-primary: var(--ops-primary);
+  --el-color-primary-light-3: color-mix(in srgb, var(--ops-primary) 70%, var(--ops-surface));
+  --el-color-primary-light-5: color-mix(in srgb, var(--ops-primary) 50%, var(--ops-surface));
+  --el-color-primary-light-7: color-mix(in srgb, var(--ops-primary) 30%, var(--ops-surface));
+  --el-color-primary-light-8: color-mix(in srgb, var(--ops-primary) 20%, var(--ops-surface));
+  --el-color-primary-light-9: color-mix(in srgb, var(--ops-primary) 10%, var(--ops-surface));
+  --el-color-primary-dark-2: color-mix(in srgb, var(--ops-primary) 80%, var(--ops-text));
+  --el-color-success: var(--ops-success);
+  --el-color-success-light-3: color-mix(in srgb, var(--ops-success) 70%, var(--ops-surface));
+  --el-color-success-light-5: color-mix(in srgb, var(--ops-success) 50%, var(--ops-surface));
+  --el-color-success-light-7: color-mix(in srgb, var(--ops-success) 30%, var(--ops-surface));
+  --el-color-success-light-8: color-mix(in srgb, var(--ops-success) 20%, var(--ops-surface));
+  --el-color-success-light-9: color-mix(in srgb, var(--ops-success) 10%, var(--ops-surface));
+  --el-color-success-dark-2: color-mix(in srgb, var(--ops-success) 80%, var(--ops-text));
+  --el-color-warning: var(--ops-warning);
+  --el-color-warning-light-3: color-mix(in srgb, var(--ops-warning) 70%, var(--ops-surface));
+  --el-color-warning-light-5: color-mix(in srgb, var(--ops-warning) 50%, var(--ops-surface));
+  --el-color-warning-light-7: color-mix(in srgb, var(--ops-warning) 30%, var(--ops-surface));
+  --el-color-warning-light-8: color-mix(in srgb, var(--ops-warning) 20%, var(--ops-surface));
+  --el-color-warning-light-9: color-mix(in srgb, var(--ops-warning) 10%, var(--ops-surface));
+  --el-color-warning-dark-2: color-mix(in srgb, var(--ops-warning) 80%, var(--ops-text));
+  --el-color-danger: var(--ops-danger);
+  --el-color-danger-light-3: color-mix(in srgb, var(--ops-danger) 70%, var(--ops-surface));
+  --el-color-danger-light-5: color-mix(in srgb, var(--ops-danger) 50%, var(--ops-surface));
+  --el-color-danger-light-7: color-mix(in srgb, var(--ops-danger) 30%, var(--ops-surface));
+  --el-color-danger-light-8: color-mix(in srgb, var(--ops-danger) 20%, var(--ops-surface));
+  --el-color-danger-light-9: color-mix(in srgb, var(--ops-danger) 10%, var(--ops-surface));
+  --el-color-danger-dark-2: color-mix(in srgb, var(--ops-danger) 80%, var(--ops-text));
+  --el-color-info: var(--ops-muted);
+  --el-color-info-light-3: color-mix(in srgb, var(--ops-muted) 70%, var(--ops-surface));
+  --el-color-info-light-5: color-mix(in srgb, var(--ops-muted) 50%, var(--ops-surface));
+  --el-color-info-light-7: color-mix(in srgb, var(--ops-muted) 30%, var(--ops-surface));
+  --el-color-info-light-8: color-mix(in srgb, var(--ops-muted) 20%, var(--ops-surface));
+  --el-color-info-light-9: color-mix(in srgb, var(--ops-muted) 10%, var(--ops-surface));
+  --el-color-info-dark-2: color-mix(in srgb, var(--ops-muted) 80%, var(--ops-text));
+  --el-bg-color: var(--ops-surface);
+  --el-bg-color-page: var(--ops-bg);
+  --el-bg-color-overlay: var(--ops-overlay);
+  --el-fill-color-blank: var(--ops-surface);
+  --el-fill-color: var(--ops-surface-soft);
+  --el-fill-color-light: var(--ops-surface-soft);
+  --el-fill-color-lighter: var(--ops-bg);
+  --el-fill-color-extra-light: var(--ops-bg);
+  --el-fill-color-dark: var(--ops-border-soft);
+  --el-fill-color-darker: var(--ops-border);
+  --el-text-color-primary: var(--ops-text);
+  --el-text-color-regular: var(--ops-text);
+  --el-text-color-secondary: var(--ops-muted);
+  --el-text-color-placeholder: var(--ops-subtle);
+  --el-text-color-disabled: var(--ops-subtle);
+  --el-border-color: var(--ops-border);
+  --el-border-color-light: var(--ops-border-soft);
+  --el-border-color-lighter: var(--ops-border-soft);
+  --el-border-color-extra-light: var(--ops-border-soft);
+  --el-border-color-dark: var(--ops-muted);
+  --el-border-color-darker: var(--ops-text);
+  --el-disabled-bg-color: var(--ops-surface-soft);
+  --el-disabled-text-color: var(--ops-subtle);
+  --el-disabled-border-color: var(--ops-border-soft);
+  --el-mask-color: var(--ops-surface);
+  --el-mask-color: color-mix(in srgb, var(--ops-surface) 85%, transparent);
 }
 
 * {
@@ -50,7 +114,14 @@ body {
   margin: 0;
   color: var(--ops-text);
   background: var(--ops-bg);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-family: var(--ops-font-family);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
 }
 
 #app {
@@ -72,7 +143,7 @@ body {
   gap: 16px !important;
   padding: 10px 14px !important;
   background: var(--ops-surface) !important;
-  border: 1px solid #e5eaf0 !important;
+  border: 1px solid var(--ops-border-soft) !important;
   border-radius: var(--ops-radius) !important;
   box-shadow: 0 2px 10px rgba(31, 50, 81, 0.035) !important;
 }
@@ -132,6 +203,7 @@ body {
 }
 
 .el-card {
+  --el-card-bg-color: var(--ops-surface);
   --el-card-border-color: var(--ops-border-soft);
   border-radius: var(--ops-radius);
   box-shadow: none;
@@ -143,14 +215,18 @@ body {
 
 .el-button {
   border-radius: var(--ops-radius-sm);
-  font-weight: 600;
+  font-weight: 400;
 }
 
-.el-button--primary {
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  --el-button-text-color: var(--ops-on-primary);
+  --el-button-hover-text-color: var(--ops-on-primary);
+  --el-button-active-text-color: var(--ops-on-primary);
+  --el-button-disabled-text-color: var(--ops-on-primary);
   --el-button-bg-color: var(--ops-primary);
   --el-button-border-color: var(--ops-primary);
-  --el-button-hover-bg-color: #0f5ecf;
-  --el-button-hover-border-color: #0f5ecf;
+  --el-button-hover-bg-color: var(--el-color-primary-dark-2);
+  --el-button-hover-border-color: var(--el-color-primary-dark-2);
 }
 
 .el-input__wrapper,
@@ -163,25 +239,26 @@ body {
 .el-input__wrapper:hover,
 .el-select__wrapper:hover,
 .el-textarea__inner:hover {
-  box-shadow: 0 0 0 1px #c7d3e2 inset;
+  box-shadow: 0 0 0 1px var(--ops-muted) inset;
 }
 
 .el-table {
   --el-table-header-bg-color: var(--ops-surface-soft);
-  --el-table-header-text-color: #344054;
-  --el-table-row-hover-bg-color: #f2f7ff;
+  --el-table-header-text-color: var(--ops-muted);
+  --el-table-row-hover-bg-color: var(--ops-primary-soft);
   --el-table-border-color: var(--ops-border-soft);
   border-radius: var(--ops-radius);
   overflow: hidden;
 }
 
 .el-table th.el-table__cell {
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .el-tag {
   border-radius: 999px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Element Plus 2.11 may collapse the pagination size selector to its arrow width. */
@@ -229,8 +306,13 @@ body {
   gap: 12px;
   min-width: 0;
 }
-.standard-drawer-title {
+.standard-drawer-title,
+.el-drawer__title,
+.el-dialog__title,
+.el-message-box__title,
+.el-drawer__header .drawer-header > strong {
   color: var(--ops-text);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.5;
 }

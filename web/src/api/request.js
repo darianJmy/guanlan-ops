@@ -32,6 +32,7 @@ request.interceptors.response.use(
     return data
   },
   (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error)
     if (error.response?.data instanceof Blob) {
       return error.response.data.text().then((text) => {
         let message = statusMessage(error.response.status) || '下载失败'

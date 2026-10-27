@@ -6,10 +6,10 @@
 
     <el-form ref="formRef" :model="form" :rules="formRules" label-position="top" class="editor-form">
       <section class="form-section">
-        <div class="section-heading"><div><strong>基础配置</strong><span>定义规则名称、用途和公共标签</span></div><small>{{ group.name || '当前规则组' }}</small></div>
+        <div class="section-heading"><div><strong>基础配置</strong></div><small>{{ group.name || '当前规则组' }}</small></div>
         <div class="two-column">
-          <el-form-item label="规则名称" prop="name"><el-input v-model="form.name" maxlength="128" show-word-limit placeholder="例如：生产集群节点 CPU 使用率过高" /></el-form-item>
-          <el-form-item label="描述"><el-input v-model="form.description" maxlength="500" show-word-limit placeholder="说明这条规则监控的业务场景" /></el-form-item>
+          <el-form-item label="规则名称" prop="name"><el-input v-model="form.name" maxlength="128" show-word-limit /></el-form-item>
+          <el-form-item label="描述"><el-input v-model="form.description" maxlength="500" show-word-limit /></el-form-item>
         </div>
         <el-form-item label="额外标签">
           <div class="label-editor">
@@ -24,19 +24,15 @@
       </section>
 
       <section class="form-section">
-        <div class="section-heading"><div><strong>规则配置</strong><span>平台主动拉取数据源并按周期执行 PromQL</span></div></div>
-        <div class="field-label">查询协议</div>
-        <button type="button" class="source-card selected" aria-pressed="true">
-          <img :src="prometheusLogo" alt="" /><span>PromQL</span><small>Prometheus / VictoriaMetrics</small><el-icon><Check /></el-icon>
-        </button>
+        <div class="section-heading"><div><strong>规则配置</strong></div></div>
         <el-form-item class="datasource-field" prop="datasource_ids">
-          <template #label><span class="detail-label">数据源<el-tooltip content="可同时选择多个数据源分组和多个数据源，实际执行范围取全部选择项的数据源并集。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="数据源选择说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <el-select v-model="datasourceSelection" multiple filterable collapse-tags :max-collapse-tags="5" placeholder="选择数据源或数据源分组" @change="formRef?.validateField('datasource_ids')">
-            <el-option-group v-if="datasourceGroups.length" label="数据源分组">
-              <el-option v-for="item in datasourceGroups" :key="`group-${item.id}`" :label="`${item.name}（${item.member_count} 个数据源）`" :value="`group:${item.id}`" />
+          <template #label><span class="detail-label">实例分组<el-tooltip content="选择实例分组后，规则自动覆盖全部子分组中的指标实例；后续新增实例自动生效。旧规则的直接实例绑定可保留或移除。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="数据源选择说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <el-select v-model="datasourceSelection" multiple filterable collapse-tags :max-collapse-tags="5" placeholder="" @change="formRef?.validateField('datasource_ids')">
+            <el-option-group v-if="visibleDatasourceGroups.length" label="实例分组（包含子分组）">
+              <el-option v-for="item in visibleDatasourceGroups" :key="`group-${item.id}`" :label="`${item.path || item.name}（${item.scope_member_count ?? item.member_count} 个实例）`" :value="`group:${item.id}`" />
             </el-option-group>
-            <el-option-group label="数据源">
-              <el-option v-for="item in datasources" :key="`source-${item.id}`" :label="item.name" :value="`source:${item.id}`" />
+            <el-option-group v-if="legacyDatasources.length" label="原有直接绑定（可移除）">
+              <el-option v-for="item in legacyDatasources" :key="`source-${item.id}`" :label="item.name" :value="`source:${item.id}`" />
             </el-option-group>
           </el-select>
         </el-form-item>
@@ -129,8 +125,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Check, Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
-import prometheusLogo from '../../assets/prometheus-logo.7aa022e5.svg'
+import { ArrowLeft, Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
 import { getFaultCenters } from '../../api/alert'
 import { createAlertRule, getAlertRule, getAlertRuleGroup, updateAlertRule } from '../../api/alertRule'
 import { getDatasourceGroups } from '../../api/datasourceGroup'
@@ -149,13 +144,15 @@ const descriptionAnnotation = reactive({ key: 'description', value: '' })
 const formRules = {
   name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
   expression: [{ required: true, message: '请输入 PromQL 表达式', trigger: 'blur' }],
-  datasource_ids: [{ validator: (_rule, value, callback) => { if (!form.datasource_group_ids.length && !value?.length) callback(new Error('请至少选择一个数据源或数据源分组')); else callback() }, trigger: 'change' }],
+  datasource_ids: [{ validator: (_rule, value, callback) => { if (!form.datasource_group_ids.length && !value?.length) callback(new Error('请至少选择一个实例分组')); else callback() }, trigger: 'change' }],
   conditions: [{ required: true, validator: (_rule, _value, callback) => { try { normalizeConditions(); callback() } catch (error) { callback(error) } }, trigger: 'change' }],
   evaluation_interval_seconds: [{ validator: validateEvaluationInterval, trigger: 'change' }],
   for_seconds: [{ validator: validateTimingWindow('持续时间', 604800), trigger: 'change' }],
   recovery_wait_seconds: [{ validator: validateTimingWindow('恢复时间', 86400), trigger: 'change' }],
   fault_center_id: [{ required: true, message: '请选择故障中心', trigger: 'change' }],
 }
+const legacyDatasources = computed(() => datasources.value.filter(item => form.datasource_ids.includes(item.id)))
+const visibleDatasourceGroups = computed(() => datasourceGroups.value)
 const activeCenters = computed(() => centers.value.filter(item => item.status === 1))
 const datasourceSelection = computed({
   get: () => [...form.datasource_group_ids.map(id => `group:${id}`), ...form.datasource_ids.map(id => `source:${id}`)],
@@ -165,8 +162,9 @@ const datasourceSelection = computed({
   },
 })
 const effectiveDatasourceIds = computed(() => {
-  const groupDatasourceIDs = datasourceGroups.value.filter(item => form.datasource_group_ids.includes(item.id)).flatMap(item => item.datasource_ids || [])
-  return [...new Set([...form.datasource_ids, ...groupDatasourceIDs])]
+  const groupDatasourceIDs = datasourceGroups.value.filter(item => form.datasource_group_ids.includes(item.id)).flatMap(item => item.effective_datasource_ids || item.datasource_ids || [])
+  const available = new Set(datasources.value.map(item => item.id))
+  return [...new Set([...form.datasource_ids, ...groupDatasourceIDs])].filter(id => available.has(id))
 })
 const triggerTiming = computed(() => timingSummary(form.for_seconds, '命中', '触发'))
 const recoveryTiming = computed(() => timingSummary(form.recovery_wait_seconds, '不命中', '恢复'))
@@ -330,19 +328,25 @@ async function saveRule() {
 </script>
 
 <style scoped>
-.rule-editor-page { --line: #e5e9f0; --muted: #8a96a8; display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 16px; padding-bottom: 72px; }
+.source-card.selected { border-color: var(--ops-primary); background: var(--ops-primary-soft); box-shadow: 0 0 0 1px var(--ops-primary); }
+.source-card:hover { border-color: var(--ops-primary); }
+.source-card:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: 3px; }
+
+.vm-logo { filter: invert(1); }
+:global(html.dark) .vm-logo { filter: none; }
+.rule-editor-page { --line: #e5e9f0; --muted:var(--ops-muted); display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 16px; padding-bottom: 72px; }
 .preview-header { display: flex; align-items: center; justify-content: space-between; }
-.editor-form { display: flex; flex-direction: column; gap: 16px; }.form-section { padding: 22px 24px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #edf0f4; }.section-heading > div { display: flex; align-items: baseline; gap: 12px; }.section-heading strong { color: #303846; font-size: 18px; }.section-heading span, .section-heading small { color: var(--muted); font-size: 12px; }.two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }.full-row { grid-column: 1 / -1; }
-.label-editor { display: flex; width: 100%; flex-direction: column; gap: 8px; }.add-label-button { width: 100%; border-style: dashed; }.label-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px; align-items: center; gap: 8px; }.label-icon-button { width: 26px; height: 26px; color: #8a94a3; background: #fff; border-color: #dcdfe6; }.label-icon-button :deep(.el-icon) { font-size: 14px; }.label-icon-button:hover, .label-icon-button:focus-visible { color: #606b7b; background: #f5f7fa; border-color: #c8cdd5; }.field-label { margin-bottom: 10px; color: #606b7b; font-size: 13px; }.source-card { position: relative; display: grid; width: 132px; height: 108px; place-items: center; padding: 10px; border: 1px solid #d9dee7; border-radius: 8px; background: #fff; cursor: default; }.source-card.selected { border: 2px solid #409eff; box-shadow: 0 0 0 3px #ecf5ff; }.source-card img { width: 64px; height: 42px; object-fit: contain; }.source-card span { color: #344054; font-size: 12px; font-weight: 600; }.source-card small { color: var(--muted); font-size: 10px; }.source-card > .el-icon { position: absolute; top: 7px; right: 7px; color: #409eff; }.inherited-datasources { display: flex; width: 100%; min-height: 76px; flex-direction: column; gap: 10px; margin-top: 10px; padding: 14px 16px; border: 1px solid #dbe7f5; border-radius: 8px; background: #f7faff; }.inherited-datasources > div:first-child { display: flex; align-items: baseline; gap: 10px; }.inherited-datasources strong { color: #344054; font-size: 13px; }.inherited-datasources span { color: #8a96a8; font-size: 11px; }.inherited-members { display: flex; flex-wrap: wrap; gap: 6px; }.datasource-field { margin-top: 20px; }.datasource-field :deep(.el-select), .annotation-grid :deep(.el-select) { width: 100%; }.field-help { margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.editor-form { display: flex; flex-direction: column; gap: 16px; }.form-section { padding: 22px 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--ops-surface); }.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--ops-border-soft); }.section-heading > div { display: flex; align-items: baseline; gap: 12px; }.section-heading strong { color: #303846; font-size: 18px; }.section-heading span, .section-heading small { color: var(--muted); font-size: 12px; }.two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }.full-row { grid-column: 1 / -1; }
+.label-editor { display: flex; width: 100%; flex-direction: column; gap: 8px; }.add-label-button { width: 100%; border-style: dashed; }.label-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px; align-items: center; gap: 8px; }.label-icon-button { width: 26px; height: 26px; color: #8a94a3; background: var(--ops-surface); border-color: var(--ops-border); }.label-icon-button :deep(.el-icon) { font-size: 14px; }.label-icon-button:hover, .label-icon-button:focus-visible { color: #606b7b; background: var(--ops-surface-soft); border-color: #c8cdd5; }.field-label { margin-bottom: 10px; color: #606b7b; font-size: 13px; }.source-cards { display: flex; flex-wrap: wrap; gap: 12px; }.source-card { position: relative; display: grid; width: 132px; height: 108px; place-items: center; padding: 10px; border: 1px solid var(--ops-border); border-radius: 8px; background: var(--ops-surface); cursor: pointer; font: inherit; }.source-card img { width: 64px; height: 42px; object-fit: contain; }.source-card span { color: var(--ops-text); font-size: 12px; font-weight: 600; }.source-card small { color: var(--muted); font-size: 10px; }.source-card > .el-icon { position: absolute; top: 7px; right: 7px; color: var(--ops-primary); }.inherited-datasources { display: flex; width: 100%; min-height: 76px; flex-direction: column; gap: 10px; margin-top: 10px; padding: 14px 16px; border: 1px solid #dbe7f5; border-radius: 8px; background: var(--ops-primary-soft); }.inherited-datasources > div:first-child { display: flex; align-items: baseline; gap: 10px; }.inherited-datasources strong { color: #344054; font-size: 13px; }.inherited-datasources span { color: #8a96a8; font-size: 11px; }.inherited-members { display: flex; flex-wrap: wrap; gap: 6px; }.datasource-field { margin-top: 20px; }.datasource-field :deep(.el-select), .annotation-grid :deep(.el-select) { width: 100%; }.field-help { margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .promql-action-row { display: flex; align-items: flex-start; gap: 10px; }.promql-form-item { min-width: 0; flex: 1; }.promql-input :deep(.el-textarea__inner) { min-height: 32px !important; overflow-y: hidden !important; resize: none !important; color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; }.preview-button { flex: none; margin-top: 30px; }
-.condition-config { margin-top: 20px; }.condition-list { display: flex; flex-direction: column; gap: 10px; }.rule-condition-row { display: grid; grid-template-columns: 140px 90px minmax(140px, 1fr) 30px; align-items: center; gap: 10px; }.rule-condition-row :deep(.el-select), .rule-condition-row :deep(.el-input-number) { width: 100%; }.condition-remove { width: 26px; height: 26px; color: #8a94a3; }.condition-remove :deep(.el-icon) { font-size: 14px; }.add-condition-button { width: 100%; margin-top: 10px; border-style: dashed; }.evaluation-plan { display: flex; flex-direction: column; gap: 18px; margin-top: 22px; padding-top: 20px; border-top: 1px solid #edf0f4; }.plan-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 16px; }.plan-row-schedule { align-items: start; }.plan-label { padding-top: 1px; color: #475467; font-size: 13px; font-weight: 500; }.interval-control { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; overflow: hidden; border: 1px solid #dcdfe6; border-radius: 6px; background: #fff; transition: border-color .2s, box-shadow .2s; }.interval-control:focus-within { border-color: #409eff; box-shadow: 0 0 0 2px rgba(64,158,255,.1); }.interval-control :deep(.el-input-number) { width: 100%; }.interval-control :deep(.el-input__wrapper) { box-shadow: none; }.interval-control > span { color: #98a2b3; font-size: 12px; text-align: center; }.schedule-content { min-width: 0; }.schedule-controls { display: grid; grid-template-columns: minmax(420px, 1fr) 280px; gap: 12px; }.schedule-controls :deep(.el-checkbox-group) { display: grid; grid-template-columns: repeat(7, minmax(48px, 1fr)); gap: 6px; }.schedule-controls :deep(.el-checkbox-button) { min-width: 0; }.schedule-controls :deep(.el-checkbox-button__inner) { width: 100%; padding: 8px 5px; border: 1px solid #dfe3e8 !important; border-radius: 6px !important; box-shadow: none !important; color: #667085; font-size: 12px; }.schedule-controls :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) { border-color: #409eff !important; background: #ecf5ff; color: #1677d2; font-size: 12px; }.schedule-controls :deep(.el-date-editor) { width: 100%; }.plan-hint { margin-top: 7px; color: #98a2b3; font-size: 11px; }.status-line { display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; border: 1px solid #e6eaf0; border-radius: 7px; background: #fafbfc; }.status-line strong { color:#344054; font-size:13px; }
+.condition-config { margin-top: 20px; }.condition-list { display: flex; flex-direction: column; gap: 10px; }.rule-condition-row { display: grid; grid-template-columns: 140px 90px minmax(140px, 1fr) 30px; align-items: center; gap: 10px; }.rule-condition-row :deep(.el-select), .rule-condition-row :deep(.el-input-number) { width: 100%; }.condition-remove { width: 26px; height: 26px; color: #8a94a3; }.condition-remove :deep(.el-icon) { font-size: 14px; }.add-condition-button { width: 100%; margin-top: 10px; border-style: dashed; }.evaluation-plan { display: flex; flex-direction: column; gap: 18px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--ops-border-soft); }.plan-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 16px; }.plan-row-schedule { align-items: start; }.plan-label { padding-top: 1px; color: #475467; font-size: 13px; font-weight: 500; }.interval-control { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; overflow: hidden; border: 1px solid var(--ops-border); border-radius: 6px; background: var(--ops-surface); transition: border-color .2s, box-shadow .2s; }.interval-control:focus-within { border-color: var(--ops-primary); box-shadow: 0 0 0 2px rgba(64,158,255,.1); }.interval-control :deep(.el-input-number) { width: 100%; }.interval-control :deep(.el-input__wrapper) { box-shadow: none; }.interval-control > span { color: var(--ops-subtle); font-size: 12px; text-align: center; }.schedule-content { min-width: 0; }.schedule-controls { display: grid; grid-template-columns: minmax(420px, 1fr) 280px; gap: 12px; }.schedule-controls :deep(.el-checkbox-group) { display: grid; grid-template-columns: repeat(7, minmax(48px, 1fr)); gap: 6px; }.schedule-controls :deep(.el-checkbox-button) { min-width: 0; }.schedule-controls :deep(.el-checkbox-button__inner) { width: 100%; padding: 8px 5px; border: 1px solid #dfe3e8 !important; border-radius: 6px !important; box-shadow: none !important; color: var(--ops-muted); font-size: 12px; }.schedule-controls :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) { border-color: var(--ops-primary) !important; background: var(--ops-primary-soft); color: #1677d2; font-size: 12px; }.schedule-controls :deep(.el-date-editor) { width: 100%; }.plan-hint { margin-top: 7px; color: var(--ops-subtle); font-size: 11px; }.status-line { display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; border: 1px solid #e6eaf0; border-radius: 7px; background: var(--ops-surface-soft); }.status-line strong { color:#344054; font-size:13px; }
 .timing-control { width: 100%; }
-.timing-summary { display: block; min-height: 17px; margin-top: 5px; color: #7f8da0; font-size: 11px; line-height: 17px; }
+.timing-summary { display: block; min-height: 17px; margin-top: 5px; color: var(--ops-muted); font-size: 11px; line-height: 17px; }
 .timing-summary.is-invalid { color: var(--el-color-danger); }
 .policy-block { display: flex; flex-direction: column; gap: 16px; margin-top: 20px; padding: 4px 0 0; }
 .policy-block-heading { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e8ecf1; }
 .policy-block-heading strong { color: #344054; font-size: 14px; font-weight: 600; }
-.policy-block-heading span { color: #98a2b3; font-size: 11px; }
+.policy-block-heading span { color: var(--ops-subtle); font-size: 11px; }
 .compact-timing-field { display: grid; grid-template-columns: 120px minmax(220px, 320px); align-items: center; gap: 16px; margin-bottom: 0; }
 .compact-timing-field :deep(.el-form-item__label) { height: auto; margin: 0; padding: 0; line-height: 1.4; }
 .compact-timing-field :deep(.el-form-item__content) { min-width: 0; }
@@ -367,8 +371,8 @@ async function saveRule() {
 .condition-config :deep(.el-form-item__content) { display: block; }
 .alert-detail-field { margin-top: 20px; }
 .detail-label { display: inline-flex; align-items: center; gap: 5px; }
-.detail-help-icon { color: #98a2b3; cursor: help; font-size: 14px; }
-.detail-help-icon:hover, .detail-help-icon:focus-visible { color: #409eff; outline: none; }
+.detail-help-icon { color: var(--ops-subtle); cursor: help; font-size: 14px; }
+.detail-help-icon:hover, .detail-help-icon:focus-visible { color: var(--ops-primary); outline: none; }
 .alert-detail-field :deep(.el-textarea__inner::placeholder) { color: #a8abb2; }
 .evaluation-interval-field { margin-bottom: 0; padding-bottom: 22px; }
 .lifecycle-policy-field { margin-bottom: 0; }
@@ -376,7 +380,7 @@ async function saveRule() {
 .fault-center-field :deep(.el-select) { width: 100%; }
 .policy-grid .fault-center-field { margin: 0; }
 .schedule-controls :deep(.el-select) { width: 100%; }
-.preview-dialog-meta { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-bottom: 14px; color: #8a96a8; font-size: 11px; }.preview-dialog-meta code { overflow: hidden; padding: 7px 9px; border-radius: 5px; background: #f5f7fa; color: #475467; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.preview-error { margin-bottom: 10px; }.metric-value { color: #475467; font-size: 12px; }.instant-value { color: #1769d2; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.preview-dialog-meta { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-bottom: 14px; color: #8a96a8; font-size: 11px; }.preview-dialog-meta code { overflow: hidden; padding: 7px 9px; border-radius: 5px; background: var(--ops-surface-soft); color: #475467; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.preview-error { margin-bottom: 10px; }.metric-value { color: #475467; font-size: 12px; }.instant-value { color: var(--ops-primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 @media (max-width: 1100px) { .rule-condition-row { grid-template-columns: 120px 80px minmax(120px, 1fr) 30px; } }
 @media (max-width: 1000px) { .policy-grid, .policy-grid .lifecycle-block { grid-template-columns: 1fr; }.schedule-controls { grid-template-columns: 1fr; }.schedule-controls :deep(.el-date-editor) { max-width: 320px; }.policy-grid .schedule-controls :deep(.el-date-editor) { max-width: none; } }
 @media (max-width: 760px) { .rule-condition-row { grid-template-columns: 1fr 1fr 30px; }.rule-condition-row > :nth-child(3) { grid-column: 1 / 3; }.condition-remove { grid-column: 3; grid-row: 1 / 3; } }

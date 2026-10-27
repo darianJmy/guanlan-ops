@@ -1,10 +1,10 @@
 <template>
   <div class="page-container">
     <!-- 列表视图 -->
-    <template v-if="viewMode === 'list'">
+    <template v-if="!props.embedded && viewMode === 'list'">
       <section class="dashboard-intro" role="note" aria-label="监控仪表盘简介">
         <el-icon class="intro-icon" aria-hidden="true"><InfoFilled /></el-icon>
-        <span class="intro-message">集中维护 Grafana 仪表盘嵌入地址，通过卡片快速进入监控视图，适合统一汇总基础设施、应用与业务监控大盘。</span>
+        <span class="intro-message">集中查看基础设施、应用与业务监控。拖动卡片可调整顺序。</span>
       </section>
 
       <div class="dashboard-toolbar">
@@ -43,15 +43,15 @@
           @drop.prevent="onDrop(idx)"
           @dragend="onDragEnd"
         >
-          <div class="dash-card-body">
-            <div class="dash-card-icon">
-              <img :src="dashboardConfig.icon" width="30" height="30" alt="" />
-            </div>
-            <div class="dash-card-info">
-              <div class="dash-card-name">{{ item.name }}</div>
-              <div v-if="item.description?.trim()" class="dash-card-desc">{{ item.description }}</div>
-            </div>
-          </div>
+          <button type="button" class="dash-card-body" :aria-label="`查看仪表盘：${item.name}`" @click.stop="enterDashboard(item)">
+            <span class="dash-card-brand">
+              <span class="dash-card-icon">
+                <img :src="dashboardConfig.icon" width="26" height="26" alt="" />
+              </span>
+            </span>
+            <span class="dash-card-name" :title="item.name">{{ item.name }}</span>
+            <span v-if="item.description?.trim()" class="dash-card-desc" :title="item.description">{{ item.description }}</span>
+          </button>
           <div class="dash-card-footer">
             <div class="dash-card-actions" @click.stop>
               <el-tooltip content="编辑" placement="top">
@@ -73,10 +73,10 @@
     </template>
 
     <!-- 预览视图 -->
-    <template v-else>
+    <template v-else-if="viewMode === 'preview'">
       <div class="preview-header">
         <el-button link type="primary" :icon="ArrowLeft" @click="viewMode = 'list'">返回</el-button>
-        <el-button type="primary" @click="openFullscreen">新窗口打开</el-button>
+        <DashboardPreviewActions :url="previewUrl" @refresh="refreshPreview" />
       </div>
       <div class="iframe-wrapper">
         <div v-if="iframeLoading" class="iframe-loading">
@@ -85,6 +85,7 @@
         </div>
         <iframe
           v-if="previewUrl"
+          :key="previewKey"
           :src="previewUrl"
           class="preview-iframe"
           @load="iframeLoading = false"
@@ -94,12 +95,13 @@
 
     <!-- 新增/编辑抽屉 -->
     <el-drawer v-model="drawerVisible" class="dashboard-drawer" size="min(460px, 94vw)" direction="rtl" :show-close="false" :close-on-click-modal="false" destroy-on-close>
-      <template #header>
+      <template #header="{ titleId }">
         <div class="drawer-header">
-          <DrawerBackButton @click="drawerVisible = false" />
-          <span class="drawer-title">{{ isEdit ? `编辑${dashboardConfig.shortName}` : `创建${dashboardConfig.shortName}` }}</span>
+          <DrawerBackButton :disabled="saving" @click="backFromForm" />
+          <span :id="titleId" class="drawer-accessible-title">{{ props.provider === 'grafana' ? 'Grafana' : dashboardConfig.shortName }}</span>
         </div>
       </template>
+      <DashboardTypeIdentity :icon="dashboardConfig.icon" :label="props.provider === 'grafana' ? 'Grafana' : dashboardConfig.shortName" />
       <el-form ref="formRef" class="dashboard-form" :model="form" :rules="rules" label-position="top">
         <el-form-item prop="name">
           <template #label>
@@ -142,16 +144,20 @@
 </template>
 
 <script setup>
+import DashboardPreviewActions from './DashboardPreviewActions.vue'
+import DashboardTypeIdentity from './DashboardTypeIdentity.vue'
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import PageEmpty from '../../components/PageEmpty.vue'
-import { computed, ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted, watch } from 'vue'
 import { getDashboards, createDashboard, updateDashboard, deleteDashboard } from '../../api/dashboard'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Delete, Edit, InfoFilled, Loading, Plus, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
 import grafanaIcon from '../../assets/grafana_icon.svg'
 import aliyunSLSIcon from '../../assets/aliyun_sls.svg'
 
-const props = defineProps({ provider: { type: String, default: 'grafana' } })
+const props = defineProps({ provider: { type: String, default: 'grafana' }, embedded: Boolean })
+const emit = defineEmits(['changed', 'view-change', 'select-type'])
+defineExpose({ create: handleAdd, edit: handleEdit, open: enterDashboard })
 const dashboardConfigs = {
   grafana: {
     shortName: '监控仪表盘',
@@ -192,6 +198,7 @@ const rules = {
 
 const previewUrl = ref('')
 const iframeLoading = ref(true)
+const previewKey = ref(0)
 
 // ── 拖拽排序 ──
 const dragIdx = ref(-1)
@@ -243,13 +250,15 @@ function onDragEnd() {
 
 // ── 业务 ──
 
-onMounted(fetchData)
+onMounted(() => { if (!props.embedded) fetchData() })
+watch(viewMode, mode => emit('view-change', mode !== 'list'))
 
 function searchDashboards() {
   dashboardKeyword.value = dashboardSearchInput.value
 }
 
 async function fetchData() {
+  if (props.embedded) { emit('changed'); return }
   loading.value = true
   try {
     const res = await getDashboards({ provider: props.provider })
@@ -265,10 +274,10 @@ function enterDashboard(row) {
   viewMode.value = 'preview'
 }
 
-function handleAdd() {
+function handleAdd(nextSort) {
   isEdit.value = false
   const maxSort = tableData.value.reduce((m, i) => Math.max(m, i.sort ?? 0), 0)
-  Object.assign(form, { id: null, provider: props.provider, name: '', url: '', description: '', sort: maxSort + 1, status: 1 })
+  Object.assign(form, { id: null, provider: props.provider, name: '', url: '', description: '', sort: typeof nextSort === 'number' ? nextSort : maxSort + 1, status: 1 })
   drawerVisible.value = true
 }
 
@@ -284,7 +293,7 @@ async function handleSubmit() {
   saving.value = true
   try {
     if (isEdit.value) {
-      await updateDashboard(form.id, form)
+      await updateDashboard(form.id, { name: form.name, provider: form.provider, url: form.url, description: form.description, status: form.status })
       ElMessage.success('更新成功')
     } else {
       await createDashboard(form)
@@ -303,23 +312,29 @@ async function handleDelete(row) {
   fetchData()
 }
 
-function openFullscreen() {
-  window.open(previewUrl.value, '_blank')
+function refreshPreview() {
+  if (!previewUrl.value) return
+  iframeLoading.value = true
+  previewKey.value++
+}
+function backFromForm() {
+  drawerVisible.value = false
+  if (props.embedded && !form.id) emit('select-type')
 }
 </script>
 
 <style scoped>
+.drawer-accessible-title { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .page-container { display: flex; flex-direction: column; gap: 16px; }
-.dashboard-intro { display: flex; min-height: 36px; align-items: center; gap: 9px; padding: 7px 12px; color: #536f91; background: #eaf5ff; font-size: 11px; }
-.intro-icon { flex: none; color: #409eff; font-size: 14px; }
-.intro-message { min-width: 0; overflow: hidden; color: #718096; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-intro { display: flex; min-height: 36px; align-items: center; gap: 9px; padding: 7px 12px; color: var(--ops-muted); background: var(--ops-primary-soft); border-radius: 8px; font-size: 12px; }
+.intro-icon { flex: none; color: var(--ops-primary); font-size: 14px; }
+.intro-message { min-width: 0; color: var(--ops-muted); line-height: 1.6; }
 .dashboard-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .dashboard-search { width: 240px; }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
 .drawer-header { display: flex; width: 100%; align-items: center; gap: 12px; }
-.drawer-back { margin-left: -8px; color: #3b6ea8; }
-.drawer-title { color: #303133; font-size: 16px; font-weight: 600; }
-.dashboard-form { padding: 2px 0; }
+.drawer-back { margin-left: -8px; color: var(--ops-primary); }
+.dashboard-form { padding: 0; }
 .field-label { display: inline-flex; align-items: center; gap: 5px; }
 .field-help-button {
   display: inline-flex;
@@ -335,7 +350,7 @@ function openFullscreen() {
   font-size: 14px;
 }
 .field-help-button:hover,
-.field-help-button:focus-visible { color: #409eff; }
+.field-help-button:focus-visible { color: var(--ops-primary); }
 .field-help-button:focus-visible {
   border-radius: 50%;
   outline: 2px solid rgba(64, 158, 255, 0.3);
@@ -350,15 +365,18 @@ function openFullscreen() {
 /* ── 卡片网格 ── */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 320px));
+  align-items: stretch;
   gap: 16px;
 }
 .dash-card {
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid var(--ops-border-soft);
+  min-width: 0;
+  min-height: 218px;
+  border-radius: 12px;
+  background: var(--ops-surface);
   cursor: grab;
-  transition: all 0.2s;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -366,9 +384,10 @@ function openFullscreen() {
 .dash-card:active {
   cursor: grabbing;
 }
-.dash-card:hover {
-  border-color: #409EFF;
-  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.12);
+.dash-card:hover,
+.dash-card:focus-within {
+  border-color: var(--ops-primary);
+  box-shadow: var(--ops-shadow);
   transform: translateY(-2px);
 }
 .dash-card.dragging {
@@ -376,55 +395,75 @@ function openFullscreen() {
   transform: scale(0.95);
 }
 .dash-card.over {
-  border-color: #409EFF;
+  border-color: var(--ops-primary);
   border-style: dashed;
-  background: #ecf5ff;
+  background: var(--ops-primary-soft);
 }
 
 .dash-card-body {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 20px 20px 14px;
-}
-.dash-card-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
-  background: #fff3e8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.dash-card-info {
   flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
   min-width: 0;
+  padding: 20px;
+  border: 0;
+  color: var(--ops-text);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-card-body:focus-visible {
+  outline: 2px solid var(--ops-primary);
+  outline-offset: -3px;
+  border-radius: 8px;
+}
+.dash-card-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.dash-card-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border: 1px solid var(--ops-border-soft);
+  border-radius: 10px;
+  background: var(--ops-surface-soft);
 }
 .dash-card-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.dash-card-desc {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
   display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  color: var(--ops-text);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.dash-card-desc {
+  display: -webkit-box;
+  max-width: 100%;
   overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  color: var(--ops-muted);
+  font-size: 12px;
+  line-height: 1.7;
 }
 .dash-card-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 10px 20px;
-  border-top: 1px solid #f5f5f5;
-  background: #fafbfc;
+  gap: 12px;
+  min-height: 48px;
+  margin: 0 20px;
+  padding: 10px 0;
+  border-top: 1px solid var(--ops-border-soft);
 }
 .dash-card-actions {
   display: flex;
@@ -455,7 +494,7 @@ function openFullscreen() {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #909399;
+  color: var(--ops-muted);
   font-size: 14px;
 }
 .preview-iframe {
@@ -470,6 +509,14 @@ function openFullscreen() {
   .dashboard-toolbar { align-items: stretch; flex-direction: column; }
   .dashboard-search { width: 100%; }
   .toolbar-actions { flex-wrap: wrap; }
-  .dashboard-grid { grid-template-columns: 1fr; }
+
+}
+@media (max-width: 480px) {
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  .dash-card { min-height: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-card { transition: none; }
+  .dash-card:hover, .dash-card:focus-within { transform: none; }
 }
 </style>

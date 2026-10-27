@@ -8,6 +8,10 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
+	"guanlan/pkg/syncbuffer"
+	"guanlan/pkg/textutil"
 	"net/http"
 	"os/exec"
 	"strconv"
@@ -36,41 +40,41 @@ type saveAutomationTaskReq struct {
 func ListAutomationTasks(c *gin.Context) {
 	var rows []models.AutomationTask
 	database.DB.Order("id DESC").Find(&rows)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": rows})
+	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
 func CreateAutomationTask(c *gin.Context) {
 	var req saveAutomationTaskReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "自动化任务格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "自动化任务格式不正确")
 		return
 	}
 	item, err := buildAutomationTask(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "任务名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "任务名称已存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "自动化任务已创建", "data": item})
+	resp.Success(c, http.StatusOK, "自动化任务已创建", item)
 }
 
 func UpdateAutomationTask(c *gin.Context) {
 	var existing models.AutomationTask
 	if database.DB.First(&existing, c.Param("id")).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "自动化任务不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "自动化任务不存在")
 		return
 	}
 	var req saveAutomationTaskReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "自动化任务格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "自动化任务格式不正确")
 		return
 	}
 	item, err := buildAutomationTask(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Model(&existing).Updates(map[string]interface{}{
@@ -80,42 +84,42 @@ func UpdateAutomationTask(c *gin.Context) {
 		"runtime_profile": item.RuntimeProfile, "certificate_id": item.CertificateID, "node_type": item.NodeType, "node_id": item.NodeID,
 		"timeout_seconds": item.TimeoutSeconds, "max_retries": item.MaxRetries, "status": item.Status,
 	}).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "任务名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "任务名称已存在")
 		return
 	}
 	database.DB.First(&existing, existing.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "自动化任务已更新", "data": existing})
+	resp.Success(c, http.StatusOK, "自动化任务已更新", existing)
 }
 
 func DeleteAutomationTask(c *gin.Context) {
 	var item models.AutomationTask
 	if database.DB.First(&item, c.Param("id")).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "自动化任务不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "自动化任务不存在")
 		return
 	}
 	var bindings int64
 	database.DB.Model(&models.AlertActionRule{}).Where("action_type = ? AND target_id = ?", "automation_task", item.ID).Count(&bindings)
 	if bindings > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "任务已被故障自动化处置引用，请先解除绑定"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "任务已被故障自动化处置引用，请先解除绑定")
 		return
 	}
 	database.DB.Delete(&item)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "自动化任务已删除"})
+	resp.Success(c, http.StatusOK, "自动化任务已删除")
 }
 
 func RunAutomationTask(c *gin.Context) {
 	var task models.AutomationTask
 	if database.DB.First(&task, c.Param("id")).Error != nil || task.Status != 1 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "自动化任务不存在或已停用"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "自动化任务不存在或已停用")
 		return
 	}
 	input := map[string]interface{}{}
 	if c.Request.ContentLength != 0 && c.ShouldBindJSON(&input) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "运行输入必须是 JSON 对象"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "运行输入必须是 JSON 对象")
 		return
 	}
 	record := executeAutomationTask(task, "manual", 0, input)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": automationExecutionMessage(record), "data": record})
+	resp.Success(c, http.StatusOK, automationExecutionMessage(record), record)
 }
 
 func ListAutomationExecutions(c *gin.Context) {
@@ -143,16 +147,16 @@ func ListAutomationExecutions(c *gin.Context) {
 	}
 	startTime, startSet, err := parseAutomationExecutionTime(c.Query("start_time"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "开始时间格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "开始时间格式不正确")
 		return
 	}
 	endTime, endSet, err := parseAutomationExecutionTime(c.Query("end_time"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "结束时间格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "结束时间格式不正确")
 		return
 	}
 	if startSet && endSet && startTime.After(endTime) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "开始时间不能晚于结束时间"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "开始时间不能晚于结束时间")
 		return
 	}
 	if startSet {
@@ -189,7 +193,7 @@ func ListAutomationExecutions(c *gin.Context) {
 			"revision": row.Revision, "artifact_sha256": row.ArtifactSHA256, "created_at": row.CreatedAt,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{"list": result, "total": total, "page": page, "page_size": pageSize}})
+	resp.Success(c, http.StatusOK, "成功", gin.H{"list": result, "total": total, "page": page, "page_size": pageSize})
 }
 
 func parseAutomationExecutionTime(value string) (time.Time, bool, error) {
@@ -292,7 +296,7 @@ func executeAutomationTask(task models.AutomationTask, triggerType string, trigg
 		result, err = executeAutomationTaskOnce(task, encoded, input, artifact)
 	}
 	record.DurationMs = time.Since(startedAt).Milliseconds()
-	record.Output = truncate(strings.TrimSpace(result.Output), 16000)
+	record.Output = textutil.Ellipsis(strings.TrimSpace(result.Output), 16000)
 	if err == nil {
 		record.Status, record.ExitCode = "success", 0
 	} else {
@@ -300,7 +304,7 @@ func executeAutomationTask(task models.AutomationTask, triggerType string, trigg
 		if record.ExitCode == 0 {
 			record.ExitCode = 1
 		}
-		record.Error = truncate(err.Error(), 2000)
+		record.Error = textutil.Ellipsis(err.Error(), 2000)
 	}
 	database.DB.Create(&record)
 	return record
@@ -344,7 +348,7 @@ func runLocalAutomationCommand(command string, timeout time.Duration) (automatio
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
-	var output synchronizedBuffer
+	var output syncbuffer.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	err := cmd.Run()
 	result := automationRunResult{Output: output.String(), ExitCode: processExitCode(err)}
@@ -429,18 +433,18 @@ func buildCertificateRepositoryCommand(command, certPEM, privateKey string, para
 		"trap 'rm -rf \"$CERT_DEPLOY_DIR\"' EXIT",
 		"CERT_FILE=\"$CERT_DEPLOY_DIR/certificate.pem\"",
 		"KEY_FILE=\"$CERT_DEPLOY_DIR/private_key.pem\"",
-		"printf '%s' " + shellQuote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(certPEM)+"\n"))) + " | base64 -d > \"$CERT_FILE\"",
-		"printf '%s' " + shellQuote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(privateKey)+"\n"))) + " | base64 -d > \"$KEY_FILE\"",
+		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(certPEM)+"\n"))) + " | base64 -d > \"$CERT_FILE\"",
+		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(privateKey)+"\n"))) + " | base64 -d > \"$KEY_FILE\"",
 		"chmod 600 \"$KEY_FILE\"",
 		"export CERT_DEPLOY_DIR CERT_FILE KEY_FILE",
 		"export PRIVATE_KEY_FILE=\"$KEY_FILE\"",
 	}
 	for key, value := range params {
-		if isShellIdentifier(key) {
-			lines = append(lines, "export "+key+"="+shellQuote(value))
+		if shellutil.IsIdentifier(key) {
+			lines = append(lines, "export "+key+"="+shellutil.Quote(value))
 		}
 	}
-	return strings.Join(append(lines, "bash -c "+shellQuote(normalizeScriptLineEndings(command))), "\n")
+	return strings.Join(append(lines, "bash -c "+shellutil.Quote(shellutil.NormalizeLineEndings(command))), "\n")
 }
 
 func buildAutomationGitCommand(script models.Script, input []byte) string {
@@ -450,17 +454,17 @@ func buildAutomationGitCommand(script models.Script, input []byte) string {
 	}
 	cloneArgs := "--depth 1"
 	if script.GitRef != "" {
-		cloneArgs += " --branch " + shellQuote(script.GitRef) + " --single-branch"
+		cloneArgs += " --branch " + shellutil.Quote(script.GitRef) + " --single-branch"
 	}
 	return strings.Join([]string{
 		"set -e", "set -o pipefail",
 		"AIOPS_TASK_DIR=\"$(mktemp -d /tmp/aiops-task-XXXXXX)\"",
 		"trap 'rm -rf \"$AIOPS_TASK_DIR\"' EXIT",
 		"AIOPS_INPUT_FILE=\"$AIOPS_TASK_DIR/input.json\"",
-		"printf '%s' " + shellQuote(base64.StdEncoding.EncodeToString(input)) + " | base64 -d > \"$AIOPS_INPUT_FILE\"",
+		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString(input)) + " | base64 -d > \"$AIOPS_INPUT_FILE\"",
 		"export AIOPS_INPUT_FILE",
-		"git clone " + cloneArgs + " -- " + shellQuote(script.RepositoryURL) + " \"$AIOPS_TASK_DIR/repository\"",
-		"cd \"$AIOPS_TASK_DIR/repository\"", "test -f " + shellQuote(script.Entrypoint), runner + " " + shellQuote(script.Entrypoint),
+		"git clone " + cloneArgs + " -- " + shellutil.Quote(script.RepositoryURL) + " \"$AIOPS_TASK_DIR/repository\"",
+		"cd \"$AIOPS_TASK_DIR/repository\"", "test -f " + shellutil.Quote(script.Entrypoint), runner + " " + shellutil.Quote(script.Entrypoint),
 	}, "\n")
 }
 
@@ -476,8 +480,8 @@ func buildAutomationScriptCommand(scriptType, scriptContent string, input []byte
 		"trap 'rm -rf \"$AIOPS_TASK_DIR\"' EXIT",
 		"AIOPS_INPUT_FILE=\"$AIOPS_TASK_DIR/input.json\"",
 		"AIOPS_SCRIPT_FILE=\"$AIOPS_TASK_DIR/task." + ext + "\"",
-		"printf '%s' " + shellQuote(base64.StdEncoding.EncodeToString(input)) + " | base64 -d > \"$AIOPS_INPUT_FILE\"",
-		"printf '%s' " + shellQuote(base64.StdEncoding.EncodeToString([]byte(normalizeScriptLineEndings(scriptContent)))) + " | base64 -d > \"$AIOPS_SCRIPT_FILE\"",
+		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString(input)) + " | base64 -d > \"$AIOPS_INPUT_FILE\"",
+		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(shellutil.NormalizeLineEndings(scriptContent)))) + " | base64 -d > \"$AIOPS_SCRIPT_FILE\"",
 		"chmod 700 \"$AIOPS_SCRIPT_FILE\"", "export AIOPS_INPUT_FILE", runner + " \"$AIOPS_SCRIPT_FILE\"",
 	}, "\n")
 }

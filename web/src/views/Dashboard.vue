@@ -57,20 +57,14 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 import { getDashboardOverview } from '../api/dashboard'
 import { useUserStore } from '../stores/user'
-import { usePlatformStore } from '../stores/platform'
+import { useThemeColors } from '../theme/useThemeColors'
 
 use([LineChart, BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
-const user = useUserStore(), platform = usePlatformStore()
+const user = useUserStore()
 const canView = computed(() => user.hasPermission('dashboard:list'))
 const range = ref('today'), overview = ref(null), loading = ref(false), error = ref('')
-const systemDark = ref(window.matchMedia('(prefers-color-scheme: dark)').matches)
-const themeMedia = window.matchMedia('(prefers-color-scheme: dark)')
-const onThemeChange = event => { systemDark.value = event.matches }
-const dark = computed(() => {
-  const theme = platform.themePreference || platform.defaultTheme
-  return theme === 'dark' || (theme === 'system' && systemDark.value)
-})
-const colors = computed(() => ({ text: dark.value ? '#a7b4c8' : '#667085', line: dark.value ? '#29364a' : '#eef1f5' }))
+const colors = useThemeColors()
+const tooltipStyle = computed(() => ({ backgroundColor: colors.value.surface, borderColor: colors.value.border, textStyle: { color: colors.value.text } }))
 const summary = computed(() => overview.value?.summary || {})
 const points = computed(() => overview.value?.points || [])
 const alertTotal = computed(() => points.value.reduce((sum, point) => sum + point.alerts, 0))
@@ -83,29 +77,29 @@ const cards = computed(() => [
 ])
 function trend(series) {
   return {
-    color: ['#497cf6', '#eb6666'], animationDuration: 350,
-    tooltip: { trigger: 'axis', renderMode: 'richText' },
+    color: [colors.value.primary, colors.value.danger], animationDuration: 350,
+    tooltip: { ...tooltipStyle.value, trigger: 'axis', renderMode: 'richText' },
     legend: { bottom: 0, textStyle: { color: colors.value.text } },
     grid: { left: 12, right: 16, top: 20, bottom: 42, containLabel: true },
-    xAxis: { type: 'category', boundaryGap: false, data: points.value.map(p => range.value === 'today' ? p.time.slice(11) : p.time.slice(5)), axisLine: { lineStyle: { color: colors.value.line } }, axisTick: { show: false }, axisLabel: { color: colors.value.text } },
-    yAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.value.text }, splitLine: { lineStyle: { color: colors.value.line, type: 'dashed' } } },
+    xAxis: { type: 'category', boundaryGap: false, data: points.value.map(p => range.value === 'today' ? p.time.slice(11) : p.time.slice(5)), axisLine: { lineStyle: { color: colors.value['border-soft'] } }, axisTick: { show: false }, axisLabel: { color: colors.value.text } },
+    yAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.value.text }, splitLine: { lineStyle: { color: colors.value['border-soft'], type: 'dashed' } } },
     series,
   }
 }
 const alertOption = computed(() => trend([{ name: '告警发生次数', type: 'line', showSymbol: points.value.length === 1, symbolSize: 7, lineStyle: { width: 3 }, areaStyle: { opacity: .1 }, data: points.value.map(p => p.alerts) }]))
 const notificationOption = computed(() => trend([
-  { name: '发送成功', type: 'line', showSymbol: points.value.length === 1, itemStyle: { color: '#26a98b' }, areaStyle: { opacity: .06 }, data: points.value.map(p => p.notifications_success) },
-  { name: '发送失败', type: 'line', showSymbol: points.value.length === 1, itemStyle: { color: '#eb6666' }, data: points.value.map(p => p.notifications_failed) },
+  { name: '发送成功', type: 'line', showSymbol: points.value.length === 1, itemStyle: { color: colors.value.success }, areaStyle: { opacity: .06 }, data: points.value.map(p => p.notifications_success) },
+  { name: '发送失败', type: 'line', showSymbol: points.value.length === 1, itemStyle: { color: colors.value.danger }, data: points.value.map(p => p.notifications_failed) },
 ]))
 const severityOption = computed(() => ({
   color: ['#e85d75', '#ee9362', '#eab649', '#5686ec', '#58b5a5'],
-  tooltip: { trigger: 'item', renderMode: 'richText' }, legend: { bottom: 0, textStyle: { color: colors.value.text } },
+  tooltip: { ...tooltipStyle.value, trigger: 'item', renderMode: 'richText' }, legend: { bottom: 0, textStyle: { color: colors.value.text } },
   series: [{ type: 'pie', radius: ['46%', '69%'], center: ['50%', '45%'], avoidLabelOverlap: true, label: { color: colors.value.text, formatter: '{b}: {c}' }, data: (overview.value?.severity || []).map(item => ({ name: item.name || '未分类', value: item.count })) }],
 }))
 const datasourceOption = computed(() => ({
-  color: ['#6887e8'], tooltip: { trigger: 'axis', renderMode: 'richText', axisPointer: { type: 'shadow' } },
+  color: [colors.value.primary], tooltip: { ...tooltipStyle.value, trigger: 'axis', renderMode: 'richText', axisPointer: { type: 'shadow' } },
   grid: { left: 12, right: 28, top: 14, bottom: 12, containLabel: true },
-  xAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.value.text }, splitLine: { lineStyle: { color: colors.value.line } } },
+  xAxis: { type: 'value', minInterval: 1, axisLabel: { color: colors.value.text }, splitLine: { lineStyle: { color: colors.value['border-soft'] } } },
   yAxis: { type: 'category', inverse: true, data: ['启用', '禁用'], axisLabel: { color: colors.value.text }, axisTick: { show: false }, axisLine: { show: false } },
   series: [{ type: 'bar', barMaxWidth: 22, itemStyle: { borderRadius: [0, 5, 5, 0] }, label: { show: true, position: 'right', color: colors.value.text }, data: [Number(summary.value.datasources_enabled || 0), Math.max(0, Number(summary.value.datasources || 0) - Number(summary.value.datasources_enabled || 0))] }],
 }))
@@ -124,12 +118,11 @@ async function loadOverview() {
 }
 onMounted(() => {
   loadOverview()
-  themeMedia.addEventListener('change', onThemeChange)
   refreshTimer = setInterval(() => { if (!document.hidden && !loading.value) loadOverview() }, 60000)
 })
-onBeforeUnmount(() => { requestID++; clearInterval(refreshTimer); themeMedia.removeEventListener('change', onThemeChange) })
+onBeforeUnmount(() => { requestID++; clearInterval(refreshTimer) })
 </script>
 
 <style scoped>
-.dashboard,.overview-content{display:flex;flex-direction:column;gap:18px;min-width:0}.overview-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}.overview-controls{display:flex;align-items:center;gap:10px}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.metric-card,.chart-card{background:var(--ops-surface);border:1px solid var(--ops-border-soft);border-radius:10px}.metric-card{padding:20px}.metric-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--ops-muted);font-size:13px}.metric-top .el-icon{padding:9px;border-radius:10px;font-size:20px}.blue{color:#497cf6;background:#497cf61a}.purple{color:#8a69d8;background:#8a69d81a}.orange{color:#de884b;background:#de884b1a}.green{color:#26a98b;background:#26a98b1a}.metric-card strong{display:block;font-size:32px;line-height:1.4;margin:8px 0;color:var(--ops-text);font-variant-numeric:tabular-nums}.chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.chart-card{min-width:0;padding:20px}.chart-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.chart-heading h2{margin:0;font-size:15px;color:var(--ops-text);font-weight:650}.chart-total{flex:none;color:var(--ops-text);font-size:25px;font-weight:650;font-variant-numeric:tabular-nums}.chart-total small{font-size:11px;font-weight:400;color:var(--ops-muted)}.trend-chart{height:280px;margin-top:14px}.distribution-chart{height:270px;margin-top:14px}@media(max-width:1200px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:850px){.chart-grid{grid-template-columns:1fr}.chart-card{padding:16px}}@media(max-width:480px){.metric-grid{gap:10px}.metric-card{padding:14px}.metric-top .el-icon{display:none}.metric-card strong{font-size:27px}.overview-controls{flex-wrap:wrap}}
+.dashboard,.overview-content{display:flex;flex-direction:column;gap:18px;min-width:0}.overview-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap}.overview-controls{display:flex;align-items:center;gap:10px}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.metric-card,.chart-card{background:var(--ops-surface);border:1px solid var(--ops-border-soft);border-radius:10px}.metric-card{padding:20px}.metric-top{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--ops-muted);font-size:13px}.metric-top .el-icon{padding:9px;border-radius:10px;font-size:20px}.blue{color:var(--ops-primary);background:var(--ops-primary-soft)}.purple{color:#8a69d8;background:#8a69d81a}.orange{color:#de884b;background:#de884b1a}.green{color:#26a98b;background:#26a98b1a}.metric-card strong{display:block;font-size:32px;line-height:1.4;margin:8px 0;color:var(--ops-text);font-variant-numeric:tabular-nums}.chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.chart-card{min-width:0;padding:20px}.chart-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.chart-heading h2{margin:0;font-size:15px;color:var(--ops-text);font-weight:650}.chart-total{flex:none;color:var(--ops-text);font-size:25px;font-weight:650;font-variant-numeric:tabular-nums}.chart-total small{font-size:11px;font-weight:400;color:var(--ops-muted)}.trend-chart{height:280px;margin-top:14px}.distribution-chart{height:270px;margin-top:14px}@media(max-width:1200px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:850px){.chart-grid{grid-template-columns:1fr}.chart-card{padding:16px}}@media(max-width:480px){.metric-grid{gap:10px}.metric-card{padding:14px}.metric-top .el-icon{display:none}.metric-card strong{font-size:27px}.overview-controls{flex-wrap:wrap}}
 </style>

@@ -6,6 +6,8 @@ import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
 	"guanlan/pkg/logger"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"net/http"
 	"regexp"
 	"sort"
@@ -50,7 +52,7 @@ func ListInspectionItems(c *gin.Context) {
 		}
 	}
 	if err := query.Find(&items).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询拨测任务失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询拨测任务失败")
 		return
 	}
 
@@ -93,12 +95,12 @@ func ListInspectionItems(c *gin.Context) {
 		if end > total {
 			end = total
 		}
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+		resp.Success(c, http.StatusOK, "成功", gin.H{
 			"list": inspectionItemListViews(items[start:end]), "total": total, "page": page, "page_size": pageSize,
-		}})
+		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": inspectionItemListViews(items)})
+	resp.Success(c, http.StatusOK, "成功", inspectionItemListViews(items))
 }
 
 type inspectionNodeView struct {
@@ -208,23 +210,23 @@ type BatchInspectionItemIDsReq struct {
 func BatchUpdateInspectionItemStatus(c *gin.Context) {
 	var req BatchInspectionItemStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 || req.Status == nil || (*req.Status != 0 && *req.Status != 1) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择拨测任务并指定正确状态"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择拨测任务并指定正确状态")
 		return
 	}
 	if *req.Status == 1 {
 		var retired int64
 		if err := database.DB.Model(&models.InspectionItem{}).Where("id IN ? AND type NOT IN ?", req.IDs, []string{"http", "icmp", "tcp", "certificate_expiry", "script"}).Count(&retired).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "检查任务类型失败"})
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "检查任务类型失败")
 			return
 		}
 		if retired > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "所选任务包含已移除的拨测类型，请先修改类型"})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "所选任务包含已移除的拨测类型，请先修改类型")
 			return
 		}
 	}
 	result := database.DB.Model(&models.InspectionItem{}).Where("id IN ?", req.IDs).Update("status", *req.Status)
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量更新任务状态失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量更新任务状态失败")
 		return
 	}
 	if *req.Status == 0 {
@@ -235,13 +237,13 @@ func BatchUpdateInspectionItemStatus(c *gin.Context) {
 		database.DB.Model(&models.InspectionNodeState{}).Where("item_id IN ?", req.IDs).Updates(map[string]interface{}{"consecutive_failures": 0, "consecutive_successes": 0, "alert_active": false})
 		database.DB.Model(&models.InspectionItem{}).Where("id IN ?", req.IDs).Updates(map[string]interface{}{"consecutive_failures": 0, "consecutive_successes": 0, "alert_active": false})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "批量更新成功", "data": gin.H{"updated": result.RowsAffected}})
+	resp.Success(c, http.StatusOK, "批量更新成功", gin.H{"updated": result.RowsAffected})
 }
 
 func BatchDeleteInspectionItems(c *gin.Context) {
 	var req BatchInspectionItemIDsReq
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择要删除的拨测任务"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择要删除的拨测任务")
 		return
 	}
 
@@ -266,10 +268,10 @@ func BatchDeleteInspectionItems(c *gin.Context) {
 		return result.Error
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量删除拨测任务失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量删除拨测任务失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "批量删除成功", "data": gin.H{"deleted": deleted}})
+	resp.Success(c, http.StatusOK, "批量删除成功", gin.H{"deleted": deleted})
 }
 
 type inspectionTrendPoint struct {
@@ -293,12 +295,12 @@ type inspectionTrendPoint struct {
 func GetInspectionItemOverview(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id < 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "拨测任务 ID 不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "拨测任务 ID 不正确")
 		return
 	}
 	var item models.InspectionItem
 	if err := database.DB.First(&item, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "拨测任务不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "拨测任务不存在")
 		return
 	}
 
@@ -353,14 +355,14 @@ func GetInspectionItemOverview(c *gin.Context) {
 		averageDuration = durationTotal / int64(total)
 		successRate = float64(successCount) * 100 / float64(total)
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"item": item, "nodes": nodeViews, "selected_node_key": selectedNode.NodeKey, "range": rangeValue, "points": points,
 		"summary": gin.H{
 			"total": total, "success": successCount, "failed": total - successCount,
 			"success_rate": successRate, "avg_duration_ms": averageDuration,
 			"p95_duration_ms": inspectionDurationPercentile(durations, 0.95), "status_code_counts": codeCounts,
 		},
-	}})
+	})
 }
 
 func normalizeInspectionOverviewRange(value string) (string, time.Duration, time.Duration) {
@@ -490,21 +492,22 @@ type inspectionExecutionNode struct {
 func CreateInspectionItem(c *gin.Context) {
 	var req CreateInspectionItemReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	labels, err := normalizeInspectionLabels(req.ExternalLabels)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	req.ExternalLabels = labels
 	req.Severity = normalizeInspectionSeverity(req.Severity)
 	if req.GroupID == 0 {
-		req.GroupID = 1
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择拨测规则组")
+		return
 	}
 	if err := validateInspectionItemReq(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 
@@ -517,36 +520,36 @@ func CreateInspectionItem(c *gin.Context) {
 		FaultCenterID: req.FaultCenterID, Status: req.Status,
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建拨测任务失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建拨测任务失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 func UpdateInspectionItem(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req CreateInspectionItemReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	labels, err := normalizeInspectionLabels(req.ExternalLabels)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	req.ExternalLabels = labels
 	req.Severity = normalizeInspectionSeverity(req.Severity)
 	var existing models.InspectionItem
 	if id < 1 || database.DB.First(&existing, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "拨测任务不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "拨测任务不存在")
 		return
 	}
 	if req.GroupID == 0 {
 		req.GroupID = existing.GroupID
 	}
 	if err := validateInspectionItemReq(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 
@@ -566,7 +569,7 @@ func UpdateInspectionItem(c *gin.Context) {
 		"status":             req.Status,
 	})
 	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新拨测任务失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新拨测任务失败")
 		return
 	}
 	reconcileInspectionNodeAlerts(models.InspectionItem{ID: uint(id)}, resolveInspectionExecutionNodes(req.Config), time.Now())
@@ -575,7 +578,7 @@ func UpdateInspectionItem(c *gin.Context) {
 		database.DB.Model(&models.InspectionNodeState{}).Where("item_id = ?", id).Updates(map[string]interface{}{"consecutive_failures": 0, "consecutive_successes": 0, "alert_active": false})
 		database.DB.Model(&models.InspectionItem{}).Where("id = ?", id).Updates(map[string]interface{}{"consecutive_failures": 0, "consecutive_successes": 0, "alert_active": false})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 var inspectionLabelKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
@@ -832,7 +835,7 @@ func DeleteInspectionItem(c *gin.Context) {
 	database.DB.Where("item_id = ?", id).Delete(&models.InspectionNodeState{})
 	database.DB.Where("item_id = ?", id).Delete(&models.InspectionTrendBucket{})
 	database.DB.Delete(&models.InspectionItem{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 // ── Execute Inspection ──
@@ -841,29 +844,25 @@ func RunInspectionItem(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var item models.InspectionItem
 	if err := database.DB.First(&item, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "拨测任务不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "拨测任务不存在")
 		return
 	}
 
 	if item.Type == "mqtt" || item.Type == "ssl" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "该拨测类型已移除，请先修改任务类型"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "该拨测类型已移除，请先修改任务类型")
 		return
 	}
 
 	record := executeAndRecordInspection(&item)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "拨测完成: " + record.Status,
-		"data":    record,
-	})
+	resp.Success(c, http.StatusOK, "拨测完成: "+record.Status, record)
 }
 
 func RunAllInspections(c *gin.Context) {
 	var items []models.InspectionItem
 	database.DB.Where("status = 1 AND type IN ?", []string{"http", "icmp", "tcp", "certificate_expiry", "script"}).Find(&items)
 	if len(items) == 0 {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "无启用拨测任务"})
+		resp.Success(c, http.StatusOK, "无启用拨测任务")
 		return
 	}
 
@@ -877,10 +876,7 @@ func RunAllInspections(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": fmt.Sprintf("拨测完成: 成功 %d, 失败 %d/%d", successCount, failCount, len(items)),
-	})
+	resp.Success(c, http.StatusOK, fmt.Sprintf("拨测完成: 成功 %d, 失败 %d/%d", successCount, failCount, len(items)))
 }
 
 var runningInspections sync.Map
@@ -1132,7 +1128,7 @@ func sendInspectionFailureNotification(item models.InspectionItem, node inspecti
 		title = fmt.Sprintf("拨测任务持续失败：%s（%s）", item.Name, node.NodeName)
 	}
 	externalLabels := parseInspectionLabels(item.Labels)
-	content := fmt.Sprintf("任务 %s 已连续失败 %d 次（告警阈值 %d 次），当前状态：%s。\n执行节点：%s\n目标：%s\n结果：%s", item.Name, failures, normalizeFailureThreshold(item.FailureThreshold), status, node.NodeName, item.Target, truncate(result, 800))
+	content := fmt.Sprintf("任务 %s 已连续失败 %d 次（告警阈值 %d 次），当前状态：%s。\n执行节点：%s\n目标：%s\n结果：%s", item.Name, failures, normalizeFailureThreshold(item.FailureThreshold), status, node.NodeName, item.Target, textutil.Ellipsis(result, 800))
 	alertDetail := renderInspectionAlertDetail(item, node, externalLabels)
 	if alertDetail != "" {
 		content += "\n告警详情：" + alertDetail
@@ -1284,15 +1280,11 @@ func ListInspectionRecords(c *gin.Context) {
 	tx.Count(&total)
 	tx.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&records)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "成功",
-		"data": gin.H{
-			"list":      records,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		},
+	resp.Success(c, http.StatusOK, "成功", gin.H{
+		"list":      records,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 

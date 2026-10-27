@@ -8,6 +8,8 @@ import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
 	"guanlan/pkg/logger"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"math"
 	"net/http"
 	"net/url"
@@ -124,42 +126,42 @@ func ListAlertRules(c *gin.Context) {
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询告警规则失败")
 		return
 	}
 	var rows []models.AlertRule
 	if err := query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询告警规则失败")
 		return
 	}
 	list := make([]gin.H, 0, len(rows))
 	for i := range rows {
 		list = append(list, alertRuleResponse(rows[i]))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"list": list, "total": total, "page": page, "page_size": pageSize,
-	}})
+	})
 }
 
 func GetAlertRule(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var rule models.AlertRule
 	if id < 1 || database.DB.First(&rule, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警规则不存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": alertRuleResponse(rule)})
+	resp.Success(c, http.StatusOK, "成功", alertRuleResponse(rule))
 }
 
 func CreateAlertRule(c *gin.Context) {
 	var req saveAlertRuleReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "告警规则格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "告警规则格式不正确")
 		return
 	}
 	rule, selection, err := buildAlertRule(req, 0)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	requestedStatus := rule.Status
@@ -184,27 +186,27 @@ func CreateAlertRule(c *gin.Context) {
 		return replaceAlertRuleBindings(tx, rule.ID, selection.EffectiveIDs)
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建告警规则失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "告警规则已创建", "data": alertRuleResponse(rule)})
+	resp.Success(c, http.StatusOK, "告警规则已创建", alertRuleResponse(rule))
 }
 
 func UpdateAlertRule(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var existing models.AlertRule
 	if id < 1 || database.DB.First(&existing, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警规则不存在")
 		return
 	}
 	var req saveAlertRuleReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "告警规则格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "告警规则格式不正确")
 		return
 	}
 	rule, selection, err := buildAlertRule(req, existing.ID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	err = database.DB.Transaction(func(tx *gorm.DB) error {
@@ -233,25 +235,25 @@ func UpdateAlertRule(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新告警规则失败")
 		return
 	}
 	database.DB.First(&existing, existing.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "告警规则已更新", "data": alertRuleResponse(existing)})
+	resp.Success(c, http.StatusOK, "告警规则已更新", alertRuleResponse(existing))
 }
 
 func UpdateAlertRuleStatus(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var rule models.AlertRule
 	if id < 1 || database.DB.First(&rule, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警规则不存在")
 		return
 	}
 	var req struct {
 		Status *int `json:"status"`
 	}
 	if c.ShouldBindJSON(&req) != nil || req.Status == nil || (*req.Status != 0 && *req.Status != 1) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "启用状态不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "启用状态不正确")
 		return
 	}
 	now := time.Now()
@@ -267,11 +269,11 @@ func UpdateAlertRuleStatus(c *gin.Context) {
 			"lease_until":        nil,
 		}).Error
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新告警规则状态失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新告警规则状态失败")
 		return
 	}
 	rule.Status = *req.Status
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "告警规则状态已更新", "data": gin.H{"id": rule.ID, "status": rule.Status}})
+	resp.Success(c, http.StatusOK, "告警规则状态已更新", gin.H{"id": rule.ID, "status": rule.Status})
 }
 
 type batchAlertRuleStatusReq struct {
@@ -282,16 +284,16 @@ type batchAlertRuleStatusReq struct {
 func BatchUpdateAlertRuleStatus(c *gin.Context) {
 	var req batchAlertRuleStatusReq
 	if c.ShouldBindJSON(&req) != nil || len(req.IDs) == 0 || req.Status == nil || (*req.Status != 0 && *req.Status != 1) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择告警规则并指定正确状态"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择告警规则并指定正确状态")
 		return
 	}
 	var rules []models.AlertRule
 	if err := database.DB.Where("id IN ?", req.IDs).Find(&rules).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询告警规则失败")
 		return
 	}
 	if len(rules) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警规则不存在")
 		return
 	}
 	ruleIDs := make([]uint, 0, len(rules))
@@ -317,10 +319,10 @@ func BatchUpdateAlertRuleStatus(c *gin.Context) {
 		}).Error
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量更新告警规则状态失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量更新告警规则状态失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "批量更新成功", "data": gin.H{"updated": len(ruleIDs)}})
+	resp.Success(c, http.StatusOK, "批量更新成功", gin.H{"updated": len(ruleIDs)})
 }
 
 type batchAlertRuleIDsReq struct {
@@ -330,16 +332,16 @@ type batchAlertRuleIDsReq struct {
 func BatchDeleteAlertRules(c *gin.Context) {
 	var req batchAlertRuleIDsReq
 	if c.ShouldBindJSON(&req) != nil || len(req.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择要删除的告警规则"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择要删除的告警规则")
 		return
 	}
 	var rules []models.AlertRule
 	if err := database.DB.Where("id IN ?", req.IDs).Find(&rules).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询告警规则失败")
 		return
 	}
 	if len(rules) == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警规则不存在")
 		return
 	}
 	ruleIDs := make([]uint, 0, len(rules))
@@ -368,17 +370,17 @@ func BatchDeleteAlertRules(c *gin.Context) {
 		return tx.Where("id IN ?", ruleIDs).Delete(&models.AlertRule{}).Error
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量删除告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量删除告警规则失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "批量删除成功", "data": gin.H{"deleted": len(ruleIDs)}})
+	resp.Success(c, http.StatusOK, "批量删除成功", gin.H{"deleted": len(ruleIDs)})
 }
 
 func DeleteAlertRule(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var rule models.AlertRule
 	if id < 1 || database.DB.First(&rule, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警规则不存在")
 		return
 	}
 	now := time.Now()
@@ -401,31 +403,31 @@ func DeleteAlertRule(c *gin.Context) {
 		return tx.Delete(&rule).Error
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除告警规则失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "告警规则已删除"})
+	resp.Success(c, http.StatusOK, "告警规则已删除")
 }
 
 func RunAlertRule(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var rule models.AlertRule
 	if id < 1 || database.DB.First(&rule, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "告警规则不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "告警规则不存在")
 		return
 	}
 	if rule.Status != 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请先启用告警规则"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请先启用告警规则")
 		return
 	}
 	now := time.Now()
 	result := database.DB.Model(&models.AlertRuleBinding{}).Where("rule_id = ?", rule.ID).Updates(map[string]interface{}{"next_evaluation_at": now, "lease_until": nil})
 	if result.RowsAffected == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "告警规则未绑定数据源"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "告警规则未绑定数据源")
 		return
 	}
 	go runDueAlertRuleBindings(now)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "规则评估已提交"})
+	resp.Success(c, http.StatusOK, "规则评估已提交")
 }
 
 func ListAlertEvaluationRecords(c *gin.Context) {
@@ -454,7 +456,7 @@ func ListAlertEvaluationRecords(c *gin.Context) {
 		database.DB.Select("id", "name").First(&datasource, row.DatasourceID)
 		data = append(data, gin.H{"id": row.ID, "rule_id": row.RuleID, "rule_name": rule.Name, "datasource_id": row.DatasourceID, "datasource_name": datasource.Name, "status": row.Status, "result_count": row.ResultCount, "duration_ms": row.DurationMs, "message": row.Message, "evaluated_at": row.EvaluatedAt})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{"list": data, "total": total, "page": page, "page_size": pageSize}})
+	resp.Success(c, http.StatusOK, "成功", gin.H{"list": data, "total": total, "page": page, "page_size": pageSize})
 }
 
 func buildAlertRule(req saveAlertRuleReq, excludeID uint) (models.AlertRule, alertRuleSelection, error) {
@@ -502,7 +504,7 @@ func buildAlertRule(req saveAlertRuleReq, excludeID uint) (models.AlertRule, ale
 	if err != nil {
 		return models.AlertRule{}, emptySelection, err
 	}
-	if len(effectiveIDs) == 0 {
+	if len(datasourceGroupIDs) == 0 && len(directDatasourceIDs) == 0 {
 		return models.AlertRule{}, emptySelection, fmt.Errorf("请至少选择一个数据源或数据源分组")
 	}
 	severity := strings.ToUpper(strings.TrimSpace(req.Severity))
@@ -649,8 +651,12 @@ func datasourceIDsForSelection(tx *gorm.DB, datasourceGroupIDs, directDatasource
 	}
 	effectiveIDs := append([]uint{}, directDatasourceIDs...)
 	if len(datasourceGroupIDs) > 0 {
+		expandedIDs, err := expandedDatasourceGroupIDs(tx, datasourceGroupIDs)
+		if err != nil {
+			return nil, err
+		}
 		var members []models.DatasourceGroupMember
-		if err := tx.Where("group_id IN ?", datasourceGroupIDs).Find(&members).Error; err != nil {
+		if err := tx.Where("group_id IN ?", expandedIDs).Where("datasource_id IN (?)", tx.Model(&models.Datasource{}).Select("id").Where("type IN ? AND status = 1", metricDatasourceTypes())).Find(&members).Error; err != nil {
 			return nil, err
 		}
 		for _, member := range members {
@@ -697,7 +703,13 @@ func effectiveAlertRuleDatasourceIDs(tx *gorm.DB, ruleID uint) ([]uint, error) {
 	for _, selection := range groupSelections {
 		groupIDs = append(groupIDs, selection.DatasourceGroupID)
 	}
-	return datasourceIDsForSelection(tx, groupIDs, directIDs)
+	var activeDirectIDs []uint
+	if len(directIDs) > 0 {
+		if err := tx.Model(&models.Datasource{}).Where("id IN ? AND type IN ? AND status = 1", directIDs, metricDatasourceTypes()).Pluck("id", &activeDirectIDs).Error; err != nil {
+			return nil, err
+		}
+	}
+	return datasourceIDsForSelection(tx, groupIDs, activeDirectIDs)
 }
 
 func replaceAlertRuleBindings(tx *gorm.DB, ruleID uint, datasourceIDs []uint) error {
@@ -826,11 +838,13 @@ func alertRuleResponse(rule models.AlertRule) gin.H {
 	database.DB.Where("rule_id = ?", rule.ID).Order("id ASC").Find(&datasourceGroupSelections)
 	datasourceGroupIDs := make([]uint, 0, len(datasourceGroupSelections))
 	datasourceGroupNames := make([]string, 0, len(datasourceGroupSelections))
+	datasourceGroupTree, _ := loadDatasourceGroupTree(database.DB)
 	for _, selection := range datasourceGroupSelections {
 		var datasourceGroup models.DatasourceGroup
 		database.DB.Select("id", "name").First(&datasourceGroup, selection.DatasourceGroupID)
 		datasourceGroupIDs = append(datasourceGroupIDs, selection.DatasourceGroupID)
-		datasourceGroupNames = append(datasourceGroupNames, datasourceGroup.Name)
+		path, _ := datasourceGroupPath(datasourceGroupTree, datasourceGroup.ID)
+		datasourceGroupNames = append(datasourceGroupNames, path)
 	}
 	var activeCount int64
 	database.DB.Model(&models.AlertInstance{}).Where("source = ? AND source_id = ? AND status IN ?", alertRuleSource, rule.ID, []string{alertStatusPending, alertStatusFiring, alertStatusRecovering}).Count(&activeCount)
@@ -910,11 +924,11 @@ func evaluateAlertRuleBinding(bindingID uint, evaluatedAt time.Time) {
 	if rule.Status != 1 || datasource.Status != 1 || !isMetricDatasourceType(datasource.Type) {
 		return
 	}
-	series, err := queryPromRuleDatasource(datasource, rule.Expression, evaluatedAt)
+	series, err := queryPromRuleDatasource(datasource, rule.Expression)
 	durationMS := time.Since(started).Milliseconds()
 	status, message := "success", ""
 	if err != nil {
-		status, message = "error", truncate(err.Error(), 1900)
+		status, message = "error", textutil.Ellipsis(err.Error(), 1900)
 	} else if len(series) == 0 {
 		status = "no_data"
 	}
@@ -934,10 +948,11 @@ func evaluateAlertRuleBinding(bindingID uint, evaluatedAt time.Time) {
 	}
 }
 
-func queryPromRuleDatasource(datasource models.Datasource, expression string, evaluatedAt time.Time) ([]promVectorSeries, error) {
+func queryPromRuleDatasource(datasource models.Datasource, expression string) ([]promVectorSeries, error) {
 	params := url.Values{}
 	params.Set("query", expression)
-	params.Set("time", strconv.FormatInt(evaluatedAt.Unix(), 10))
+	// Let the datasource evaluate at its own current time. Local evaluation
+	// timestamps are only used for scheduling and alert lifecycle durations.
 	queryPath := "/api/v1/query"
 	var config struct {
 		QueryPath   string            `json:"query_path"`
@@ -1180,7 +1195,7 @@ func syncPromRuleAlerts(rule models.AlertRule, datasource models.Datasource, ser
 			target += " · " + summary
 		}
 		if !found {
-			alert = models.AlertInstance{FaultCenterID: rule.FaultCenterID, Source: alertRuleSource, SourceID: rule.ID, DatasourceID: datasource.ID, Fingerprint: fingerprint, Title: title, Target: truncate(target, 500), Severity: severity, Status: state, Labels: string(encodedLabels), FailureCount: 1, FailureThreshold: 1, LastProbeStatus: "success", LastResult: string(encodedResult), StartedAt: now, StateChangedAt: now, LastEventAt: now}
+			alert = models.AlertInstance{FaultCenterID: rule.FaultCenterID, Source: alertRuleSource, SourceID: rule.ID, DatasourceID: datasource.ID, Fingerprint: fingerprint, Title: title, Target: textutil.Ellipsis(target, 500), Severity: severity, Status: state, Labels: string(encodedLabels), FailureCount: 1, FailureThreshold: 1, LastProbeStatus: "success", LastResult: string(encodedResult), StartedAt: now, StateChangedAt: now, LastEventAt: now}
 			if state == alertStatusFiring {
 				alert.FiredAt = &now
 			}
@@ -1189,7 +1204,7 @@ func syncPromRuleAlerts(rule models.AlertRule, datasource models.Datasource, ser
 			}
 			_ = recordAlertEvent(database.DB, alert, "created", "", state, "", severity, "condition_detected", item.Value, "success", now)
 		} else {
-			target = truncate(target, 500)
+			target = textutil.Ellipsis(target, 500)
 			encodedDatasourceLabels, _ := json.Marshal(datasourceLabels)
 			metadata := promAlertPersistenceMetadata{FaultCenterID: rule.FaultCenterID, Fingerprint: fingerprint, Title: title, Target: target, Severity: severity, Status: state, Labels: string(encodedLabels), DatasourceLabels: string(encodedDatasourceLabels), ProbeStatus: "success"}
 			if promAlertNeedsPersistence(alert, metadata) {
@@ -1202,7 +1217,7 @@ func syncPromRuleAlerts(rule models.AlertRule, datasource models.Datasource, ser
 					continue
 				}
 			}
-			alert.Title, alert.Target, alert.Severity = title, truncate(target, 500), severity
+			alert.Title, alert.Target, alert.Severity = title, textutil.Ellipsis(target, 500), severity
 			alert.FaultCenterID = rule.FaultCenterID
 			alert.Fingerprint = fingerprint
 			alert.Status, alert.Labels, alert.LastProbeStatus, alert.LastResult = state, string(encodedLabels), "success", string(encodedResult)
@@ -1284,7 +1299,6 @@ type promAlertPersistenceMetadata struct {
 
 func promAlertNeedsPersistence(alert models.AlertInstance, next promAlertPersistenceMetadata) bool {
 	return alert.FaultCenterID != next.FaultCenterID ||
-		promAlertSnapshotFingerprint(alert.LastResult) != next.Fingerprint ||
 		promAlertSnapshotDatasourceLabels(alert.LastResult) != next.DatasourceLabels ||
 		alert.Fingerprint != next.Fingerprint ||
 		alert.Title != next.Title ||
@@ -1305,14 +1319,6 @@ func promAlertSnapshotDatasourceLabels(value string) string {
 	}
 	encoded, _ := json.Marshal(snapshot.DatasourceLabels)
 	return string(encoded)
-}
-
-func promAlertSnapshotFingerprint(value string) string {
-	var snapshot struct {
-		Fingerprint string `json:"fingerprint"`
-	}
-	_ = json.Unmarshal([]byte(value), &snapshot)
-	return snapshot.Fingerprint
 }
 
 func promDatasourceLabels(datasource models.Datasource) map[string]string {

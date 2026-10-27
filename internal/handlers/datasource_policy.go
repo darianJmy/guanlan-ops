@@ -2,14 +2,17 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func validateDatasourceConnection(ds models.Datasource) error {
@@ -27,18 +30,21 @@ func validateDatasourceConnection(ds models.Datasource) error {
 	if authType == "" {
 		authType = "none"
 	}
-	if authType != "none" && authType != "basic" && authType != "bearer" {
-		return fmt.Errorf("当前数据源仅支持无认证、Basic Auth 或 Bearer Token")
+	if authType != "none" && authType != "basic" && authType != "bearer" && !(authType == "api_key" && ds.Type == "elasticsearch") {
+		return fmt.Errorf("当前数据源不支持此认证方式")
 	}
 	var auth DatasourceAuthConfig
 	if ds.AuthConfig != "" && json.Unmarshal([]byte(ds.AuthConfig), &auth) != nil {
 		return fmt.Errorf("认证配置格式不正确")
 	}
-	if authType == "basic" && (strings.TrimSpace(auth.Username) == "" || auth.Password == "") {
+	if authType == "basic" && (strings.TrimSpace(auth.Username) == "" || (ds.Type != "clickhouse" && auth.Password == "")) {
 		return fmt.Errorf("请填写 Basic Auth 用户名和密码")
 	}
 	if authType == "bearer" && strings.TrimSpace(auth.Token) == "" {
 		return fmt.Errorf("请填写 Bearer Token")
+	}
+	if authType == "api_key" && strings.TrimSpace(auth.Token) == "" {
+		return fmt.Errorf("请填写 API Key")
 	}
 	var config struct {
 		CustomHeaders map[string]string `json:"custom_headers"`
@@ -59,7 +65,19 @@ func validateDatasourceConnection(ds models.Datasource) error {
 			}
 		}
 	}
-	return nil
+	if ds.Type == "clickhouse" {
+		var cfg struct {
+			Logs *logSourceConfig `json:"log_query"`
+		}
+		if json.Unmarshal([]byte(ds.Config), &cfg) == nil && cfg.Logs == nil {
+			return nil
+		}
+		if ds.Config == "" {
+			return nil
+		}
+	}
+	_, err = readLogSourceConfig(ds)
+	return err
 }
 
 func normalizeDatasourceReq(req *CreateDatasourceWithTunnelReq, existing *models.Datasource) error {
@@ -79,6 +97,17 @@ func normalizeDatasourceReq(req *CreateDatasourceWithTunnelReq, existing *models
 	if req.Status != 0 && req.Status != 1 {
 		return fmt.Errorf("实例状态不正确")
 	}
+	if req.Type == "clickhouse" {
+		var cfg struct {
+			Database string `json:"database"`
+		}
+		if json.Unmarshal([]byte(req.Config), &cfg) != nil || strings.TrimSpace(cfg.Database) == "" {
+			return fmt.Errorf("请填写数据库")
+		}
+		if _, err := clickHouseDatabase(req.Config); err != nil {
+			return err
+		}
+	}
 	if req.AuthType == "none" {
 		req.AuthConfig = ""
 	} else if existing != nil && strings.TrimSpace(req.AuthConfig) == "" && existing.AuthType == req.AuthType {
@@ -97,30 +126,51 @@ func normalizeDatasourceReq(req *CreateDatasourceWithTunnelReq, existing *models
 func requireSupportedDatasourceIDs(c *gin.Context, ids []uint) bool {
 	ids = normalizeChannelIDs(ids)
 	if len(ids) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择数据源实例"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择数据源实例")
 		return false
 	}
 	var count int64
 	if err := database.DB.Model(&models.Datasource{}).Where("id IN ? AND type IN ?", ids, supportedDatasourceTypes()).Count(&count).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "检查监控实例失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "检查监控实例失败")
 		return false
 	}
 	if count != int64(len(ids)) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "实例不存在或类型暂不受支持"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "实例不存在或类型暂不受支持")
 		return false
 	}
 	return true
 }
 
-func requireUnboundDatasources(c *gin.Context, ids []uint) bool {
-	var count int64
-	if err := database.DB.Model(&models.AlertRuleDatasource{}).Where("datasource_id IN ?", ids).Count(&count).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "检查告警规则引用失败"})
-		return false
+// Delete the instance and its memberships atomically, reconciling inherited rules
+// before removing the datasource so active alerts can be terminated correctly.
+func deleteDatasourceInstances(c *gin.Context, ids []uint) (int64, bool) {
+	inUse := errors.New("实例已被告警规则直接引用，请先解除绑定")
+	var deleted int64
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Model(&models.AlertRuleDatasource{}).Where("datasource_id IN ?", ids).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return inUse
+		}
+		if err := tx.Where("datasource_id IN ?", ids).Delete(&models.DatasourceGroupMember{}).Error; err != nil {
+			return err
+		}
+		if err := syncAllDatasourceGroupRuleBindings(tx); err != nil {
+			return err
+		}
+		result := tx.Where("id IN ?", ids).Delete(&models.Datasource{})
+		deleted = result.RowsAffected
+		return result.Error
+	})
+	if err != nil {
+		if errors.Is(err, inUse) {
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, inUse.Error())
+		} else {
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除数据源实例失败")
+		}
+		return 0, false
 	}
-	if count > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "实例已被告警规则引用，请先解除绑定"})
-		return false
-	}
-	return true
+	return deleted, true
 }

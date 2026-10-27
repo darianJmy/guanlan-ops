@@ -128,13 +128,13 @@ function formatTime(value) { return value ? new Date(value).toLocaleString('zh-C
 </script>
 
 <style scoped>
-.page-container { --ink: #17233b; --muted: #758197; --border: #e2e8f1; display: flex; flex-direction: column; }
-.script-workbench { overflow: hidden; background: #fff; border: 1px solid var(--border); border-radius: 7px; }
-.asset-tabs :deep(.el-tabs__header) { margin: 0; padding: 0 22px; border-bottom: 1px solid #edf0f4; }
+.page-container { --ink: var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); display: flex; flex-direction: column; }
+.script-workbench { overflow: hidden; background: var(--ops-surface); border: 1px solid var(--border); border-radius: 7px; }
+.asset-tabs :deep(.el-tabs__header) { margin: 0; padding: 0 22px; border-bottom: 1px solid var(--ops-border-soft); }
 .asset-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
-.asset-tabs :deep(.el-tabs__item) { height: 52px; padding: 0 21px; color: #66758a; font-size: 13px; }
-.asset-tabs :deep(.el-tabs__item.is-active) { color: #1769d2; font-weight: 600; }
-.asset-tabs :deep(.el-tabs__active-bar) { height: 2px; background: #1769d2; }
+.asset-tabs :deep(.el-tabs__item) { height: 52px; padding: 0 21px; color: var(--ops-muted); font-size: 13px; }
+.asset-tabs :deep(.el-tabs__item.is-active) { color: var(--ops-primary); font-weight: 600; }
+.asset-tabs :deep(.el-tabs__active-bar) { height: 2px; background: var(--ops-primary); }
 .asset-tabs :deep(.el-tabs__content) { display: none; }
 .asset-content { padding: 20px 22px 24px; }
 .script-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }

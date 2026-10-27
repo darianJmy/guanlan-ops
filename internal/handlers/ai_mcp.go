@@ -10,7 +10,7 @@ import (
 // Reuse the local MCP business handlers; no loopback HTTP or service token is needed.
 func registerAssistantMCPTools(ctx context.Context, registry *aicore.Registry, userID uint) {
 	for _, tool := range mcpTools {
-		if (tool.Annotations["readOnlyHint"] != true && !tool.AssistantWritable) || authorizeAIPermission(ctx, userID, tool.Permission) != nil {
+		if (tool.Annotations["readOnlyHint"] != true && !tool.AssistantWritable) || authorizeAssistantMCPTool(ctx, userID, tool) != nil {
 			continue
 		}
 		params := mcpParameterSchema(tool.InputSchema)
@@ -19,7 +19,15 @@ func registerAssistantMCPTools(ctx context.Context, registry *aicore.Registry, u
 			risk = aicore.RiskWriteLow
 		}
 		handler := assistantMCPTool
-		if isPlatformMCPTool(tool.Name) {
+		if isOperationMCPTool(tool.Name) {
+			handler = func(ctx context.Context, call aicore.ToolCall) aicore.ToolResult {
+				data, err := executeOperationMCPTool(ctx, userID, call.Tool, call.Params)
+				if err != nil {
+					return aicore.ToolResult{Tool: call.Tool, ErrorCode: "PLATFORM_OPERATION_FAILED", Message: err.Error()}
+				}
+				return aicore.ToolResult{Tool: call.Tool, OK: true, Summary: "平台操作完成", Data: data}
+			}
+		} else if isPlatformMCPTool(tool.Name) {
 			handler = func(ctx context.Context, call aicore.ToolCall) aicore.ToolResult {
 				data, err := executePlatformMCPTool(ctx, userID, call.Tool, call.Params)
 				if err != nil {
@@ -32,7 +40,14 @@ func registerAssistantMCPTools(ctx context.Context, registry *aicore.Registry, u
 				return assistantDatasourceTool(ctx, userID, call)
 			}
 		}
-		mustRegisterTool(registry, aicore.ToolSpec{Name: tool.Name, Description: tool.Description, Risk: risk, TimeoutSeconds: 10, ParamsSchema: params}, handler)
+		timeout := 10
+		if isOperationMCPTool(tool.Name) {
+			timeout = 120
+		}
+		if isOperationMCPTool(tool.Name) && tool.AssistantWritable {
+			risk = aicore.RiskWriteAuthorized
+		}
+		mustRegisterTool(registry, aicore.ToolSpec{Name: tool.Name, Description: tool.Description, Risk: risk, TimeoutSeconds: timeout, ParamsSchema: params}, handler)
 	}
 }
 
@@ -96,4 +111,11 @@ func projectMCPQueryData(name string, data interface{}) (map[string]interface{},
 	}
 	result["list"] = items
 	return result, nil
+}
+
+func authorizeAssistantMCPTool(ctx context.Context, userID uint, tool mcpTool) error {
+	if isOperationMCPTool(tool.Name) && tool.Permission == operationDirectoryPermission {
+		return authorizeOperationDirectory(ctx, userID)
+	}
+	return authorizeAIPermission(ctx, userID, tool.Permission)
 }

@@ -1,7 +1,7 @@
 <template>
   <div class="detail-page" v-loading="loading">
     <header class="detail-header">
-      <el-button link type="primary" :icon="ArrowLeft" @click="router.push(`/inspection/items/groups/${item.group_id || 1}`)">返回</el-button>
+      <el-button link type="primary" :icon="ArrowLeft" @click="router.push(item.group_id ? `/inspection/items/groups/${item.group_id}` : '/inspection/items')">返回</el-button>
       <div class="toolbar-actions">
         <el-select v-model="selectedNodeKey" aria-label="执行节点筛选" @change="changeNode"><el-option v-for="node in nodes" :key="node.node_key" :label="node.node_name" :value="node.node_key" /></el-select>
         <el-select v-model="rangeKey" aria-label="趋势时间范围" @change="loadData"><el-option v-for="option in ranges" :key="option.value" :label="option.label" :value="option.value" /></el-select>
@@ -158,17 +158,17 @@ function lineOption({ labels, series, yName, min, max, legend = false, tooltipSu
 
 <style scoped>
 .detail-header{display:flex;min-height:32px;align-items:center;justify-content:space-between;gap:14px}
-.detail-page{--border:#e0e7f0;display:flex;flex-direction:column;gap:16px}
+.detail-page{--border:var(--ops-border);display:flex;flex-direction:column;gap:16px}
 .toolbar-actions{display:flex;align-items:center;gap:9px}
 .toolbar-actions :deep(.el-select){width:132px}
 .toolbar-actions :deep(.el-select:first-child){width:170px}
 .chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.chart-card,.records-card{min-width:0;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(31,50,81,.035)}
+.chart-card,.records-card{min-width:0;background:var(--ops-surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(31,50,81,.035)}
 .chart-card.full-width{grid-column:1/-1}
-.card-heading{display:flex;min-height:61px;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid #edf0f4}
+.card-heading{display:flex;min-height:61px;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--ops-border-soft)}
 .card-heading>div{display:flex;flex-direction:column}
 .card-heading strong{color:#293b53;font-size:13px}
-.card-heading span{margin-top:3px;color:#8b97a8;font-size:10px}
+.card-heading span{margin-top:3px;color:var(--ops-muted);font-size:10px}
 .card-heading .range-note{margin:0;padding:4px 8px;color:#63758c;background:#f5f8fb;border-radius:5px}
 .chart-shell{display:flex;height:290px;align-items:center;justify-content:center;padding:10px}
 .chart{width:100%;height:100%}
@@ -176,9 +176,9 @@ function lineOption({ labels, series, yName, min, max, legend = false, tooltipSu
 .records-card{overflow:hidden}
 .records-card :deep(.el-table){border-radius:0 0 10px 10px}
 .records-toggle{width:100%;border:0;border-bottom:1px solid transparent;text-align:left;background:transparent;cursor:pointer}
-.records-toggle.open{border-bottom-color:#edf0f4}
+.records-toggle.open{border-bottom-color:var(--ops-border-soft)}
 .records-toggle:hover{background:#fafcff}
-.records-toggle:focus-visible{outline:2px solid #409eff;outline-offset:-2px}
+.records-toggle:focus-visible{outline:2px solid var(--ops-primary);outline-offset:-2px}
 .records-meta{display:flex;align-items:center;gap:8px}
 .records-meta .range-note{display:inline-flex;align-items:center}
 .toggle-icon{margin:0;color:#8391a5;font-size:14px;transition:transform .18s ease}

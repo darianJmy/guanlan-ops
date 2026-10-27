@@ -32,40 +32,27 @@ Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 | --- | --- |
 | 运维概览 | 4 项核心指标，告警与通知趋势，活跃告警分布、Prometheus 实例启用状态，今日 / 近 7 天 / 近 30 天切换 |
 | 接入中心 | Prometheus / VictoriaMetrics 多实例与分组管理，认证、自定义请求头、标签及连接测试 |
-| 指标与仪表盘 | PromQL 即时查询、范围查询、图表展示、查询历史，Grafana 及云日志仪表盘接入 |
+| 即时查询与仪表盘 | PromQL 即时与范围查询、日志查询、SQL 查询、查询历史，Grafana 及云日志仪表盘接入 |
+| 日志查询 | Loki、Elasticsearch、ClickHouse 日志查询，时间范围与条数限制、字段映射及详情展示 |
 | 告警治理 | 规则与规则组、周期评估、故障中心、告警生命周期、静默、抑制、通知路由及告警动作 |
 | 拨测监控 | HTTP、ICMP、TCP、证书到期及 Shell/Python 脚本检测，任务分组、多节点执行、执行记录与趋势 |
 | 自动化 | 脚本、工作流、Git 制品任务和执行记录 |
 | 节点管理 | SSH、Agent 和 Docker 节点，远程连接与任务执行 |
 | 通知管理 | 通知渠道、模板、Webhook 发送、成功与失败记录 |
-| AI 助手 | 右侧聊天面板、会话历史、工具查询、资源创建、运行追踪、并发与轮次限制 |
+| AI 助手与 MCP | 页面模型管理、聊天与历史会话、指标查询、平台操作工具目录、权限校验及运行追踪 |
 | 系统管理 | 用户、角色、菜单、权限、审计日志、本地登录、LDAP / OIDC、API Token |
 
-### AI 助手
+### AI 助手与 MCP
 
-点击页面右上角的机器人，即可在当前页面打开聊天侧栏。支持查看和搜索历史会话、新建会话，以及展开模型和工具的执行详情。
+点击页面右上角的机器人打开聊天侧栏，支持多轮对话、历史会话搜索、模型切换和执行追踪。在「系统设置 → AI 模型」配置 NewAPI、OpenAI 兼容或 Anthropic 连接，模型需支持原生工具调用。配置保存后立即生效，API Key 加密存入数据库，不通过 YAML 或 `APP_AI_*` 配置。
 
-当前接入的只读工具包括 Prometheus / VictoriaMetrics 即时查询、告警查询、告警规则查询、拨测任务查询和自动化任务目录查询。 还支持平台数据源查询、已保存数据源连接测试，以及无认证直连 Prometheus/VictoriaMetrics 数据源创建。创建需要用户提供名称、类型、地址和无认证方式，并具有 `datasource:create` 权限；工具返回实际 ID、记录审计并拦截同名重复创建。需要认证或隧道的数据源通过接入中心配置。
+助手使用 **Eino ReAct Agent**，与外部 MCP 客户端共用平台工具和业务权限。除指标、告警、拨测等查询外，也支持创建和修改告警规则，并通过“查找操作 → 查看参数 → 执行”调用数据源、通知、自动化、工作流及系统设置等已登记操作。写操作需要用户明确授权具体动作和目标，执行时重新校验权限并记录审计。
 
-平台工具还覆盖以下能力，AI 助手和外部 MCP 客户端共用权限校验和业务逻辑：
+工具覆盖范围以 [平台操作工具目录](docs/architecture/platform-operation-tools.md) 为准。密码重置、API Token 创建及 Agent 令牌交付等操作保留在页面，不通过聊天返回凭据。当前权限以模块级 RBAC 为主，不代表资源级隔离。
 
-| 业务 | 查询 | 创建 |
-| --- | --- | --- |
-| 故障中心 / 告警 | 故障中心、告警时间线、规则组、评估记录 | 普通故障中心、空告警规则组 |
-| 数据源 | 实例、分组及成员、已保存连接测试 | 无认证直连实例、带成员的数据源分组 |
-| 拨测 | 任务、规则组、执行状态与耗时 | 空拨测规则组 |
-| 通知 | 对象、模板、发送记录 | 通知模板、使用全局 SMTP 的邮件通知对象 |
-| 证书 | 证书资产、域名检查状态、指定天数内到期记录 | — |
-| 自动化 | 任务目录、执行状态、退出码、耗时 | — |
+默认最多 8 次模型调用、120 秒编排预算、4 个并发请求，同一会话一次执行一个请求。执行追踪在请求结束后展示；部分业务处理尚未支持完整取消，写操作超时后应查询实际状态，避免直接重试。
 
-列表工具支持分页及各自声明的筛选参数；不会返回认证密钥、原始通知请求/响应、脚本执行输入输出或证书私钥。创建与审计同事务保存，拒绝同名重复创建。邮件对象创建仅保存配置，不发送邮件。助手未开放删除、修改运行策略、执行脚本或工作流。
-
-
-AI 助手采用 **Eino ReAct Agent + 原生工具调用**。在「系统设置 → AI 模型」添加多条模型连接（NewAPI、OpenAI 兼容或 Anthropic），聊天框选择模型，会话记住选择。配置存入数据库，API Key 加密保存，由后端读取，不再通过 config.yaml 或 APP_AI_* 配置。详见 [AI 助手架构](docs/architecture/ai-assistant-integration.md)。
-
-工具调用由后端进行参数和权限检查，指标查询使用 `datasource:list` 权限及数据源分组范围，平台工具按对应模块权限校验。默认最多 8 轮、120 秒编排预算、4 个并发请求，同一会话一次执行一个请求。部分旧连接器仍需补齐端到端取消。资源级授权、写操作审批和自主变更不属于当前 AI 能力。
-
-完整设计见 [AI 助手实施方案](docs/architecture/guanlan-ai-roadmap.md)。
+实现与模型配置详见 [AI 助手架构](docs/architecture/ai-assistant-integration.md)。
 
 ## 快速开始
 
@@ -85,10 +72,14 @@ make build
 构建前端 → 嵌入 web/dist → 编译 Go 主程序 → guanlan
 ```
 
-如果前端构建出现 JavaScript 堆内存不足，可以提高 Node.js 堆内存上限：
+`make web` 固定使用 1024 MiB 的 Node.js 堆上限。如果前端构建出现堆内存不足，可分步构建并提高上限：
 
 ```bash
-NODE_OPTIONS=--max-old-space-size=4096 make build
+cd web
+npm ci
+NODE_OPTIONS=--max-old-space-size=4096 npm run build
+cd ..
+CGO_ENABLED=0 go build -trimpath -o guanlan .
 ```
 
 ### 2. 启动
@@ -149,7 +140,6 @@ auth:
 database:
   dsn: "data/aiops.db"
 
-
 log:
   level: "info"
   format: "json"
@@ -205,7 +195,9 @@ make dev
 make dev CONF=./configs/config.example.yaml
 ```
 
-首次启动会自动构建缺失的前端资源。Air 使用固定版本，不要求全局安装；监听后端源码、生成的 Wire 文件和配置目录。仓库外的配置文件修改后需要手动重启。
+`make dev` 使用 `0.0.0.0:8081` 启动后端，该地址由 `.air.toml` 的 `full_bin` 设置，会覆盖 YAML 中的监听地址。首次启动会自动构建缺失的前端资源。Air 使用固定版本，不要求全局安装；监听后端源码、生成的 Wire 文件和配置目录。仓库外的配置文件修改后需要手动重启。
+
+项目要求 Go 1.25.0 或更高版本；较旧的 Go 会自动下载所需工具链。Makefile 和 Air 构建默认使用 `https://goproxy.cn,direct`，避免默认代理连接超时；可通过 `GOPROXY` 环境变量覆盖。直接运行 Go 命令时可使用 `GOPROXY=https://goproxy.cn,direct go build .`。
 
 ### 前端：Vite 热更新
 
@@ -217,7 +209,9 @@ npm ci
 npm run dev
 ```
 
-访问 `http://127.0.0.1:5173`，开发代理默认将 `/api` 转发到 `http://localhost:8080`。
+访问 **http://127.0.0.1:8080**，Vite 将 `/api`（包括 WebSocket）代理到 `http://127.0.0.1:8081`。端口被占用时 Vite 会直接退出，不会自动换端口。
+
+源码开发与单二进制运行都使用浏览器端口 8080；开始开发前先停止占用该端口的独立服务。
 
 前端修改通过 Vite 即时查看；发布时重新执行 `make build`，将新页面嵌入二进制。Air 不监听前端源码和 `web/dist`。
 
@@ -239,9 +233,10 @@ make test
 
 ```text
 guanlan/
+├── main.go                 服务端入口及前端静态资源嵌入
 ├── cmd/
-│   ├── guanlan/            主程序入口
-│   └── aiops-agent/        可选远程 Agent
+│   ├── aiops-agent/        可选远程 Agent
+│   └── generate-operation-catalog/  平台操作工具目录生成器
 ├── internal/
 │   ├── app/                应用初始化、Wire 装配与启动
 │   ├── ai/                 AI 协议、工具注册和执行编排
@@ -252,10 +247,11 @@ guanlan/
 │   ├── models/             数据模型
 │   └── routes/             HTTP 路由
 ├── pkg/                    公共日志、SQLite 和 HTTP 中间件
-├── web/                    Vue 前端及静态资源嵌入入口
+├── web/                    Vue 前端，构建产物位于 dist
 ├── configs/                外部配置示例
 ├── docs/                   架构、开发与接入文档
 ├── test/                   冒烟验证与测试资源
+├── Dockerfile.agent        Agent 容器构建定义
 ├── .air.toml               后端热重载配置
 └── Makefile                构建、开发和测试命令
 ```
@@ -276,21 +272,30 @@ flowchart LR
 ## 使用边界
 
 - **单实例部署**：当前业务数据存储使用 SQLite，不应把多个服务实例指向同一数据库文件运行。备份时建议先停止服务，再备份数据目录。
-- **历史数据迁移**：不自动将旧 MySQL 数据迁移到 SQLite；`deployments/migrations/mysql` 是历史 SQL，不能直接用于当前 SQLite 数据库。
+- **开发数据库**：首次启动自动建表并初始化数据，不提供历史数据库迁移脚本；结构调整和重建方式见 [数据库说明](docs/database.md)。
 - **指标口径**：今日统计使用北京时间；告警按进入 `firing` 的事件计数，通知按发送记录计数，包含测试通知及产生独立记录的重试。缺少历史事件时不会从当前状态反推历史。
-- **模型是可选能力**：不配置模型仍可使用平台业务功能；AI 回答依赖所配置模型及工具返回结果，当前以只读查询为主。
+- **模型是可选能力**：不配置模型仍可使用平台业务功能；AI 回答依赖所配置模型及工具返回结果，写操作需明确授权并受业务权限约束。模型密钥依赖 `auth.jwt_secret` 加密，更换该配置后需重新保存模型 API Key。
 
 ## 路线图
 
 - [x] 单二进制部署、内嵌配置、SQLite 自动初始化。
 - [x] 运维概览、告警与通知趋势。
 - [x] 右侧 AI 聊天面板、历史会话与执行追踪。
-- [ ] 系统设置中的模型配置与 API Key 管理。
+- [x] 系统设置中的模型配置与 API Key 管理。
+- [x] 助手与 MCP 共用平台操作目录、权限校验和操作审计。
 - [ ] AI 上下文增强、流式响应与完整取消链路。
 - [ ] 资源级授权、多步骤排障与知识检索。
 - [ ] 写操作审批、批量执行与反馈评估。
 
-AI 能力按阶段推进，具体范围和验收记录见 [实施方案](docs/architecture/guanlan-ai-roadmap.md)。
+AI 阶段规划见 [实施方案](docs/architecture/guanlan-ai-roadmap.md)，已交付能力与当前边界以 [AI 助手架构](docs/architecture/ai-assistant-integration.md) 和 [平台操作工具目录](docs/architecture/platform-operation-tools.md) 为准。
+
+## 文档导航
+
+- [日志查询接入](docs/log-query.md)：Loki、Elasticsearch、ClickHouse 的连接和字段映射。
+- [Agent 接入](docs/agent-connection.md)：远程节点部署与连接。
+- [告警生命周期](docs/alert-lifecycle-management.md)：告警状态、通知及恢复处理。
+- [自动化任务执行](docs/architecture/automation-task-execution.md) 与 [工作流执行](docs/architecture/workflow-dag-execution.md)。
+- [数据库说明](docs/database.md) 与 [项目目录](docs/project-layout.md)。
 
 ## 参与贡献
 

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/httpclient"
+	"guanlan/pkg/sshclient"
 	"net"
 	"net/http"
 	"net/url"
@@ -23,34 +25,12 @@ type tunnelAuthConfig struct {
 	Passphrase string `json:"passphrase"`
 }
 
-type datasourceRequestTransport struct {
-	base       http.RoundTripper
-	authType   string
-	authConfig string
-	headers    map[string]string
-}
-
-func (t datasourceRequestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	cloned := req.Clone(req.Context())
-	cloned.Header = req.Header.Clone()
-	for key, value := range t.headers {
-		cloned.Header.Set(key, value)
-	}
-	setAuthHeader(cloned, t.authType, t.authConfig)
-	return t.base.RoundTrip(cloned)
-}
-
-func datasourceRoundTripper(ds models.Datasource, base http.RoundTripper) http.RoundTripper {
+func datasourceHTTPConfig(ds models.Datasource) httpclient.Config {
 	var config struct {
 		CustomHeaders map[string]string `json:"custom_headers"`
 	}
 	_ = json.Unmarshal([]byte(ds.Config), &config)
-	return datasourceRequestTransport{
-		base:       base,
-		authType:   ds.AuthType,
-		authConfig: ds.AuthConfig,
-		headers:    config.CustomHeaders,
-	}
+	return httpclient.Config{Auth: datasourceHTTPAuth(ds.AuthType, ds.AuthConfig), Headers: config.CustomHeaders}
 }
 
 func datasourceHTTPClient(ds models.Datasource, timeout time.Duration) (*http.Client, func(), error) {
@@ -58,15 +38,14 @@ func datasourceHTTPClient(ds models.Datasource, timeout time.Duration) (*http.Cl
 		timeout = 10 * time.Second
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	cleanup := func() {
-		transport.CloseIdleConnections()
-	}
+	cfg := datasourceHTTPConfig(ds)
+	cfg.Timeout = timeout
+	cfg.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	cleanup := func() {}
 
 	if ds.TunnelID == 0 {
-		return &http.Client{Timeout: timeout, Transport: datasourceRoundTripper(ds, transport)}, cleanup, nil
+		client, closeHTTP := httpclient.New(cfg)
+		return client, closeHTTP, nil
 	}
 
 	targetAddr, err := datasourceTargetAddr(ds.URL)
@@ -89,30 +68,12 @@ func datasourceHTTPClient(ds models.Datasource, timeout time.Duration) (*http.Cl
 	if err != nil {
 		return nil, cleanup, err
 	}
-	cleanup = func() {
-		transport.CloseIdleConnections()
-		_ = sshClient.Close()
+	cfg.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return sshClient.DialContext(ctx, network, targetAddr)
 	}
 
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		type dialResult struct {
-			conn net.Conn
-			err  error
-		}
-		ch := make(chan dialResult, 1)
-		go func() {
-			conn, err := sshClient.Dial(network, targetAddr)
-			ch <- dialResult{conn: conn, err: err}
-		}()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case res := <-ch:
-			return res.conn, res.err
-		}
-	}
-
-	return &http.Client{Timeout: timeout, Transport: datasourceRoundTripper(ds, transport)}, cleanup, nil
+	client, closeHTTP := httpclient.New(cfg)
+	return client, func() { closeHTTP(); _ = sshClient.Close() }, nil
 }
 
 func openSSHClient(t models.Tunnel) (*ssh.Client, error) {
@@ -130,14 +91,8 @@ func openSSHClient(t models.Tunnel) (*ssh.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg := &ssh.ClientConfig{
-		User:            t.Username,
-		Auth:            []ssh.AuthMethod{method},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         8 * time.Second,
-	}
 	addr := net.JoinHostPort(t.Host, strconv.Itoa(t.Port))
-	client, err := ssh.Dial("tcp", addr, cfg)
+	client, err := sshclient.Dial(sshclient.Config{Address: addr, User: t.Username, Auth: []ssh.AuthMethod{method}, HostKeyCallback: ssh.InsecureIgnoreHostKey(), Timeout: 8 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("连接 SSH 隧道失败 %s: %w", addr, err)
 	}
@@ -158,17 +113,11 @@ func sshAuthMethod(t models.Tunnel) (ssh.AuthMethod, error) {
 		if cfg.PrivateKey == "" {
 			return nil, fmt.Errorf("SSH Key 认证缺少 private_key")
 		}
-		var signer ssh.Signer
-		var err error
-		if cfg.Passphrase != "" {
-			signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(cfg.PrivateKey), []byte(cfg.Passphrase))
-		} else {
-			signer, err = ssh.ParsePrivateKey([]byte(cfg.PrivateKey))
-		}
+		method, err := sshclient.PrivateKey([]byte(cfg.PrivateKey), []byte(cfg.Passphrase))
 		if err != nil {
 			return nil, fmt.Errorf("解析 SSH 私钥失败: %w", err)
 		}
-		return ssh.PublicKeys(signer), nil
+		return method, nil
 	default:
 		return nil, fmt.Errorf("不支持的 SSH 认证方式: %s", t.AuthType)
 	}

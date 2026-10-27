@@ -18,7 +18,7 @@ import (
 func datasourceMCPTools() []mcpTool {
 	createSchema := mcpObjectSchema(map[string]interface{}{
 		"name":      map[string]interface{}{"type": "string", "description": "用户指定的数据源名称"},
-		"type":      mcpStringEnum(supportedDatasourceTypes()...),
+		"type":      mcpStringEnum(append(metricDatasourceTypes(), "loki")...),
 		"url":       map[string]interface{}{"type": "string", "description": "用户提供的 HTTP/HTTPS 服务地址，不包含凭据或查询参数"},
 		"auth_type": mcpStringEnum("none"),
 		"remark":    map[string]interface{}{"type": "string", "description": "可选备注"},
@@ -28,7 +28,7 @@ func datasourceMCPTools() []mcpTool {
 	testSchema["required"] = []string{"datasource_id"}
 	return []mcpTool{
 		{Name: "query_datasources", Title: "查询数据源", Permission: "datasource:list", Description: "查询平台全部受支持的数据源实例（不按当前分组筛选），返回 ID、名称、类型、状态和认证方式，不返回地址或密钥。可用于检查是否已经创建。", InputSchema: mcpObjectSchema(map[string]interface{}{"keyword": map[string]interface{}{"type": "string"}, "page": mcpPageSchema(1), "page_size": mcpPageSizeSchema()}), Annotations: mcpReadOnlyAnnotations()},
-		{Name: "create_datasource", AssistantWritable: true, Title: "创建数据源", Permission: "datasource:create", Description: "按用户明确的创建请求新增启用的数据源。仅支持直连、无认证的 Prometheus/VictoriaMetrics；需用户提供名称、类型、URL，并明确无需认证。缺少信息先询问，不得编造；需认证或隧道请引导页面配置。返回实际 ID，不代表连接成功；不要因未知结果盲目重试。", InputSchema: createSchema, Annotations: map[string]interface{}{"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false}},
+		{Name: "create_datasource", AssistantWritable: true, Title: "创建数据源", Permission: "datasource:create", Description: "按用户明确的创建请求新增启用的数据源。仅支持直连、无认证的 Prometheus/VictoriaMetrics/Loki；Elasticsearch/ClickHouse 需在接入中心配置日志字段映射；需用户提供名称、类型、URL，并明确无需认证。缺少信息先询问，不得编造；需认证或隧道请引导页面配置。返回实际 ID，不代表连接成功；不要因未知结果盲目重试。", InputSchema: createSchema, Annotations: map[string]interface{}{"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false}},
 		{Name: "test_datasource_connection", Title: "测试数据源连接", Permission: "datasource:list", Description: "测试已保存数据源的连接，使用平台保存的认证信息；不接收新的 URL 或凭据。", InputSchema: testSchema, Annotations: mcpReadOnlyAnnotations()},
 	}
 }

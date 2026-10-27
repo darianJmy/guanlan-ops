@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"guanlan/internal/models"
+	"guanlan/pkg/archiveutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -140,7 +141,7 @@ func TestRepositoryArtifactRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination := t.TempDir()
-	if err := extractRepositoryArtifact(artifact, destination); err != nil {
+	if err := archiveutil.ExtractTarGzip(artifact, destination); err != nil {
 		t.Fatal(err)
 	}
 	content, err := os.ReadFile(filepath.Join(destination, "certificate", "deploy.sh"))

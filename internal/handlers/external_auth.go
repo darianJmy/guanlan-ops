@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	authutil "guanlan/internal/auth"
 	"guanlan/internal/database"
 	"guanlan/internal/middleware"
 	"guanlan/internal/models"
-	"guanlan/internal/utils"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/textutil"
 	"net"
 	"net/http"
 	"strings"
@@ -61,18 +63,18 @@ func authenticateLDAP(username, password string) (models.User, error) {
 func OIDCStart(c *gin.Context) {
 	setting := loadAuthSetting()
 	if !setting.OIDCEnabled {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "OIDC 登录未启用"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "OIDC 登录未启用")
 		return
 	}
 	provider, oauthConfig, err := oidcClient(c.Request.Context(), setting)
 	_ = provider
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "OIDC 服务不可用"})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "OIDC 服务不可用")
 		return
 	}
 	state, err := randomToken(32)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成登录状态失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成登录状态失败")
 		return
 	}
 	http.SetCookie(c.Writer, &http.Cookie{Name: "aiops_oidc_state", Value: state, Path: "/api/auth/oidc", MaxAge: 300, HttpOnly: true, Secure: requestIsHTTPS(c.Request), SameSite: http.SameSiteLaxMode})
@@ -82,34 +84,34 @@ func OIDCStart(c *gin.Context) {
 func OIDCCallback(c *gin.Context) {
 	stateCookie, err := c.Request.Cookie("aiops_oidc_state")
 	if err != nil || stateCookie.Value == "" || c.Query("state") != stateCookie.Value {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "OIDC 登录状态无效"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "OIDC 登录状态无效")
 		return
 	}
 	http.SetCookie(c.Writer, &http.Cookie{Name: "aiops_oidc_state", Value: "", Path: "/api/auth/oidc", MaxAge: -1, HttpOnly: true})
 	setting := loadAuthSetting()
 	provider, oauthConfig, err := oidcClient(c.Request.Context(), setting)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "OIDC 服务不可用"})
+		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, "OIDC 服务不可用")
 		return
 	}
 	token, err := oauthConfig.Exchange(c.Request.Context(), c.Query("code"))
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "OIDC 授权码交换失败"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "OIDC 授权码交换失败")
 		return
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "OIDC 未返回 ID Token"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "OIDC 未返回 ID Token")
 		return
 	}
 	idToken, err := provider.Verifier(&oidc.Config{ClientID: setting.OIDCClientID}).Verify(c.Request.Context(), rawIDToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "OIDC ID Token 校验失败"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "OIDC ID Token 校验失败")
 		return
 	}
 	claims := map[string]interface{}{}
 	if err := idToken.Claims(&claims); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "OIDC 用户信息解析失败"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "OIDC 用户信息解析失败")
 		return
 	}
 	username := claimString(claims, setting.OIDCUsernameClaim)
@@ -121,12 +123,12 @@ func OIDCCallback(c *gin.Context) {
 	}
 	user, err := syncExternalUser(username, claimString(claims, "name"), claimString(claims, "email"), setting.DefaultRoleID)
 	if err != nil || user.Status != 1 {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "OIDC 用户无法登录"})
+		resp.Error(c, http.StatusForbidden, resp.CodeForbidden, "OIDC 用户无法登录")
 		return
 	}
-	jwtToken, err := utils.GenerateToken(user.ID, user.Username)
+	jwtToken, err := authutil.GenerateToken(user.ID, user.Username)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成令牌失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成令牌失败")
 		return
 	}
 	middleware.RecordLogin(c, user.ID, user.Username, "成功", "OIDC 登录成功")
@@ -137,11 +139,11 @@ func OIDCCallback(c *gin.Context) {
 func OIDCComplete(c *gin.Context) {
 	cookie, err := c.Request.Cookie("aiops_oidc_login")
 	if err != nil || cookie.Value == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "OIDC 登录票据已失效"})
+		resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "OIDC 登录票据已失效")
 		return
 	}
 	http.SetCookie(c.Writer, &http.Cookie{Name: "aiops_oidc_login", Value: "", Path: "/api/auth/oidc", MaxAge: -1, HttpOnly: true})
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "登录成功", "data": gin.H{"token": cookie.Value}})
+	resp.Success(c, http.StatusOK, "登录成功", gin.H{"token": cookie.Value})
 }
 
 func oidcClient(ctx context.Context, setting models.AuthSetting) (*oidc.Provider, *oauth2.Config, error) {
@@ -173,7 +175,7 @@ func syncExternalUser(username, nickname, email string, defaultRoleID uint) (mod
 	if database.DB.Where("username = ?", username).First(&user).Error != nil {
 		randomPassword, _ := randomToken(32)
 		hash, _ := bcrypt.GenerateFromPassword([]byte(randomPassword), bcrypt.DefaultCost)
-		user = models.User{Username: username, Password: string(hash), Nickname: truncate(strings.TrimSpace(nickname), 50), Email: truncate(strings.TrimSpace(email), 100), Status: 1}
+		user = models.User{Username: username, Password: string(hash), Nickname: textutil.Ellipsis(strings.TrimSpace(nickname), 50), Email: textutil.Ellipsis(strings.TrimSpace(email), 100), Status: 1}
 		if err := database.DB.Create(&user).Error; err != nil {
 			return user, err
 		}
@@ -186,10 +188,10 @@ func syncExternalUser(username, nickname, email string, defaultRoleID uint) (mod
 	} else {
 		updates := map[string]interface{}{}
 		if strings.TrimSpace(nickname) != "" {
-			updates["nickname"] = truncate(strings.TrimSpace(nickname), 50)
+			updates["nickname"] = textutil.Ellipsis(strings.TrimSpace(nickname), 50)
 		}
 		if strings.TrimSpace(email) != "" {
-			updates["email"] = truncate(strings.TrimSpace(email), 100)
+			updates["email"] = textutil.Ellipsis(strings.TrimSpace(email), 100)
 		}
 		if len(updates) > 0 {
 			database.DB.Model(&user).Updates(updates)

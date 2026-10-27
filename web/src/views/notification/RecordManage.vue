@@ -207,7 +207,7 @@ function formatTime(value) {
 </script>
 
 <style scoped>
-.task-page { --border: #e1e8f1; display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.task-page { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 230px 105px 120px 250px auto; gap: 8px; }
 .filter-bar > * { min-width: 0; width: 100%; }
@@ -247,7 +247,7 @@ function formatTime(value) {
 }
 
 :deep(.record-drawer .el-drawer__body) {
-  background: #fff;
+  background: var(--ops-surface);
   padding: 18px 20px;
 }
 
@@ -258,7 +258,7 @@ function formatTime(value) {
 }
 
 .drawer-title {
-  color: #303133;
+  color: var(--ops-text);
   font-size: 16px;
   font-weight: 600;
 }
@@ -274,7 +274,7 @@ function formatTime(value) {
   grid-template-columns: 92px 1fr;
   align-items: center;
   gap: 12px;
-  color: #303133;
+  color: var(--ops-text);
   font-size: 14px;
 }
 
@@ -296,7 +296,7 @@ function formatTime(value) {
 }
 
 .section-title {
-  color: #303133;
+  color: var(--ops-text);
   font-weight: 600;
 }
 

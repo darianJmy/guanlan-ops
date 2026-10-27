@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net"
 	"net/http"
 	"strconv"
@@ -18,7 +19,7 @@ import (
 func ListTunnels(c *gin.Context) {
 	var tunnels []models.Tunnel
 	database.DB.Order("id ASC").Find(&tunnels)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": tunnels})
+	resp.Success(c, http.StatusOK, "成功", tunnels)
 }
 
 type CreateTunnelReq struct {
@@ -37,7 +38,7 @@ type CreateTunnelReq struct {
 func CreateTunnel(c *gin.Context) {
 	var req CreateTunnelReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	if req.Port == 0 {
@@ -60,14 +61,14 @@ func CreateTunnel(c *gin.Context) {
 		Description: req.Description,
 	}
 	database.DB.Create(&t)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 func UpdateTunnel(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req CreateTunnelReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 
@@ -83,28 +84,28 @@ func UpdateTunnel(c *gin.Context) {
 		"status":      req.Status,
 		"description": req.Description,
 	})
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteTunnel(c *gin.Context) {
 	id := c.Param("id")
 	database.DB.Delete(&models.Tunnel{}, id)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func TestTunnelConnection(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var tunnel models.Tunnel
 	if err := database.DB.First(&tunnel, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "隧道节点不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "隧道节点不存在")
 		return
 	}
 
 	ok, msg := checkTunnelReachable(tunnel)
 	if ok {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": msg})
+		resp.Success(c, http.StatusOK, msg)
 	} else {
-		c.JSON(http.StatusOK, gin.H{"code": 1, "message": msg})
+		resp.Error(c, http.StatusOK, resp.CodeFailure, msg)
 	}
 }
 
@@ -131,12 +132,13 @@ func GetTunnelOptions(c *gin.Context) {
 	for _, t := range tunnels {
 		opts = append(opts, opt{ID: t.ID, Name: t.Name, Region: t.Region})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": opts})
+	resp.Success(c, http.StatusOK, "成功", opts)
 }
 
 // ── Update Datasource handler to fill tunnel_name ──
 
 type DatasourceListQuery struct {
+	GroupID  uint   `form:"group_id"`
 	Page     int    `form:"page"`
 	PageSize int    `form:"page_size"`
 	Keyword  string `form:"keyword"`
@@ -151,7 +153,10 @@ type DatasourceListQuery struct {
 
 func ListDatasourcesWithTunnel(c *gin.Context) {
 	var query DatasourceListQuery
-	c.ShouldBindQuery(&query)
+	if err := c.ShouldBindQuery(&query); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "筛选参数不正确")
+		return
+	}
 	if query.Page < 1 {
 		query.Page = 1
 	}
@@ -162,6 +167,14 @@ func ListDatasourcesWithTunnel(c *gin.Context) {
 	var total int64
 	var datasources []models.Datasource
 	tx := database.DB.Model(&models.Datasource{}).Where("type IN ?", supportedDatasourceTypes())
+	if query.GroupID > 0 {
+		groupIDs, err := expandedDatasourceGroupIDs(database.DB, []uint{query.GroupID})
+		if err != nil {
+			resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询实例分组失败")
+			return
+		}
+		tx = tx.Where("id IN (?)", database.DB.Model(&models.DatasourceGroupMember{}).Select("datasource_id").Where("group_id IN ?", groupIDs))
+	}
 	if query.Category != "" {
 		tx = tx.Where("category = ?", query.Category)
 	}
@@ -202,15 +215,11 @@ func ListDatasourcesWithTunnel(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "成功",
-		"data": gin.H{
-			"list":      datasources,
-			"total":     total,
-			"page":      query.Page,
-			"page_size": query.PageSize,
-		},
+	resp.Success(c, http.StatusOK, "成功", gin.H{
+		"list":      datasources,
+		"total":     total,
+		"page":      query.Page,
+		"page_size": query.PageSize,
 	})
 }
 
@@ -255,6 +264,7 @@ func datasourceOrderClause(sortBy, sortDesc string) string {
 // ── Override Create/Update Datasource to handle tunnel_id ──
 
 type CreateDatasourceWithTunnelReq struct {
+	GroupID      uint   `json:"group_id"`
 	Name         string `json:"name" binding:"required"`
 	Category     string `json:"category"`
 	Type         string `json:"type" binding:"required"`
@@ -276,7 +286,7 @@ type CreateDatasourceWithTunnelReq struct {
 func CreateDatasourceWithTunnel(c *gin.Context) {
 	req := CreateDatasourceWithTunnelReq{Status: 1}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	buildAndCreateDatasource(req, c)
@@ -286,22 +296,22 @@ func UpdateDatasourceWithTunnel(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	var req CreateDatasourceWithTunnelReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误")
 		return
 	}
 	var existing models.Datasource
 	if id < 1 || database.DB.Where("type IN ?", supportedDatasourceTypes()).First(&existing, id).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "数据源实例不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "数据源实例不存在")
 		return
 	}
 	if err := normalizeDatasourceReq(&req, &existing); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 
 	labels, err := normalizeDatasourceLabels(req.Labels)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	req.Labels = labels
@@ -325,11 +335,16 @@ func UpdateDatasourceWithTunnel(c *gin.Context) {
 		"auth_config":  req.AuthConfig,
 	}
 
-	if err := database.DB.Model(&existing).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新实例失败"})
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&existing).Updates(updates).Error; err != nil {
+			return err
+		}
+		return syncDatasourceStatusRuleBindings(tx, []uint{existing.ID})
+	}); err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新实例失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 type BatchDatasourceIDsReq struct {
@@ -344,61 +359,81 @@ type BatchDatasourceStatusReq struct {
 func BatchUpdateDatasourceStatus(c *gin.Context) {
 	var req BatchDatasourceStatusReq
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 || req.Status == nil || (*req.Status != 0 && *req.Status != 1) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择接入并指定正确状态"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择接入并指定正确状态")
 		return
 	}
 	if !requireSupportedDatasourceIDs(c, req.IDs) {
 		return
 	}
 
-	result := database.DB.Model(&models.Datasource{}).Where("id IN ?", req.IDs).Update("status", *req.Status)
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量更新状态失败"})
+	var updated int64
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.Datasource{}).Where("id IN ?", req.IDs).Update("status", *req.Status)
+		if result.Error != nil {
+			return result.Error
+		}
+		updated = result.RowsAffected
+		return syncDatasourceStatusRuleBindings(tx, req.IDs)
+	})
+	if err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量更新状态失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "批量更新成功", "data": gin.H{"updated": result.RowsAffected}})
+	resp.Success(c, http.StatusOK, "批量更新成功", gin.H{"updated": updated})
 }
 
 func BatchDeleteDatasources(c *gin.Context) {
 	var req BatchDatasourceIDsReq
 	if err := c.ShouldBindJSON(&req); err != nil || len(req.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择要删除的接入"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择要删除的接入")
 		return
 	}
 	if !requireSupportedDatasourceIDs(c, req.IDs) {
 		return
 	}
 
-	var groupCount int64
-	database.DB.Model(&models.DatasourceGroupMember{}).Where("datasource_id IN ?", req.IDs).Count(&groupCount)
-	if groupCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "所选接入仍属于数据源分组，请先从数据源分组移除"})
+	deleted, ok := deleteDatasourceInstances(c, req.IDs)
+	if !ok {
 		return
 	}
-	if !requireUnboundDatasources(c, req.IDs) {
-		return
-	}
-	result := database.DB.Where("id IN ?", req.IDs).Delete(&models.Datasource{})
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "批量删除失败"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "批量删除成功", "data": gin.H{"deleted": result.RowsAffected}})
+	resp.Success(c, http.StatusOK, "批量删除成功", gin.H{"deleted": deleted})
 }
 
 func buildAndCreateDatasource(req CreateDatasourceWithTunnelReq, c *gin.Context) {
 	ds, err := prepareDatasourceForCreate(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
+	}
+	if req.GroupID > 0 {
+		var group models.DatasourceGroup
+		if err := database.DB.First(&group, req.GroupID).Error; err != nil {
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "实例分组不存在")
+			return
+		}
 	}
 	if err := database.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		return persistNewDatasource(tx, &ds, req.Status)
+		if req.GroupID > 0 {
+			var group models.DatasourceGroup
+			if err := tx.First(&group, req.GroupID).Error; err != nil {
+				return err
+			}
+		}
+		if err := persistNewDatasource(tx, &ds, req.Status); err != nil {
+			return err
+		}
+		if req.GroupID == 0 {
+			return nil
+		}
+		if err := tx.Create(&models.DatasourceGroupMember{GroupID: req.GroupID, DatasourceID: ds.ID}).Error; err != nil {
+			return err
+		}
+		return syncDatasourceGroupRuleBindings(tx, req.GroupID)
 	}); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建实例失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建实例失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功"})
+	resp.Success(c, http.StatusOK, "创建成功")
 }
 
 func prepareDatasourceForCreate(req CreateDatasourceWithTunnelReq) (models.Datasource, error) {
@@ -465,28 +500,25 @@ func GetDatasourceAuth(c *gin.Context) {
 	id := c.Param("id")
 	var ds models.Datasource
 	if err := database.DB.Where("type IN ?", supportedDatasourceTypes()).First(&ds, id).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "数据源不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "数据源不存在")
 		return
 	}
 	var auth DatasourceAuthConfig
 	if ds.AuthConfig != "" {
 		json.Unmarshal([]byte(ds.AuthConfig), &auth)
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0, "message": "成功",
-		"data": gin.H{
-			"id":          ds.ID,
-			"name":        ds.Name,
-			"category":    ds.Category,
-			"type":        ds.Type,
-			"url":         ds.URL,
-			"auth_type":   ds.AuthType,
-			"auth_config": auth,
-			"config":      ds.Config,
-			"tunnel_id":   ds.TunnelID,
-			"status":      ds.Status,
-			"remark":      ds.Remark,
-		},
+	resp.Success(c, http.StatusOK, "成功", gin.H{
+		"id":          ds.ID,
+		"name":        ds.Name,
+		"category":    ds.Category,
+		"type":        ds.Type,
+		"url":         ds.URL,
+		"auth_type":   ds.AuthType,
+		"auth_config": auth,
+		"config":      ds.Config,
+		"tunnel_id":   ds.TunnelID,
+		"status":      ds.Status,
+		"remark":      ds.Remark,
 	})
 }
 

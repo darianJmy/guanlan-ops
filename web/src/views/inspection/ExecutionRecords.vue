@@ -172,7 +172,7 @@ function formatTime(value) {
 </script>
 
 <style scoped>
-.page-container { --border: #e1e8f1; display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+.page-container { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .rule-toolbar, .filters, .toolbar-actions { display: flex; align-items: center; gap: 8px; }
 .rule-toolbar { align-items: center; justify-content: space-between; }
 .filters { min-width: 0; flex: 1; flex-wrap: wrap; }

@@ -3,13 +3,14 @@ package handlers
 import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-const promQueryHistoryLimit = 20
+const promQueryHistoryLimit = 50
 
 func recordPromQueryHistory(c *gin.Context, datasource models.Datasource, query, mode string) error {
 	userID := currentUserID(c)
@@ -57,17 +58,17 @@ func ListPromQueryHistory(c *gin.Context) {
 		Order("created_at DESC, id DESC").
 		Limit(promQueryHistoryLimit).
 		Find(&histories).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询历史读取失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询历史读取失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": histories})
+	resp.Success(c, http.StatusOK, "成功", histories)
 }
 
 func ClearPromQueryHistory(c *gin.Context) {
 	userID := currentUserID(c)
 	if err := database.DB.Where("user_id = ?", userID).Delete(&models.PromQueryHistory{}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询历史清空失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询历史清空失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "清空成功"})
+	resp.Success(c, http.StatusOK, "清空成功")
 }

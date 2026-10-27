@@ -4,6 +4,7 @@ import (
 	"errors"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strings"
 
@@ -23,45 +24,45 @@ type saveDeployScriptReq struct {
 func ListCertificateDeployScripts(c *gin.Context) {
 	var items []models.CertificateDeployScript
 	database.DB.Order("id DESC").Find(&items)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": items})
+	resp.Success(c, http.StatusOK, "成功", items)
 }
 
 func CreateCertificateDeployScript(c *gin.Context) {
 	var req saveDeployScriptReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写脚本名称和脚本内容"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写脚本名称和脚本内容")
 		return
 	}
 	item, err := buildDeployScript(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) || strings.Contains(err.Error(), "Duplicate") {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "脚本名称已存在"})
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "脚本名称已存在")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建发布脚本失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "创建发布脚本失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": item})
+	resp.Success(c, http.StatusOK, "创建成功", item)
 }
 
 func UpdateCertificateDeployScript(c *gin.Context) {
 	var existing models.CertificateDeployScript
 	if err := database.DB.First(&existing, c.Param("id")).Error; err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 404, "message": "发布脚本不存在"})
+		resp.Error(c, http.StatusOK, resp.CodeNotFound, "发布脚本不存在")
 		return
 	}
 	var req saveDeployScriptReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请填写脚本名称和脚本内容"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请填写脚本名称和脚本内容")
 		return
 	}
 	item, err := buildDeployScript(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Model(&existing).Updates(map[string]interface{}{
@@ -72,23 +73,23 @@ func UpdateCertificateDeployScript(c *gin.Context) {
 		"description": item.Description,
 		"status":      item.Status,
 	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新发布脚本失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新发布脚本失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
+	resp.Success(c, http.StatusOK, "更新成功")
 }
 
 func DeleteCertificateDeployScript(c *gin.Context) {
 	id := c.Param("id")
 	if names := boundCertificateDomainNames("deploy_script_id", id); len(names) > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": boundResourceMessage("发布脚本", names)})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, boundResourceMessage("发布脚本", names))
 		return
 	}
 	if err := database.DB.Delete(&models.CertificateDeployScript{}, id).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除发布脚本失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "删除发布脚本失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	resp.Success(c, http.StatusOK, "删除成功")
 }
 
 func buildDeployScript(req saveDeployScriptReq) (models.CertificateDeployScript, error) {

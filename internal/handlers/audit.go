@@ -3,6 +3,7 @@ package handlers
 import (
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,17 +42,17 @@ func ListAuditLogs(c *gin.Context) {
 	tx := applyAuditLogFilters(database.DB.Model(&models.AuditLog{}), query)
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询审计日志失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询审计日志失败")
 		return
 	}
 	var rows []models.AuditLog
 	if err := tx.Order("id DESC").Offset((query.Page - 1) * query.PageSize).Limit(query.PageSize).Find(&rows).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "查询审计日志失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询审计日志失败")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"list": rows, "total": total, "page": query.Page, "page_size": query.PageSize,
-	}})
+	})
 }
 
 func GetAuditLogStats(c *gin.Context) {
@@ -70,9 +71,9 @@ func GetAuditLogStats(c *gin.Context) {
 	var modules, actions []string
 	database.DB.Model(&models.AuditLog{}).Where("module <> ''").Distinct().Order("module").Pluck("module", &modules)
 	database.DB.Model(&models.AuditLog{}).Where("action <> ''").Distinct().Order("action").Pluck("action", &actions)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"today": today, "success": success, "failed": failed, "users": users, "modules": modules, "actions": actions,
-	}})
+	})
 }
 
 func applyAuditLogFilters(tx *gorm.DB, query auditLogQuery) *gorm.DB {

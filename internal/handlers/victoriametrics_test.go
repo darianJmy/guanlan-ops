@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestVictoriaMetricsQueries(t *testing.T) {
@@ -82,7 +81,7 @@ func TestVictoriaMetricsQueries(t *testing.T) {
 					t.Fatalf("query failed: %+v", body)
 				}
 			}
-			series, err := queryPromRuleDatasource(ds, "vector(1)", time.Now())
+			series, err := queryPromRuleDatasource(ds, "vector(1)")
 			if err != nil || len(series) != 1 {
 				t.Fatalf("rule query: %v, %+v", err, series)
 			}

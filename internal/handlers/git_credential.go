@@ -4,6 +4,7 @@ import (
 	"errors"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,68 +30,68 @@ func ListGitCredentials(c *gin.Context) {
 	for i := range rows {
 		result = append(result, gitCredentialResponse(rows[i]))
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": result})
+	resp.Success(c, http.StatusOK, "成功", result)
 }
 
 func CreateGitCredential(c *gin.Context) {
 	var req saveGitCredentialReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 认证格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 认证格式不正确")
 		return
 	}
 	item, err := buildGitCredential(req, nil)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Create(&item).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 认证名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 认证名称已存在")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "Git 认证已创建", "data": gitCredentialResponse(item)})
+	resp.Success(c, http.StatusOK, "Git 认证已创建", gitCredentialResponse(item))
 }
 
 func UpdateGitCredential(c *gin.Context) {
 	var existing models.GitCredential
 	if database.DB.First(&existing, c.Param("id")).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "Git 认证不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "Git 认证不存在")
 		return
 	}
 	var req saveGitCredentialReq
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 认证格式不正确"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 认证格式不正确")
 		return
 	}
 	item, err := buildGitCredential(req, &existing)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if err := database.DB.Model(&existing).Updates(map[string]interface{}{
 		"name": item.Name, "provider": item.Provider, "base_url": item.BaseURL, "auth_type": item.AuthType,
 		"username": item.Username, "secret_cipher": item.SecretCipher, "description": item.Description, "status": item.Status,
 	}).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 认证名称已存在"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 认证名称已存在")
 		return
 	}
 	database.DB.First(&existing, existing.ID)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "Git 认证已更新", "data": gitCredentialResponse(existing)})
+	resp.Success(c, http.StatusOK, "Git 认证已更新", gitCredentialResponse(existing))
 }
 
 func DeleteGitCredential(c *gin.Context) {
 	var item models.GitCredential
 	if database.DB.First(&item, c.Param("id")).Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "Git 认证不存在"})
+		resp.Error(c, http.StatusNotFound, resp.CodeNotFound, "Git 认证不存在")
 		return
 	}
 	var count int64
 	database.DB.Model(&models.GitRepository{}).Where("credential_id = ?", item.ID).Count(&count)
 	if count > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "Git 认证已被仓库使用，请先更换仓库认证"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "Git 认证已被仓库使用，请先更换仓库认证")
 		return
 	}
 	database.DB.Delete(&item)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "Git 认证已删除"})
+	resp.Success(c, http.StatusOK, "Git 认证已删除")
 }
 
 func buildGitCredential(req saveGitCredentialReq, existing *models.GitCredential) (models.GitCredential, error) {

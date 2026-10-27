@@ -9,6 +9,7 @@ import (
 	"guanlan/pkg/logger"
 	"io/fs"
 	"log/slog"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -27,6 +28,11 @@ func newApplication(cfg config.Config, router *gin.Engine) *App {
 // The database dependency ensures handlers have a validated connection
 // before the router is made available.
 func newRouter(_ *gorm.DB, assets fs.FS) (*gin.Engine, error) {
+	// Vite serves the UI during development; no frontend build is required.
+	if os.Getenv("APP_WEB_DEV") == "1" {
+		gin.SetMode(gin.ReleaseMode)
+		return routes.SetupRouter(), nil
+	}
 	webFiles, err := fs.Sub(assets, "web/dist")
 	if err != nil {
 		return nil, fmt.Errorf("load embedded web files: %w", err)

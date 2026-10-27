@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"sort"
 	"strings"
@@ -71,23 +72,23 @@ type preparedAlertRuleImport struct {
 func ExportAlertRules(c *gin.Context) {
 	groupID, _ := parsePositiveUint(c.Query("group_id"))
 	if groupID == 0 || !alertRuleGroupExists(groupID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择有效的规则组"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择有效的规则组")
 		return
 	}
 
 	var rules []models.AlertRule
 	if err := database.DB.Where("group_id = ?", groupID).Order("name ASC, id ASC").Find(&rules).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取告警规则失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "读取告警规则失败")
 		return
 	}
 	document, err := alertRuleConfigDocumentFromRules(rules)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": err.Error()})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, err.Error())
 		return
 	}
 	content, err := yaml.Marshal(document)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成导出文件失败"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "生成导出文件失败")
 		return
 	}
 	filename := fmt.Sprintf("alert-rules-%d-%s.yaml", groupID, time.Now().Format("20060102-150405"))
@@ -98,25 +99,25 @@ func ExportAlertRules(c *gin.Context) {
 func ImportAlertRules(c *gin.Context) {
 	var payload importAlertRuleConfigReq
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择规则组并粘贴 YAML 配置"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择规则组并粘贴 YAML 配置")
 		return
 	}
 	if !alertRuleGroupExists(payload.GroupID) {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请选择有效的规则组"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请选择有效的规则组")
 		return
 	}
 	document, err := parseAlertRuleConfigDocument(payload.Content)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	prepared, result, err := prepareAlertRuleImport(payload.GroupID, document, payload.Overwrite)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 		return
 	}
 	if payload.DryRun {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "配置校验通过", "data": result})
+		resp.Success(c, http.StatusOK, "配置校验通过", result)
 		return
 	}
 
@@ -138,10 +139,10 @@ func ImportAlertRules(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "导入告警规则失败，未写入任何配置"})
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "导入告警规则失败，未写入任何配置")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "导入完成", "data": result})
+	resp.Success(c, http.StatusOK, "导入完成", result)
 }
 
 func parseAlertRuleConfigDocument(content string) (alertRuleConfigDocument, error) {

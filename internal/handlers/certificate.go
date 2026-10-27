@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/certutil"
+	"guanlan/pkg/resp"
 	"io"
 	"net/http"
 	"net/url"
@@ -60,20 +62,20 @@ type certificateUpdateResult struct {
 func AliyunUpdateCertificate(c *gin.Context) {
 	var req AliyunCertificateUpdateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "参数错误: "+err.Error())
 		return
 	}
 
 	productKey := strings.ToLower(strings.TrimSpace(req.Product))
 	product, ok := aliyunCertProducts[productKey]
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "暂只支持 CDN 和 DCDN"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "暂只支持 CDN 和 DCDN")
 		return
 	}
 
-	domains := normalizeDomains(req.Domains)
+	domains := certutil.NormalizeDomains(req.Domains)
 	if len(domains) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请至少填写一个域名"})
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请至少填写一个域名")
 		return
 	}
 
@@ -109,21 +111,17 @@ func AliyunUpdateCertificate(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": fmt.Sprintf("完成 %d/%d", successCount, len(results)),
-		"data": gin.H{
-			"success": successCount,
-			"total":   len(results),
-			"results": results,
-		},
+	resp.Success(c, http.StatusOK, fmt.Sprintf("完成 %d/%d", successCount, len(results)), gin.H{
+		"success": successCount,
+		"total":   len(results),
+		"results": results,
 	})
 }
 
 func ListCertificateRotationRecords(c *gin.Context) {
 	var records []models.CertificateRotationRecord
 	database.DB.Order("id DESC").Limit(100).Find(&records)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": records})
+	resp.Success(c, http.StatusOK, "成功", records)
 }
 
 func callAliyunSetCertificate(product aliyunCertProduct, req AliyunCertificateUpdateReq, domain string) (string, error) {
@@ -215,23 +213,6 @@ func percentEncode(value string) string {
 	encoded = strings.ReplaceAll(encoded, "*", "%2A")
 	encoded = strings.ReplaceAll(encoded, "%7E", "~")
 	return encoded
-}
-
-func normalizeDomains(values []string) []string {
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		for _, part := range strings.FieldsFunc(value, func(r rune) bool {
-			return r == '\n' || r == '\r' || r == ',' || r == ';' || r == ' '
-		}) {
-			domain := strings.TrimSpace(part)
-			if domain != "" && !seen[domain] {
-				seen[domain] = true
-				result = append(result, domain)
-			}
-		}
-	}
-	return result
 }
 
 func nonce() string {

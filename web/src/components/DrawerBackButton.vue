@@ -12,7 +12,7 @@ import { ArrowLeft } from '@element-plus/icons-vue'
   height: 32px;
   margin: 0;
   padding: 0 8px;
-  color: #3b6ea8;
+  color: var(--ops-primary);
   font-size: 14px;
   font-weight: 400;
 }

@@ -2,13 +2,7 @@
   <div class="page-container">
     <div class="fault-toolbar">
       <div class="fault-filters" role="search" aria-label="故障中心筛选">
-        <el-input v-model="draftKeyword" class="keyword-filter" aria-label="搜索故障中心" placeholder="搜索故障中心名称" clearable @keyup.enter="applyFilters" @clear="applyFilters">
-          <template #append>
-            <el-button aria-label="搜索" @click="applyFilters">
-              <el-icon><Search /></el-icon>
-            </el-button>
-          </template>
-        </el-input>
+        <el-input v-model="keyword" class="keyword-filter" :prefix-icon="Search" aria-label="搜索故障中心" placeholder="搜索故障中心名称或描述" clearable />
       </div>
       <div class="toolbar-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadPage">刷新</el-button>
@@ -92,12 +86,13 @@ const loading = ref(false), savingCenter = ref(false)
 const centers = ref([])
 const centerDrawerVisible = ref(false)
 const centerFormRef = ref()
-const draftKeyword = ref(''), keyword = ref('')
+const keyword = ref('')
 const centerForm = reactive({ id: null, name: '', description: '', status: 1 })
 const centerRules = { name: [{ required: true, message: '请输入故障中心名称', trigger: 'blur' }] }
-const filteredCenters = computed(() => centers.value.filter(center => {
-  return !keyword.value || String(center.name || '').toLowerCase().includes(keyword.value.toLowerCase())
-}))
+const filteredCenters = computed(() => {
+  const query = keyword.value.trim().toLowerCase()
+  return centers.value.filter(center => `${center.name || ''} ${center.description || ''}`.toLowerCase().includes(query))
+})
 
 onMounted(loadPage)
 
@@ -109,10 +104,6 @@ async function loadPage() {
   } finally {
     loading.value = false
   }
-}
-
-function applyFilters() {
-  keyword.value = draftKeyword.value.trim()
 }
 
 function openCenterDrawer(center) {
@@ -159,30 +150,30 @@ function openAlerts(center) {
 .keyword-filter { width: 240px; }
 .toolbar-actions { flex: 0 0 auto; }
 .dashboard-grid { display: grid; min-height: 150px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.dash-card { display: flex; min-width: 0; min-height: 178px; overflow: hidden; flex-direction: column; background: #fff; border: 1px solid #ebeef5; border-radius: 10px; cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
-.dash-card:hover { border-color: #409eff; box-shadow: 0 4px 16px rgba(64, 158, 255, .12); transform: translateY(-2px); }
+.dash-card { display: flex; min-width: 0; min-height: 178px; overflow: hidden; flex-direction: column; background: var(--ops-surface); border: 1px solid var(--ops-border-soft); border-radius: 10px; cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.dash-card:hover { border-color: var(--ops-primary); box-shadow: 0 4px 16px rgba(64, 158, 255, .12); transform: translateY(-2px); }
 .dash-card:focus-within { outline: 2px solid rgba(64, 158, 255, .28); outline-offset: 2px; }
 .card-head { display: flex; align-items: center; gap: 12px; padding: 20px 20px 0; }
-.card-head h2 { min-width: 0; margin: 0; overflow: hidden; color: #303133; font-size: 15px; font-weight: 600; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
+.card-head h2 { min-width: 0; margin: 0; overflow: hidden; color: var(--ops-text); font-size: 15px; font-weight: 600; letter-spacing: 0; text-overflow: ellipsis; white-space: nowrap; }
 .card-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .card-actions .el-button + .el-button { margin-left: 0; }
-.card-description { display: -webkit-box; margin: 4px 0 0; padding: 0 20px 14px; overflow: hidden; color: #909399; font-size: 12px; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.card-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: auto; padding: 10px 14px; gap: 4px 20px; background: #fafbfc; border-top: 1px solid #f5f5f5; }
+.card-description { display: -webkit-box; margin: 4px 0 0; padding: 0 20px 14px; overflow: hidden; color: var(--ops-muted); font-size: 12px; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.card-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: auto; padding: 10px 14px; gap: 4px 20px; background: var(--ops-surface-soft); border-top: 1px solid #f5f5f5; }
 .card-metrics div { display: flex; min-width: 0; align-items: center; justify-content: flex-start; gap: 8px; padding: 4px 0; }
 .card-metrics strong { color: #475467; font-size: 18px; font-weight: 600; line-height: 22px; }
-.card-metrics span { color: #909399; font-size: 11px; white-space: nowrap; }
+.card-metrics span { color: var(--ops-muted); font-size: 11px; white-space: nowrap; }
 .metric-pending strong { color: #d98b22; }
 .metric-firing strong { color: #d33f50; }
 .metric-recovering strong { color: #2f9e6f; }
 .metric-silenced strong { color: #7b8492; }
-.card-footer { display: flex; align-items: center; justify-content: flex-end; padding: 10px 20px; background: #fafbfc; border-top: 1px solid #f5f5f5; }
+.card-footer { display: flex; align-items: center; justify-content: flex-end; padding: 10px 20px; background: var(--ops-surface-soft); border-top: 1px solid #f5f5f5; }
 .drawer-header { display: flex; width: 100%; align-items: center; justify-content: flex-start; gap: 12px; }
-.back-button { height: 32px; padding: 0 8px; color: #3b6ea8; font-size: 14px; }
-.drawer-title { color: #303133; font-size: 16px; font-weight: 600; }
+.back-button { height: 32px; padding: 0 8px; color: var(--ops-primary); font-size: 14px; }
+.drawer-title { color: var(--ops-text); font-size: 16px; font-weight: 600; }
 .drawer-footer { display: flex; justify-content: flex-end; gap: 8px; }
 :global(.center-drawer.el-drawer) { border-radius: 0 !important; }
 :global(.center-drawer .el-drawer__header) { margin-bottom: 0; padding: 18px 20px; border-bottom: 1px solid #e5e9f2; }
-:global(.center-drawer .el-drawer__body) { padding: 18px 20px; background: #fff; }
+:global(.center-drawer .el-drawer__body) { padding: 18px 20px; background: var(--ops-surface); }
 :global(.center-drawer .el-drawer__footer) { padding: 12px 20px; border-top: 1px solid #e5e9f2; }
 @media (prefers-reduced-motion: reduce) { .dash-card { transition: none; } }
 @media (max-width: 900px) { .fault-toolbar { align-items: stretch; flex-direction: column; } .keyword-filter { width: 100%; } .toolbar-actions { justify-content: flex-end; } }

@@ -11,7 +11,7 @@ type InspectionRuleGroup struct {
 }
 
 type InspectionItem struct {
-	GroupID              uint                 `gorm:"not null;default:1;index" json:"group_id"`
+	GroupID              uint                 `gorm:"not null;index" json:"group_id"`
 	Group                *InspectionRuleGroup `gorm:"foreignKey:GroupID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"-"`
 	ID                   uint                 `gorm:"primaryKey" json:"id"`
 	Name                 string               `gorm:"size:100;not null" json:"name"`

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -107,12 +108,12 @@ func GetMCPService(c *gin.Context) {
 			"permission": tool.Permission, "read_only": tool.Annotations["readOnlyHint"],
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "成功", "data": gin.H{
+	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"enabled": true, "endpoint": mcpEndpointURL(c), "transport": "streamable-http",
 		"protocol_version": currentMCPProtocolVersion, "supported_protocol_versions": sortedMCPProtocolVersions(),
 		"authentication": "Bearer API Token", "server_name": mcpServerName, "server_version": mcpServerVersion,
 		"tools": tools,
-	}})
+	})
 }
 
 // MCPServer handles the stateless JSON response form of MCP Streamable HTTP.
@@ -197,14 +198,14 @@ func mcpInitialize(c *gin.Context, req mcpRequest, client models.MCPClient) {
 		"protocolVersion": protocol,
 		"capabilities":    gin.H{"tools": gin.H{"listChanged": false}},
 		"serverInfo":      gin.H{"name": mcpServerName, "title": "观澜运维平台 MCP 服务", "version": mcpServerVersion},
-		"instructions":    "使用平台工具查询告警、规则、拨测、自动化任务和数据源；用户明确要求且参数齐全时可创建无认证直连数据源，也可测试已保存数据源连接。还可查询故障中心、各类分组、通知记录、证书和执行记录，并按权限创建故障中心、分组、通知模板和邮件通知对象。执行自动化任务前必须确认任务 ID 与输入。",
+		"instructions":    "使用平台工具查询告警、规则、拨测、自动化任务和数据源；用户明确要求且参数齐全时可创建无认证直连数据源，也可测试已保存数据源连接。还可查询故障中心、各类分组、通知记录、证书和执行记录，并按权限创建故障中心、分组、通知模板和邮件通知对象。可用 search_platform_operations 查找平台业务操作，describe_platform_operation 查看参数，再 execute_platform_operation 执行。具体告警规则使用 create_alert_rule/update_alert_rule。所有写操作须符合用户明确请求，失败或超时先查状态，不直接重试。",
 	})
 }
 
 func mcpListTools(c *gin.Context, id json.RawMessage) {
 	available := make([]mcpTool, 0, len(mcpTools))
 	for _, tool := range mcpTools {
-		if mcpUserHasPermission(c.GetUint("user_id"), tool.Permission) {
+		if authorizeAssistantMCPTool(c.Request.Context(), c.GetUint("user_id"), tool) == nil {
 			available = append(available, tool)
 		}
 	}
@@ -225,13 +226,15 @@ func mcpCallTool(c *gin.Context, req mcpRequest) {
 		mcpWriteError(c, req.ID, -32602, "工具不存在", http.StatusOK)
 		return
 	}
-	if !mcpUserHasPermission(c.GetUint("user_id"), tool.Permission) {
+	if authorizeAssistantMCPTool(c.Request.Context(), c.GetUint("user_id"), tool) != nil {
 		mcpWriteToolResult(c, req.ID, gin.H{"error": "没有调用该工具的权限"}, true)
 		return
 	}
 	var result interface{}
 	var err error
-	if isPlatformMCPTool(tool.Name) {
+	if isOperationMCPTool(tool.Name) {
+		result, err = executeOperationMCPTool(c.Request.Context(), c.GetUint("user_id"), tool.Name, params.Arguments)
+	} else if isPlatformMCPTool(tool.Name) {
 		result, err = executePlatformMCPTool(c.Request.Context(), c.GetUint("user_id"), tool.Name, params.Arguments)
 	} else if isDatasourceMCPTool(tool.Name) {
 		result, err = executeDatasourceMCPTool(c.Request.Context(), c.GetUint("user_id"), tool.Name, params.Arguments)
