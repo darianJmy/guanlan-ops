@@ -40,10 +40,7 @@
             <el-option label="已启用" value="enabled" />
             <el-option label="已停用" value="disabled" />
           </el-select>
-          <el-select v-model="query.datasource_id" clearable filterable placeholder="数据源" @change="handleSearch">
-            <el-option v-for="item in datasources" :key="item.id" :label="item.name" :value="item.id" />
-          </el-select>
-          <el-button :disabled="!query.keyword && !query.status && !query.datasource_id" @click="clearFilters">清空</el-button>
+          <el-button :disabled="!query.keyword && !query.status" @click="clearFilters">清空</el-button>
         </div>
         <div class="toolbar-actions">
           <el-dropdown trigger="click" :disabled="!!batchAction" @command="handleBatchCommand">
@@ -150,16 +147,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowLeft, Check, Close, Delete, Download, Edit, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
 import { batchDeleteAlertRules, batchUpdateAlertRuleStatus, deleteAlertRule, exportAlertRules, getAlertRuleGroup, getAlertRules, importAlertRules, updateAlertRuleGroup, updateAlertRuleStatus } from '../../api/alertRule'
-import { getPromDatasources } from '../../api/prometheus'
 
-const rules = ref([]), datasources = ref([])
+const rules = ref([])
 const route = useRoute(), router = useRouter(), groupId = Number(route.params.groupId), group = reactive({ name: '', description: '' })
 const loading = ref(false), togglingId = ref(null)
 const selectedRows = ref([]), batchAction = ref('')
 const importVisible = ref(false), importContent = ref(''), importOverwrite = ref(false), importPreview = ref(null), validatingImport = ref(false), importing = ref(false)
 const nameEditing = ref(false), nameDraft = ref(''), nameSaving = ref(false), nameInputRef = ref()
 const page = ref(1), pageSize = ref(10), total = ref(0)
-const query = reactive({ keyword: '', status: '', datasource_id: null })
+const query = reactive({ keyword: '', status: '' })
 const severityOrder = { P0: 0, P1: 1, P2: 2 }
 const importExample = `apiVersion: aiops/v1
 kind: AlertRuleList
@@ -184,17 +180,16 @@ rules:
 let keywordSearchTimer
 onBeforeUnmount(() => clearTimeout(keywordSearchTimer))
 onMounted(async () => {
-  const [groupResult, dsResult] = await Promise.allSettled([getAlertRuleGroup(groupId), getPromDatasources()])
+  const [groupResult] = await Promise.allSettled([getAlertRuleGroup(groupId)])
   if (groupResult.status === 'fulfilled') Object.assign(group, groupResult.value.data || {})
   else { ElMessage.error('规则组不存在'); router.replace('/alert-rules'); return }
-  if (dsResult.status === 'fulfilled') datasources.value = dsResult.value.data || []
   await loadRules()
 })
 
 async function loadRules() {
   loading.value = true
   try {
-    const data = (await getAlertRules({ group_id: groupId, keyword: query.keyword.trim(), status: query.status, datasource_id: query.datasource_id, page: page.value, page_size: pageSize.value })).data || {}
+    const data = (await getAlertRules({ group_id: groupId, keyword: query.keyword.trim(), status: query.status, page: page.value, page_size: pageSize.value })).data || {}
     rules.value = data.list || []
     selectedRows.value = []
     total.value = data.total || 0
@@ -212,7 +207,7 @@ function handleSearch() {
   loadRules()
 }
 function clearFilters() {
-  Object.assign(query, { keyword: '', status: '', datasource_id: null })
+  Object.assign(query, { keyword: '', status: '' })
   handleSearch()
 }
 function handleSizeChange() { page.value = 1; loadRules() }

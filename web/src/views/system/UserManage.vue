@@ -298,7 +298,7 @@ function formatTime(value) { return value ? new Date(value).toLocaleString('zh-C
 .task-card :deep(.el-card__body) { padding: 16px; }
 .task-pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
 .row-actions { display: flex; align-items: center; gap: 4px; }
-.user-name { color: var(--ops-text); font-size: 13px; font-weight: 650; }
+.user-name { color: var(--ops-text); font-size: 13px; font-weight: 400; }
 .secondary-text, .empty-value { color: var(--ops-muted); font-size: 12px; }
 .role-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .role-tags :deep(.el-tag), :deep(.el-table .el-tag) { border-radius: 0; }

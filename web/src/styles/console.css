@@ -316,3 +316,26 @@ button, input, select, textarea {
   font-weight: 500;
   line-height: 1.5;
 }
+
+/* Keep system settings and their teleported controls at regular weight. */
+.settings-typography,
+.settings-typography *,
+body:has(.settings-typography) .el-overlay *,
+body:has(.settings-typography) .el-popper * {
+  font-weight: 400 !important;
+}
+
+/* Shared spacing also applies when drawers are teleported to body. */
+.standard-config-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--ops-border-soft);
+}
+.standard-config-drawer .el-drawer__body {
+  padding: 12px 20px 20px;
+  background: var(--ops-surface);
+}
+.standard-config-drawer .el-drawer__footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--ops-border-soft);
+}

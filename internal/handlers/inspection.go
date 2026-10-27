@@ -642,9 +642,7 @@ func inspectionLabelsContain(labels map[string]string, keyword string) bool {
 
 func inspectionItemMatchesKeyword(item models.InspectionItem, keyword string) bool {
 	keyword = strings.ToLower(strings.TrimSpace(keyword))
-	return strings.Contains(strings.ToLower(item.Name), keyword) ||
-		strings.Contains(strings.ToLower(item.Target), keyword) ||
-		inspectionLabelsContain(parseInspectionLabels(item.Labels), keyword)
+	return strings.Contains(strings.ToLower(item.Name), keyword)
 }
 
 func inspectionLabelSummary(labels map[string]string) string {

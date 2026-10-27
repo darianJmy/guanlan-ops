@@ -10,24 +10,21 @@
           <el-input v-model="keyword" :prefix-icon="Search" clearable size="small" aria-label="搜索实例分组" placeholder="搜索分组" />
         </div>
         <nav v-loading="loading" class="group-menu" aria-label="选择实例分组">
-          <el-tree :data="filteredTree" node-key="id" :props="{ label: 'name', children: 'children' }" :indent="0" default-expand-all highlight-current :current-node-key="selectedGroupId" :expand-on-click-node="false" @node-click="group => selectedGroupId = group.id">
-            <template #default="{ node, data: group }">
-              <span class="group-tree-item" :class="{ active: selectedGroupId === group.id, 'root-group': node.level === 1 }" :title="group.path">
-                <span class="group-name">{{ group.name }}</span><span class="member-count">{{ group.scope_member_count ?? group.member_count }}</span>
-                <span class="group-node-actions" @click.stop @keydown.stop>
-                  <button v-permission="['datasource:edit']" type="button" class="group-node-action" :aria-label="`编辑分组 ${group.name}`" title="编辑分组" @click.stop="openDialog(group)"><el-icon><Edit /></el-icon></button>
-                  <button v-permission="['datasource:create']" type="button" class="group-node-action" :disabled="group.depth >= 5" :aria-label="`在 ${group.name} 下新增子分组`" :title="group.depth >= 5 ? '已达 5 级，不能继续添加子分组' : '新增子分组'" @click.stop="openDialog(null, group.id)"><el-icon><Plus /></el-icon></button>
-                  <button v-permission="['datasource:delete']" type="button" class="group-node-action danger" :aria-label="`删除分组 ${group.name}`" title="删除分组" @click.stop="removeGroup(group)"><el-icon><Minus /></el-icon></button>
-                </span>
-              </span>
-            </template>
-          </el-tree>
-          <p v-if="!loading && !filteredTree.length" class="sidebar-empty">{{ keyword.trim() ? '未找到匹配分组' : '暂无分组，点击 + 创建' }}</p>
+          <div v-for="group in filteredGroups" :key="group.id" class="group-item" :class="{ active: selectedGroupId === group.id }">
+            <button type="button" class="group-select" :aria-current="selectedGroupId === group.id ? 'true' : undefined" :title="group.path || group.name" @click="selectedGroupId = group.id">
+              <span class="group-name">{{ group.name }}</span><span class="member-count">{{ group.scope_member_count ?? group.member_count }}</span>
+            </button>
+            <span class="group-node-actions">
+              <button v-permission="['datasource:edit']" type="button" class="group-node-action" :aria-label="`重命名分组 ${group.name}`" title="重命名分组" @click="openDialog(group)"><el-icon><Edit /></el-icon></button>
+              <button v-permission="['datasource:delete']" type="button" class="group-node-action danger" :aria-label="`删除分组 ${group.name}`" title="删除分组" @click="removeGroup(group)"><el-icon><Minus /></el-icon></button>
+            </span>
+          </div>
+          <p v-if="!loading && !filteredGroups.length" class="sidebar-empty">{{ keyword.trim() ? '未找到匹配分组' : '暂无分组，点击 + 创建' }}</p>
         </nav>
       </aside>
 
       <section v-loading="loading" class="group-content" aria-label="分组实例列表">
-        <DatasourceManage :group-id="selectedGroupId" :group-name="selectedGroup?.path || ''" :refresh-key="refreshKey" require-group @changed="loadGroups" />
+        <DatasourceManage :group-id="selectedGroupId" :group-name="selectedGroup?.name || ''" :refresh-key="refreshKey" require-group @changed="loadGroups" />
       </section>
     </div>
 
@@ -48,7 +45,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Grid, Minus, Plus, Search } from '@element-plus/icons-vue'
 import { createDatasourceGroup, deleteDatasourceGroup, getDatasourceGroups, updateDatasourceGroup } from '../../api/datasourceGroup'
 import DatasourceManage from './DatasourceManage.vue'
-import { datasourceGroupTree, filterDatasourceGroupTree } from '../../utils/datasourceGroups'
 
 const groups = ref([]), keyword = ref(''), selectedGroupId = ref(null)
 const loading = ref(false), saving = ref(false), dialogVisible = ref(false), formRef = ref(), groupNameInput = ref()
@@ -58,8 +54,10 @@ const form = reactive(emptyForm())
 const formRules = {
   name: [{ required: true, whitespace: true, message: '请输入数据源分组名称', trigger: 'blur' }],
 }
-const groupTree = computed(() => datasourceGroupTree(groups.value))
-const filteredTree = computed(() => filterDatasourceGroupTree(groupTree.value, keyword.value))
+const filteredGroups = computed(() => {
+  const query = keyword.value.trim().toLowerCase()
+  return groups.value.filter(group => `${group.name} ${group.description || ''}`.toLowerCase().includes(query))
+})
 const selectedGroup = computed(() => groups.value.find(group => group.id === selectedGroupId.value))
 onMounted(loadGroups)
 
@@ -72,8 +70,8 @@ async function loadGroups() {
   finally { loading.value = false }
 }
 async function refresh() { refreshKey.value++; await loadGroups() }
-function openDialog(row, parentID = 0) {
-  Object.assign(form, row ? { id: row.id, parent_id: row.parent_id || 0, name: row.name, description: row.description || '', datasource_ids: [...(row.datasource_ids || [])] } : { ...emptyForm(), parent_id: parentID })
+function openDialog(row) {
+  Object.assign(form, row ? { id: row.id, parent_id: row.parent_id || 0, name: row.name, description: row.description || '', datasource_ids: [...(row.datasource_ids || [])] } : emptyForm())
   dialogVisible.value = true
 }
 async function saveGroup() {
@@ -112,38 +110,23 @@ async function removeGroup(row) {
 .group-node-action:disabled { opacity: .3; cursor: not-allowed; }
 .group-node-action:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
 
-.group-tree-item { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; padding: 0 6px 0 0; font-size: 12px; }
-.root-group .group-name { font-weight: 600; color: var(--ops-text); }
-.root-group.active .group-name { color: inherit; }
-.group-tree-item.active { color: var(--ops-warning); font-weight: 500; }
-.group-menu :deep(.el-tree) { background: transparent; }
-.group-menu :deep(.el-tree-node) { position: relative; }
-.group-menu :deep(.el-tree-node__content) { position: relative; height: 34px; margin-bottom: 2px; border: 1px solid transparent; border-radius: 6px; }
-.group-menu :deep(.el-tree > .el-tree-node + .el-tree-node) { margin-top: 6px; }
-.group-menu :deep(.el-tree-node__children) { margin-left: 9px; padding-left: 9px; }
-.group-menu :deep(.el-tree-node__children > .el-tree-node::before) { content: ''; position: absolute; left: -9px; top: 0; bottom: 0; border-left: 1px solid var(--ops-border); pointer-events: none; }
-.group-menu :deep(.el-tree-node__children > .el-tree-node:last-child::before) { bottom: auto; height: 17px; }
-.group-menu :deep(.el-tree-node__children > .el-tree-node > .el-tree-node__content::before) { content: ''; position: absolute; left: -10px; top: 16px; width: 9px; border-top: 1px solid var(--ops-border); pointer-events: none; }
-.group-menu :deep(.el-tree-node__content:hover) { background: var(--ops-surface-soft); }
-.group-menu :deep(.el-tree-node.is-current > .el-tree-node__content) { background: color-mix(in srgb, #a78753 13%, var(--ops-surface)); border-color: color-mix(in srgb, #a78753 45%, var(--ops-surface)); }
-.group-menu :deep(.el-tree-node__expand-icon) { padding: 4px; font-size: 12px; }
-.group-menu :deep(.el-tree-node__expand-icon:not(.is-leaf)) { color: var(--ops-muted); }
-
 .group-layout { display: flex; align-items: stretch; gap: 16px; min-height: 480px; }
-.group-sidebar { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; max-height: calc(100vh - 120px); min-height: 320px; border: 1px solid var(--ops-border-soft); border-radius: 10px; background: var(--ops-surface); box-shadow: 0 1px 4px #0000000f; }
+.group-sidebar { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; max-height: calc(100vh - 120px); min-height: 320px; border: 1px solid var(--ops-border-soft); border-radius: 0; background: var(--ops-surface); }
 .sidebar-heading { display: flex; align-items: center; gap: 6px; padding: 10px 12px; color: var(--ops-muted); font-size: 14px; }
 .sidebar-heading strong { color: var(--ops-text); font-size: 13px; }
 .sidebar-heading .el-button { margin-left: auto; padding: 4px; }
-.group-count, .member-count { flex-shrink: 0; padding: 2px 6px; border-radius: 8px; background: var(--ops-surface-soft); color: var(--ops-subtle); font-size: 11px; font-weight: 400; }
+.group-count, .member-count { flex-shrink: 0; padding: 2px 6px; border-radius: 3px; background: var(--ops-surface-soft); color: var(--ops-subtle); font-size: 11px; font-weight: 400; }
 .group-search { padding: 0 8px 10px; }
+.group-search :deep(.el-input__wrapper) { border-radius: 3px; }
 .group-menu { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
-.group-item { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 6px; padding: 9px 12px; border: 1px solid var(--ops-border-soft); border-radius: 7px; background: var(--ops-surface); color: var(--ops-text); box-shadow: 0 .5px 2px #0000000a; cursor: pointer; text-align: left; font: inherit; font-size: 12px; transition: background .12s, border-color .12s; }
+.group-item { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; margin-bottom: 6px; padding: 0 8px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--ops-text); cursor: pointer; text-align: left; font: inherit; font-size: 12px; transition: background .12s, border-color .12s; }
+.group-select { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; padding: 9px 4px; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
 .group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-item > .el-icon { flex-shrink: 0; color: var(--ops-muted); }
 .group-item:hover { background: var(--ops-surface-soft); border-color: var(--ops-border); }
-.group-item.active { background: color-mix(in srgb, #a78753 13%, var(--ops-surface)); border-color: color-mix(in srgb, #a78753 45%, var(--ops-surface)); color: var(--ops-warning); box-shadow: 0 1px 4px #a787531f; font-weight: 500; }
+.group-item.active { background: color-mix(in srgb, #a78753 13%, var(--ops-surface)); border-color: color-mix(in srgb, #a78753 45%, var(--ops-surface)); color: var(--ops-warning); font-weight: 500; }
 .group-item.active > .el-icon { color: inherit; }
-.group-item:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
+.group-select:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
 .sidebar-empty { padding: 12px 4px; text-align: center; color: var(--ops-subtle); font-size: 12px; }
 .group-content { flex: 1; min-width: 0; }
 .group-content :deep(.datasource-table-card) { border: 1px solid var(--ops-border); border-radius: 8px; box-shadow: none; background: var(--ops-surface); }

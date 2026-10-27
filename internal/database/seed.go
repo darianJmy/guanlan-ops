@@ -115,7 +115,7 @@ func seedInitialData(db *gorm.DB) error {
 		{ID: 87, ParentID: 0, Name: "系统设置", Path: "/settings", Component: "", Icon: "Tools", Sort: 99, Type: 1, Permission: "", Status: 1},
 		{ID: 89, ParentID: 87, Name: "登录认证", Path: "/settings/authentication", Component: "system/AuthSetting", Icon: "Lock", Sort: 2, Type: 2, Permission: "system-setting:list", Status: 1},
 		{ID: 90, ParentID: 87, Name: "访问令牌", Path: "/settings/api-tokens", Component: "system/APITokenManage", Icon: "Key", Sort: 4, Type: 2, Permission: "api-token:list", Status: 1},
-		{ID: 93, ParentID: 87, Name: "AI 模型", Path: "/settings/ai-models", Component: "system/AIModelManage", Icon: "Cpu", Sort: 6, Type: 2, Permission: "system-setting:list", Status: 1},
+		{ID: 93, ParentID: 87, Name: "模型", Path: "/settings/ai-models", Component: "system/AIModelManage", Icon: "Cpu", Sort: 6, Type: 2, Permission: "system-setting:list", Status: 1},
 	}
 	if err := db.Create(&menus).Error; err != nil {
 		return err

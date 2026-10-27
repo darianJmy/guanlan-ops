@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
+import { parseCertificateTarget } from '../src/utils/certificateTarget.js'
 import { probeTypes } from '../src/utils/probeTypes.js'
 import { parse as parseVue } from '@vue/compiler-sfc'
 import { parse } from '@babel/parser'
@@ -13,7 +14,7 @@ const code = parse(source, { sourceType: 'module' }).program.body.filter(node =>
   node.type === 'FunctionDeclaration' ? names.has(node.id.name) : node.type === 'VariableDeclaration' && node.declarations.some(d => names.has(d.id.name))
 ).map(node => source.slice(node.start, node.end)).join('\n')
 function editor() {
-  const context = vm.createContext({ probeTypes })
+  const context = vm.createContext({ probeTypes, parseCertificateTarget })
   vm.runInContext(code + '\nconst form = defaultForm(); const formRef = { value: null };', context)
   return expression => vm.runInContext(expression, context)
 }
@@ -56,7 +57,7 @@ function instantEditor() {
   const declarations = parse(script, { sourceType: 'module' }).program.body.filter(node =>
     node.type === 'FunctionDeclaration' ? selected.has(node.id.name) : node.type === 'VariableDeclaration' && node.declarations.some(d => selected.has(d.id.name))
   ).map(node => script.slice(node.start, node.end)).join('\n')
-  const context = vm.createContext({ probeTypes })
+  const context = vm.createContext({ probeTypes, parseCertificateTarget })
   vm.runInContext(declarations + '\nconst form = defaultForm(); const formRef = { value: null }; const result = { value: null };', context)
   return expression => vm.runInContext(expression, context)
 }

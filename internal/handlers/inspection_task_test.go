@@ -92,15 +92,17 @@ func TestInspectionLabelsAreNormalizedAndMatchFilters(t *testing.T) {
 	}
 }
 
-func TestInspectionTaskKeywordMatchesNameTargetOrLabels(t *testing.T) {
-	item := models.InspectionItem{Name: "生产接口", Target: "https://api.example.com", Labels: `{"env":"production","service":"gateway"}`}
-	for _, keyword := range []string{"生产", "example.com", "ENV", "gate"} {
+func TestInspectionTaskKeywordMatchesNameOnly(t *testing.T) {
+	item := models.InspectionItem{Name: "生产API接口", Target: "https://api.example.com", Labels: `{"env":"production","service":"gateway"}`}
+	for _, keyword := range []string{"生产", " api ", "接口"} {
 		if !inspectionItemMatchesKeyword(item, keyword) {
 			t.Fatalf("expected keyword %q to match task", keyword)
 		}
 	}
-	if inspectionItemMatchesKeyword(item, "staging") {
-		t.Fatal("unexpected task keyword match")
+	for _, keyword := range []string{"example.com", "ENV", "gate", "staging"} {
+		if inspectionItemMatchesKeyword(item, keyword) {
+			t.Fatalf("unexpected task keyword match for %q", keyword)
+		}
 	}
 }
 

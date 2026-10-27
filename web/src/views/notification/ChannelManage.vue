@@ -56,7 +56,7 @@
       <div v-if="filteredChannels.length > 0" class="task-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="filteredChannels.length" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next" /></div>
     </el-card>
 
-    <el-drawer v-model="drawerVisible" class="channel-drawer" size="min(460px, 94vw)" direction="rtl" :close-on-click-modal="false">
+    <el-drawer v-model="drawerVisible" class="standard-config-drawer channel-drawer" size="min(460px, 94vw)" direction="rtl" :close-on-click-modal="false">
       <template #header>
         <div class="drawer-header">
           <DrawerBackButton @click="drawerVisible = false" />
@@ -511,21 +511,8 @@ function formatTime(value) {
   border-radius: 0;
 }
 
-:deep(.channel-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding: 18px 20px;
-  border-bottom: 1px solid #e5e9f2;
-}
 
-:deep(.channel-drawer .el-drawer__body) {
-  background: var(--ops-surface);
-  padding: 18px 20px;
-}
 
-:deep(.channel-drawer .el-drawer__footer) {
-  border-top: 1px solid #e5e9f2;
-  padding: 12px 20px;
-}
 
 .drawer-header {
   display: flex;

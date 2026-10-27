@@ -6,7 +6,7 @@
       </div>
       <div class="toolbar-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadPage">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="openCenterDrawer()">创建</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCenterDialog()">创建</el-button>
       </div>
     </div>
 
@@ -30,7 +30,7 @@
         <div class="card-footer" @click.stop>
           <div class="card-actions">
             <el-tooltip content="编辑" placement="top">
-              <el-button link type="primary" size="small" aria-label="编辑" @click="openCenterDrawer(center)">
+              <el-button link type="primary" size="small" aria-label="编辑" @click="openCenterDialog(center)">
                 <el-icon><Edit /></el-icon>
               </el-button>
             </el-tooltip>
@@ -46,13 +46,7 @@
 
     <PageEmpty v-if="!loading && filteredCenters.length === 0" :description="centers.length ? '没有符合条件的故障中心' : '暂无故障中心'" />
 
-    <el-drawer v-model="centerDrawerVisible" class="center-drawer" size="min(460px, 94vw)" direction="rtl" :close-on-click-modal="false" destroy-on-close>
-      <template #header>
-        <div class="drawer-header">
-          <DrawerBackButton @click="centerDrawerVisible = false" />
-          <span class="drawer-title">{{ centerForm.id ? '编辑故障中心' : '创建故障中心' }}</span>
-        </div>
-      </template>
+    <el-dialog v-model="centerDialogVisible" :title="centerForm.id ? '编辑故障中心' : '创建故障中心'" width="min(460px, 94vw)" :close-on-click-modal="false" destroy-on-close>
       <el-form ref="centerFormRef" class="center-form" :model="centerForm" :rules="centerRules" label-position="top">
         <el-form-item label="中心名称" prop="name">
           <el-input v-model="centerForm.name" aria-label="故障中心名称" maxlength="128" show-word-limit />
@@ -62,29 +56,28 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <div class="drawer-footer">
-          <el-button @click="centerDrawerVisible = false">取消</el-button>
+        <div class="dialog-footer">
+          <el-button @click="centerDialogVisible = false">取消</el-button>
           <el-button type="primary" :loading="savingCenter" @click="saveCenter">保存</el-button>
         </div>
       </template>
-    </el-drawer>
+    </el-dialog>
 
   </div>
 </template>
 
 <script setup>
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import PageEmpty from '../../components/PageEmpty.vue'
 import { onMounted, reactive, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { createFaultCenter, deleteFaultCenter, getFaultCenters, updateFaultCenter } from '../../api/alert'
 
 const router = useRouter()
 const loading = ref(false), savingCenter = ref(false)
 const centers = ref([])
-const centerDrawerVisible = ref(false)
+const centerDialogVisible = ref(false)
 const centerFormRef = ref()
 const keyword = ref('')
 const centerForm = reactive({ id: null, name: '', description: '', status: 1 })
@@ -106,11 +99,11 @@ async function loadPage() {
   }
 }
 
-function openCenterDrawer(center) {
+function openCenterDialog(center) {
   Object.assign(centerForm, center
     ? { id: center.id, name: center.name, description: center.description || '', status: center.status }
     : { id: null, name: '', description: '', status: 1 })
-  centerDrawerVisible.value = true
+  centerDialogVisible.value = true
 }
 
 async function saveCenter() {
@@ -122,7 +115,7 @@ async function saveCenter() {
     if (centerForm.id) await updateFaultCenter(centerForm.id, payload)
     else await createFaultCenter(payload)
     ElMessage.success(centerForm.id ? '故障中心已更新' : '故障中心已创建')
-    centerDrawerVisible.value = false
+    centerDialogVisible.value = false
     await loadPage()
   } finally {
     savingCenter.value = false
@@ -167,14 +160,7 @@ function openAlerts(center) {
 .metric-recovering strong { color: #2f9e6f; }
 .metric-silenced strong { color: #7b8492; }
 .card-footer { display: flex; align-items: center; justify-content: flex-end; padding: 10px 20px; background: var(--ops-surface-soft); border-top: 1px solid #f5f5f5; }
-.drawer-header { display: flex; width: 100%; align-items: center; justify-content: flex-start; gap: 12px; }
-.back-button { height: 32px; padding: 0 8px; color: var(--ops-primary); font-size: 14px; }
-.drawer-title { color: var(--ops-text); font-size: 16px; font-weight: 600; }
-.drawer-footer { display: flex; justify-content: flex-end; gap: 8px; }
-:global(.center-drawer.el-drawer) { border-radius: 0 !important; }
-:global(.center-drawer .el-drawer__header) { margin-bottom: 0; padding: 18px 20px; border-bottom: 1px solid #e5e9f2; }
-:global(.center-drawer .el-drawer__body) { padding: 18px 20px; background: var(--ops-surface); }
-:global(.center-drawer .el-drawer__footer) { padding: 12px 20px; border-top: 1px solid #e5e9f2; }
+.dialog-footer { display:flex;justify-content:flex-end;gap:8px; }
 @media (prefers-reduced-motion: reduce) { .dash-card { transition: none; } }
 @media (max-width: 900px) { .fault-toolbar { align-items: stretch; flex-direction: column; } .keyword-filter { width: 100%; } .toolbar-actions { justify-content: flex-end; } }
 @media (max-width: 640px) { .fault-filters { flex-wrap: wrap; } .keyword-filter { width: 100%; flex: 1 1 100%; } .toolbar-actions { display: grid; grid-template-columns: 1fr 1fr; } .dashboard-grid { grid-template-columns: 1fr; } .dash-card { min-height: 184px; } }

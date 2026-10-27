@@ -31,7 +31,12 @@ export const useUserStore = defineStore('user', {
       const res = await getUserInfo()
       this.userInfo = res.data.user
       this.permissions = res.data.permissions
-      this.menus = res.data.menus
+      const normalizeMenuNames = menus => (menus || []).map(menu => ({
+        ...menu,
+        name: menu.path === '/settings/ai-models' && menu.name === 'AI 模型' ? '模型' : menu.name,
+        ...(menu.children ? { children: normalizeMenuNames(menu.children) } : {}),
+      }))
+      this.menus = normalizeMenuNames(res.data.menus)
       return res.data
     },
 

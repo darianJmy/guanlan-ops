@@ -47,7 +47,7 @@
                 <div><el-input v-model="silenceKeyword" clearable aria-label="搜索告警静默" placeholder="搜索静默策略名称" @keyup.enter="searchSilences" @clear="searchSilences"><template #append><el-button aria-label="搜索" @click="searchSilences"><el-icon><Search /></el-icon></el-button></template></el-input></div>
                 <div><el-button :icon="Refresh" @click="searchSilences">刷新</el-button><el-button type="primary" :icon="Plus" @click="openSilenceDrawer()">创建</el-button></div>
               </div>
-              <el-table :data="pagedSilenceRules" v-loading="silenceLoading" border>
+              <el-table :data="pagedSilenceRules" v-loading="silenceLoading">
                 <el-table-column prop="name" label="策略名称" min-width="220" show-overflow-tooltip />
                 <el-table-column label="静默类型" width="130"><template #default="{ row }"><el-tag effect="light">{{ row.silence_type === 'weekly' ? '周期性静默' : '一次性静默' }}</el-tag></template></el-table-column>
                 <el-table-column label="静默计划" min-width="230" show-overflow-tooltip><template #default="{ row }">{{ silenceScheduleText(row) }}</template></el-table-column>
@@ -72,7 +72,7 @@
                 <div><el-input v-model="inhibitionKeyword" clearable aria-label="搜索告警抑制" placeholder="搜索规则名称或标签" @keyup.enter="searchInhibitions" @clear="searchInhibitions"><template #append><el-button aria-label="搜索" @click="searchInhibitions"><el-icon><Search /></el-icon></el-button></template></el-input></div>
                 <div><el-button :icon="Refresh" @click="reloadRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openRuleDrawer()">创建</el-button></div>
               </div>
-              <el-table :data="pagedRules" border>
+              <el-table :data="pagedRules">
                 <el-table-column prop="name" label="抑制规则名称" min-width="180" show-overflow-tooltip />
                 <el-table-column label="源标签" min-width="200"><template #default="{ row }"><code>{{ matcherSummary(row.source_matchers) }}</code></template></el-table-column>
                 <el-table-column label="目标标签" min-width="200"><template #default="{ row }"><code>{{ matcherSummary(row.target_matchers) }}</code></template></el-table-column>
@@ -98,7 +98,7 @@
                 <div><el-input v-model="groupingKeyword" clearable aria-label="搜索分组收敛" placeholder="搜索策略名称、条件或分组标签" @keyup.enter="searchGroupings" @clear="searchGroupings"><template #append><el-button aria-label="搜索" @click="searchGroupings"><el-icon><Search /></el-icon></el-button></template></el-input></div>
                 <div><el-button :icon="Refresh" @click="loadGroupingRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openGroupingDrawer()">创建</el-button></div>
               </div>
-              <el-table v-loading="groupingLoading" :data="pagedGroupingRows" border table-layout="fixed">
+              <el-table v-loading="groupingLoading" :data="pagedGroupingRows" table-layout="fixed">
                 <el-table-column prop="name" label="策略名称" min-width="150" show-overflow-tooltip />
                 <el-table-column label="匹配告警" min-width="190">
                   <template #default="{ row }"><code>{{ row.matchers.length ? matcherSummary(row.matchers) : '全部告警' }}</code></template>
@@ -393,7 +393,7 @@ const AlertTable = defineComponent({
   emits: ['search', 'page-change', 'page-size-change', 'show-detail', 'silence'],
   setup(props, { emit }) {
     const keyword = ref('')
-    const source = ref(''), severity = ref(''), alertStatus = ref(''), dateRange = ref([])
+    const source = ref(''), severity = ref(''), dateRange = ref([])
     const clock = ref(Date.now())
     const durationTicker = window.setInterval(() => { clock.value = Date.now() }, 1000)
     let keywordSearchTimer
@@ -401,7 +401,7 @@ const AlertTable = defineComponent({
       window.clearInterval(durationTicker)
       window.clearTimeout(keywordSearchTimer)
     })
-    const submit = () => emit('search', props.advancedFilters ? { keyword: keyword.value, source: source.value, severity: severity.value, alert_status: alertStatus.value, start_date: dateRange.value?.[0] || '', end_date: dateRange.value?.[1] || '' } : keyword.value)
+    const submit = () => emit('search', props.advancedFilters ? { keyword: keyword.value, source: props.historyFilters ? source.value : '', severity: severity.value, start_date: dateRange.value?.[0] || '', end_date: dateRange.value?.[1] || '' } : keyword.value)
     const submitImmediately = () => {
       window.clearTimeout(keywordSearchTimer)
       submit()
@@ -416,23 +416,21 @@ const AlertTable = defineComponent({
       keyword.value = ''
       source.value = ''
       severity.value = ''
-      alertStatus.value = ''
       dateRange.value = []
       submit()
     }
-    const hasFilters = () => Boolean(keyword.value || source.value || severity.value || alertStatus.value || dateRange.value?.length)
+    const hasFilters = () => Boolean(keyword.value || source.value || severity.value || dateRange.value?.length)
     const select = (model, placeholder, options) => h(ElSelect, { modelValue: model.value, clearable: true, placeholder, style: 'width:150px', 'onUpdate:modelValue': value => { model.value = value || ''; submit() } }, { default: () => options.map(item => h(ElOption, { key: item.value, label: item.label, value: item.value })) })
     return () => h('section', { class: 'alert-section' }, [
       h('div', { class: ['alert-filter', props.advancedFilters && 'is-advanced'] }, [
-        h(ElInput, { modelValue: keyword.value, clearable: true, placeholder: '搜索告警名称、标签或目标', prefixIcon: Search, 'onUpdate:modelValue': updateKeyword, onKeyup: event => { if (event.key === 'Enter') submitImmediately() }, onClear: submitImmediately }),
-        props.advancedFilters ? select(source, '选择类型', [{ label: '指标规则', value: 'prometheus-rule' }, { label: '拨测告警', value: 'probe-task' }, ...(props.historyFilters ? [{ label: '历史定时任务', value: 'scheduled-task' }] : [])]) : null,
-        props.advancedFilters ? select(severity, '告警等级', [{ label: 'P0', value: 'P0' }, { label: 'P1', value: 'P1' }, { label: 'P2', value: 'P2' }, { label: '警告（拨测）', value: 'warning' }]) : null,
-        props.advancedFilters && !props.historyFilters ? select(alertStatus, '告警状态', [{ label: '预告警', value: 'pending' }, { label: '告警中', value: 'firing' }, { label: '恢复中', value: 'recovering' }]) : null,
+        h(ElInput, { modelValue: keyword.value, clearable: true, placeholder: props.historyFilters ? '搜索告警名称、标签或目标' : '搜索告警名称', prefixIcon: Search, 'onUpdate:modelValue': updateKeyword, onKeyup: event => { if (event.key === 'Enter') submitImmediately() }, onClear: submitImmediately }),
+        props.advancedFilters && props.historyFilters ? select(source, '选择类型', [{ label: '指标规则', value: 'prometheus-rule' }, { label: '拨测告警', value: 'probe-task' }, ...(props.historyFilters ? [{ label: '历史定时任务', value: 'scheduled-task' }] : [])]) : null,
+        props.advancedFilters ? select(severity, '告警等级', [{ label: 'P0', value: 'P0' }, { label: 'P1', value: 'P1' }, { label: 'P2', value: 'P2' }, ...(props.historyFilters ? [{ label: '警告（拨测）', value: 'warning' }] : [])]) : null,
         props.historyFilters ? h(ElDatePicker, { class: 'alert-date-filter', modelValue: dateRange.value, type: 'daterange', format: 'MM-DD', valueFormat: 'YYYY-MM-DD', startPlaceholder: '开始日期', endPlaceholder: '结束日期', rangeSeparator: '至', clearable: true, 'onUpdate:modelValue': value => { dateRange.value = value || []; submit() } }) : null,
         h(ElButton, { disabled: !hasFilters(), onClick: clearFilters }, () => '清空'),
         props.advancedFilters ? h(ElButton, { class: 'filter-refresh', icon: Refresh, onClick: submit }, () => '刷新') : null,
       ]),
-      h('div', { class: 'table-wrap' }, [h(ElTable, { data: props.rows, border: true, tableLayout: 'fixed', onRowClick: row => emit('show-detail', row), style: 'width:100%' }, { default: () => [
+      h('div', { class: 'table-wrap' }, [h(ElTable, { data: props.rows, tableLayout: 'fixed', onRowClick: row => emit('show-detail', row), style: 'width:100%' }, { default: () => [
         h(ElTableColumn, { prop: 'title', label: '告警名称', minWidth: 180, showOverflowTooltip: true }),
         h(ElTableColumn, { label: '告警等级', width: 105, align: 'center', headerAlign: 'center' }, { default: ({ row }) => h(ElTag, { class: 'severity-tag', type: severityType(row.severity), effect: 'light', size: 'small' }, () => row.severity || '—') }),
         h(ElTableColumn, { label: '告警状态', width: 105, align: 'center', headerAlign: 'center' }, { default: ({ row }) => h(ElTag, { type: statusType(row.status), effect: 'light', size: 'small' }, () => displayStatus(row)) }),

@@ -280,7 +280,7 @@ function formatTime(value) { return value ? new Date(value).toLocaleString('zh-C
 .task-card { min-width: 0; border-color: var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(31, 50, 81, .045); }
 .task-card :deep(.el-card__body) { padding: 16px; }
 .task-pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
-.role-name { color: var(--ops-text); font-size: 13px; font-weight: 650; }
+.role-name { color: var(--ops-text); font-size: 13px; font-weight: 400; }
 .role-code { padding: 2px 5px; color: #4d5d73; background: var(--ops-surface-soft); font-size: 12px; }
 .secondary-text { color: var(--ops-muted); font-size: 12px; }
 .row-actions { display: flex; align-items: center; justify-content: center; gap: 4px; }

@@ -18,7 +18,7 @@
     </header>
     <header class="task-toolbar">
       <div class="filter-bar" role="search" aria-label="拨测任务搜索">
-        <el-input v-model="filters.keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索拨测任务" placeholder="搜索名称、目标或标签" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
+        <el-input v-model="filters.keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索拨测任务" placeholder="搜索任务名称" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
         <el-select v-model="filters.type" class="filter-select filter-type" clearable aria-label="按拨测类型筛选" placeholder="类型" @change="handleSearch">
           <el-option v-for="item in taskTypes" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
@@ -69,9 +69,10 @@
         <el-table-column label="启用状态" width="100" align="center">
           <template #default="{ row }"><el-switch v-model="row.status" :active-value="1" :inactive-value="0" :loading="togglingId === row.id" :before-change="() => toggleTaskStatus(row)" :aria-label="`${row.name}启用状态`" v-permission="['inspection:edit']" /></template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center" fixed="right">
+        <el-table-column label="操作" width="132" align="center" fixed="right">
           <template #default="{ row }">
             <el-tooltip content="编辑" placement="top"><el-button link type="primary" :icon="Edit" aria-label="编辑拨测任务" @click="handleEdit(row)" v-permission="['inspection:edit']" /></el-tooltip>
+            <el-tooltip content="复制" placement="top"><el-button link type="primary" :icon="CopyDocument" aria-label="复制拨测任务" @click="handleCopy(row)" v-permission="['inspection:create']" /></el-tooltip>
             <el-tooltip content="删除" placement="top"><el-button link type="danger" :icon="Delete" aria-label="删除拨测任务" @click="handleDelete(row)" v-permission="['inspection:delete']" /></el-tooltip>
           </template>
         </el-table-column>
@@ -196,7 +197,7 @@ import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElButton, ElInput, ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowLeft, Check, Close, Delete, Download, Edit, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowLeft, Check, Close, CopyDocument, Delete, Download, Edit, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
 import { updateInspectionRuleGroup, getInspectionRuleGroup, getInspectionItems, createInspectionItem, updateInspectionItem, deleteInspectionItem, batchDeleteInspectionItems, batchUpdateInspectionItemStatus, exportInspectionItems, importInspectionItems } from '../../api/inspection'
 import { probeTypes } from '../../utils/probeTypes'
 import { getAgents, getCertificateExecutors } from '../../api/certificate'
@@ -414,6 +415,7 @@ async function toggleTaskStatus(row) {
 function typeMeta(type) { return taskTypes.find(item => item.value === type) || { label: String(type || '-').toUpperCase(), title: '未知类型', hint: '' } }
 function changeType(type) { if (form.type === type) return; Object.assign(form, { ...defaultForm(type), name: form.name, interval_seconds: form.interval_seconds, failure_threshold: form.failure_threshold, fault_center_id: form.fault_center_id, status: form.status }); formRef.value?.clearValidate?.() }
 function handleAdd() { router.push({ path: '/inspection/items/create', query: { group_id: groupId.value } }) }
+function handleCopy(row) { router.push({ path: '/inspection/items/create', query: { group_id: row.group_id || groupId.value, copy_from: row.id } }) }
 function handleDetail(row) { router.push(`/inspection/items/${row.id}`) }
 function handleEdit(row) {
   router.push(`/inspection/items/${row.id}/edit`)

@@ -255,7 +255,11 @@ func ListAlerts(c *gin.Context) {
 	tx = applyAlertTriggerDateFilters(tx, c.Query("start_date"), c.Query("end_date"))
 	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
 		like := "%" + keyword + "%"
-		tx = tx.Where("title LIKE ? OR target LIKE ? OR labels LIKE ?", like, like, like)
+		if strings.EqualFold(strings.TrimSpace(c.Query("status")), "active") {
+			tx = tx.Where("title LIKE ?", like)
+		} else {
+			tx = tx.Where("title LIKE ? OR target LIKE ? OR labels LIKE ?", like, like, like)
+		}
 	}
 
 	var total int64

@@ -1,20 +1,31 @@
 <template>
   <section class="ai-chat-panel" aria-label="观澜运维平台 AI 助手">
     <header class="chat-header">
-      <el-button link :icon="Fold" aria-label="会话历史" title="会话历史" :aria-expanded="historyVisible" @click="historyVisible = !historyVisible" />
-      <div class="chat-title">
-        <strong>{{ activeTitle }}</strong>
-        <small>{{ sending ? '正在分析…' : '就绪 · 运维助手' }}</small>
+      <div class="chat-header-info">
+        <button class="chat-header-button" type="button" aria-label="会话历史" title="会话历史" :aria-expanded="historyVisible" @click="historyVisible = !historyVisible">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true">
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="M9 3v18" />
+          </svg>
+        </button>
+        <div class="chat-title">
+          <strong title="AI 助手">AI 助手</strong>
+          <small v-if="sending">正在分析…</small>
+        </div>
       </div>
-      <el-button link :icon="Plus" aria-label="新会话" title="新会话" :disabled="sending || loadingMessages" @click="newConversation" />
-      <el-button link :icon="Close" aria-label="关闭 AI 助手" title="关闭 AI 助手" @click="$emit('close')" />
+      <div class="chat-header-actions">
+        <el-select v-model="selectedModelID" class="chat-model-select" placeholder="模型" aria-label="模型" :disabled="sending || loadingMessages || loadingModels || !availableModels.length" :loading="loadingModels">
+          <el-option v-for="model in availableModels" :key="model.id" :label="model.name" :value="model.id"><span>{{ model.name }}</span><small style="float:right;margin-left:12px;color:var(--ops-muted)">{{ model.provider }}</small></el-option>
+        </el-select>
+        <button class="chat-header-button" type="button" aria-label="新会话" title="新会话" :disabled="sending || loadingMessages" @click="newConversation">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      </div>
     </header>
-    <div class="chat-model-picker">
-      <el-select v-model="selectedModelID" placeholder="选择 AI 模型" aria-label="选择 AI 模型" :disabled="sending || loadingMessages || loadingModels" :loading="loadingModels">
-        <el-option v-for="model in availableModels" :key="model.id" :label="model.name" :value="model.id"><span>{{ model.name }}</span><small style="float:right;margin-left:12px;color:var(--ops-muted)">{{ model.provider }}</small></el-option>
-      </el-select>
-      <small v-if="!loadingModels && !availableModels.length">暂无可用模型，请管理员在系统设置 → AI 模型中添加。</small>
-      <small v-else-if="!selectedModelID">原模型已停用或删除，请重新选择。</small>
+    <div v-if="!loadingModels && availableModels.length && !selectedModelID" class="chat-model-notice" role="status">
+      <small>原模型已停用或删除，请重新选择。</small>
     </div>
     <section v-if="historyVisible" class="chat-history" aria-label="会话历史列表">
       <div class="history-search">
@@ -33,19 +44,25 @@
     </section>
     <div v-show="!historyVisible" class="chat-main">
         <section v-if="!activeConversationID && !messages.length" class="chat-welcome">
-          <span class="welcome-icon"><Cpu /></span>
+          <span class="welcome-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+              <path d="M12 8V4H8" />
+              <rect width="16" height="12" x="4" y="8" rx="2" />
+              <path d="M2 14h2m16 0h2m-7-1v2m-6-2v2" />
+            </svg>
+          </span>
           <h2>有什么可以帮你？</h2>
-          <p>查询告警、证书和执行记录，也可以帮你创建分组和通知配置。</p>
-          <div class="suggestions">
-            <button v-for="item in suggestions" :key="item" type="button" @click="quickAsk(item)">{{ item }}</button>
-          </div>
         </section>
 
         <section v-else ref="messageContainer" v-loading="loadingMessages" class="messages-container" aria-live="polite">
           <article v-for="message in messages" :key="message.id" class="message" :class="message.role">
             <span class="message-avatar" aria-hidden="true">
               <User v-if="message.role === 'user'" />
-              <Cpu v-else />
+              <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                <path d="M12 8V4H8" />
+                <rect width="16" height="12" x="4" y="8" rx="2" />
+                <path d="M2 14h2m16 0h2m-7-1v2m-6-2v2" />
+              </svg>
             </span>
             <div class="message-body">
               <div class="message-meta">
@@ -58,7 +75,11 @@
             </div>
           </article>
           <article v-if="sending" class="message assistant is-thinking">
-            <span class="message-avatar"><Cpu /></span>
+            <span class="message-avatar" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                <path d="M12 8V4H8" />
+                <rect width="16" height="12" x="4" y="8" rx="2" />
+                <path d="M2 14h2m16 0h2m-7-1v2m-6-2v2" />
+              </svg></span>
             <div class="message-body">
               <div class="message-meta"><strong>AI 助手</strong><span>正在处理</span></div>
               <div class="thinking-dots" aria-label="AI 正在思考"><i /><i /><i /></div>
@@ -101,7 +122,7 @@
 import AIExecutionTrace from './AIExecutionTrace.vue'
 import { getChatModels } from '../api/aiModel'
 import { computed, nextTick, ref, watch } from 'vue'
-import { Close, Cpu, Delete, Fold, Search, Plus, Promotion, User } from '@element-plus/icons-vue'
+import { Delete, Search, Promotion, User } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { deleteConversation, getConversations, getMessages, sendMessage } from '../api/chat'
 
@@ -122,25 +143,11 @@ const loadingMessages = ref(false)
 const messageContainer = ref()
 const inputRef = ref()
 
-const suggestions = [
-  '现在有哪些活跃告警？',
-  '最近失败的拨测任务有哪些？',
-  '帮我查看自动化任务执行情况',
-  '未来 30 天有哪些证书需要续期？',
-  '最近有哪些通知发送失败？',
-  '创建邮件通知对象需要哪些信息？',
-]
-
 const filteredConversations = computed(() => conversations.value.filter(item => (item.title || '新对话').toLowerCase().includes(historySearch.value.trim().toLowerCase())))
 
 let initialized = false
 
 watch(() => props.visible, (visible) => { if (visible) openChat() }, { immediate: true })
-
-const activeTitle = computed(() => {
-  const active = conversations.value.find(item => item.id === activeConversationID.value)
-  return active?.title || '新对话'
-})
 
 async function openChat() {
   if (loadingConversations.value) return
@@ -212,11 +219,6 @@ async function removeConversation(conversation) {
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') ElMessage.error('删除对话失败')
   }
-}
-
-function quickAsk(question) {
-  input.value = question
-  send()
 }
 
 function handleKeydown(event) {
@@ -348,11 +350,18 @@ function renderMarkdown(value) {
 
 <style scoped>
 .ai-chat-panel{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--ops-surface);color:var(--ops-text)}
-.chat-header{display:flex;flex:none;min-height:64px;box-sizing:border-box;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--ops-border-soft)}
-.chat-header>.el-button{margin-left:0;flex:none;padding:6px}
-.chat-title{display:flex;min-width:0;flex:1;flex-direction:column;gap:5px}
-.chat-title strong{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
-.chat-title small{font-size:11px;color:var(--ops-muted)}
+.chat-header{display:flex;flex:none;min-height:64px;box-sizing:border-box;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--ops-border-soft)}
+.chat-header-info{display:flex;flex:1 0 auto;min-width:max-content;align-items:center;gap:8px}
+.chat-header-actions{display:flex;flex:0 1 136px;min-width:112px;align-items:center;gap:4px}
+.chat-header-button{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--ops-text);cursor:pointer}
+.chat-header-button:hover:not(:disabled){background:var(--ops-surface-soft);color:var(--ops-primary)}
+.chat-header-button:focus-visible{outline:2px solid var(--ops-primary);outline-offset:2px}
+.chat-header-button:disabled{opacity:.45;cursor:not-allowed}
+.chat-model-select{width:100px;min-width:0;flex:1}
+.chat-model-select :deep(.el-select__wrapper){min-height:32px}
+.chat-title{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px}
+.chat-title strong{overflow:hidden;font-size:14px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.chat-title small{overflow:hidden;font-size:12px;color:var(--ops-muted);text-overflow:ellipsis;white-space:nowrap}
 .chat-main{display:flex;flex:1;min-height:0;min-width:0;flex-direction:column;background:var(--ops-bg)}
 .chat-history{display:flex;flex:1;min-height:0;flex-direction:column}
 .history-search{padding:12px 14px;border-bottom:1px solid var(--ops-border-soft)}
@@ -364,16 +373,14 @@ function renderMarkdown(value) {
 .conversation-copy strong{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}
 .conversation-copy small{font-size:11px;color:var(--ops-muted)}
 .chat-welcome{display:flex;flex:1;min-height:0;overflow:auto;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center}
-.welcome-icon{display:grid;width:46px;height:46px;flex:none;place-items:center;color:var(--ops-primary);background:var(--ops-primary-soft);border-radius:14px}.welcome-icon svg{width:26px}
+.welcome-icon{display:grid;box-sizing:border-box;width:40px;height:40px;flex:none;place-items:center;color:var(--ops-primary);background:var(--ops-surface-soft);border:1px solid var(--ops-border)}.welcome-icon svg{width:21px;height:21px}
 .chat-welcome h2{margin:16px 0 8px;font-size:19px}.chat-welcome p{margin:0;color:var(--ops-muted);font-size:12px;line-height:1.8}
-.suggestions{display:grid;width:100%;grid-template-columns:1fr;gap:8px;margin-top:22px}
-.suggestions button{padding:10px 12px;color:var(--ops-text);text-align:left;background:var(--ops-surface);border:1px solid var(--ops-border);border-radius:7px;cursor:pointer;font:inherit;font-size:12px}.suggestions button:hover{color:var(--ops-primary);border-color:var(--ops-primary)}
 .input-area{flex:none}
 .messages-container{min-height:0;flex:1;overflow-y:auto;padding:22px 24px}.message{display:flex;align-items:flex-start;gap:10px;margin-bottom:22px}.message.user{flex-direction:row-reverse}.message-avatar{display:grid;width:34px;height:34px;flex:0 0 34px;place-items:center;color:var(--ops-primary);background:var(--ops-primary-soft);border:1px solid color-mix(in srgb,var(--ops-primary) 22%,var(--ops-border));border-radius:10px}.message.user .message-avatar{color:#fff;background:#27354d;border-color:#27354d}.message-avatar svg{width:18px}.message-body{min-width:0;max-width:min(760px,82%)}.message.user .message-body{display:flex;align-items:flex-end;flex-direction:column}.message-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--ops-muted);font-size:10px}.message-meta strong{color:var(--ops-text);font-size:11px}.message-content{box-sizing:border-box;padding:11px 14px;color:var(--ops-text);background:var(--ops-surface);border:1px solid var(--ops-border-soft);border-radius:4px 12px 12px 12px;font-size:12px;line-height:1.7;box-shadow:0 2px 7px color-mix(in srgb,var(--ops-text) 4%,transparent)}.message.user .message-content{color:#fff;background:#315f95;border-color:#315f95;border-radius:12px 4px 12px 12px;white-space:pre-wrap}.thinking-dots{display:flex;width:58px;gap:5px;padding:14px 16px;background:var(--ops-surface);border:1px solid var(--ops-border-soft);border-radius:4px 12px 12px 12px}.thinking-dots i{width:6px;height:6px;background:var(--ops-primary);border-radius:50%;animation:chat-dot 1.2s infinite ease-in-out}.thinking-dots i:nth-child(2){animation-delay:.15s}.thinking-dots i:nth-child(3){animation-delay:.3s}@keyframes chat-dot{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}.input-area{padding:12px 16px 10px;background:var(--ops-surface);border-top:1px solid var(--ops-border-soft)}.input-shell{position:relative}.input-shell :deep(.el-textarea__inner){padding:11px 48px 24px 12px;border-radius:8px;box-shadow:0 0 0 1px var(--ops-border) inset!important}.input-shell :deep(.el-input__count){right:47px;bottom:5px;background:transparent;font-size:9px}.send-button{position:absolute;right:10px;bottom:10px;width:31px;height:31px}.input-area>small{display:block;margin-top:6px;color:var(--ops-muted);font-size:9px}.markdown-body :deep(p){margin:0 0 8px}.markdown-body :deep(p:last-child){margin-bottom:0}.markdown-body :deep(h3),.markdown-body :deep(h4),.markdown-body :deep(h5),.markdown-body :deep(h6){margin:12px 0 6px;font-size:13px}.markdown-body :deep(code){padding:1px 4px;color:#315f95;background:var(--ops-primary-soft);border-radius:3px;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}.markdown-body :deep(pre){overflow:auto;margin:8px 0;padding:11px;color:#dbeafe;background:#111827;border-radius:6px;font:10px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}.markdown-body :deep(pre code){padding:0;color:inherit;background:transparent}.markdown-body :deep(ul),.markdown-body :deep(ol){margin:7px 0;padding-left:20px}.markdown-body :deep(blockquote){margin:8px 0;padding:7px 10px;color:var(--ops-muted);background:var(--ops-surface-soft);border-left:3px solid var(--ops-primary)}.markdown-body :deep(hr){margin:12px 0;border:0;border-top:1px solid var(--ops-border)}.markdown-body :deep(a){color:var(--ops-primary)}.markdown-table-wrap{max-width:100%;overflow-x:auto;margin:8px 0}.markdown-body :deep(table){width:100%;border-collapse:collapse}.markdown-body :deep(th),.markdown-body :deep(td){padding:6px 8px;text-align:left;border:1px solid var(--ops-border);font-size:10px}.markdown-body :deep(th){background:var(--ops-surface-soft);font-weight:650}
 .message-content{overflow-wrap:anywhere}.markdown-body :deep(.markdown-table-wrap){max-width:100%;overflow-x:auto;margin:8px 0}
-@media(max-width:600px){.chat-header{padding:10px 12px}.messages-container{padding:16px 12px}.message-body{max-width:85%}.chat-welcome{justify-content:flex-start;padding:20px}.suggestions{margin-top:14px}}
+@media(max-width:600px){.chat-header{padding:10px 12px}.messages-container{padding:16px 12px}.message-body{max-width:85%}.chat-welcome{justify-content:flex-start;padding:20px}}
 </style>
 
 <style scoped>
-.chat-model-picker{display:flex;flex-direction:column;gap:6px;padding:8px 16px;border-bottom:1px solid var(--ops-border)}.chat-model-picker small{font-size:11px;color:var(--ops-muted)}
+.chat-model-notice{padding:8px 16px;border-bottom:1px solid var(--ops-border)}.chat-model-notice small{font-size:11px;color:var(--ops-muted)}
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="settings-page" v-loading="loading">
+  <div class="settings-typography settings-page" v-loading="loading">
     <header class="settings-header"><div><h1>基础设置</h1><p>配置平台名称和品牌标识。</p></div><el-button type="primary" :loading="saving" @click="save" v-permission="['system-setting:edit']">保存设置</el-button></header>
     <section class="setting-card">
       <div class="section-title"><strong>品牌信息</strong><span>显示在登录页、侧边栏和浏览器标题中</span></div>

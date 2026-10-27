@@ -75,7 +75,7 @@
       </div>
     </template>
 
-    <el-drawer v-model="drawerVisible" class="cloud-monitor-drawer" size="min(460px, 94vw)" direction="rtl" :show-close="false" :close-on-click-modal="false">
+    <el-drawer v-model="drawerVisible" class="standard-config-drawer cloud-monitor-drawer" size="min(460px, 94vw)" direction="rtl" :show-close="false" :close-on-click-modal="false">
       <template #header="{ titleId }">
         <div class="drawer-header">
           <DrawerBackButton :disabled="saving" @click="backFromForm" />
@@ -319,9 +319,6 @@ function backFromForm() {
 .iframe-shell iframe { display: block; width: 100%; height: calc(100vh - 150px); min-height: 620px; border: 0; }
 .iframe-state { display: flex; position: absolute; z-index: 2; inset: 0; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: var(--ops-muted); background: color-mix(in srgb, var(--ops-card) 92%, transparent); }
 :global(.cloud-monitor-drawer.el-drawer) { border-radius: 0; }
-:global(.cloud-monitor-drawer .el-drawer__header) { margin-bottom: 0; padding: 16px 20px; border-bottom: 1px solid var(--ops-border); }
-:global(.cloud-monitor-drawer .el-drawer__body) { padding: 20px; }
-:global(.cloud-monitor-drawer .el-drawer__footer) { padding: 12px 20px; border-top: 1px solid var(--ops-border); }
 .drawer-header { display: flex; width: 100%; align-items: center; gap: 12px; }
 .drawer-back { margin-left: -8px; color: var(--ops-primary); }
 .workspace-form :deep(.el-select) { width: 100%; }

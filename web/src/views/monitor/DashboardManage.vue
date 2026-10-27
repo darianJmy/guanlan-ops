@@ -94,7 +94,7 @@
     </template>
 
     <!-- 新增/编辑抽屉 -->
-    <el-drawer v-model="drawerVisible" class="dashboard-drawer" size="min(460px, 94vw)" direction="rtl" :show-close="false" :close-on-click-modal="false" destroy-on-close>
+    <el-drawer v-model="drawerVisible" class="standard-config-drawer dashboard-drawer" size="min(460px, 94vw)" direction="rtl" :show-close="false" :close-on-click-modal="false" destroy-on-close>
       <template #header="{ titleId }">
         <div class="drawer-header">
           <DrawerBackButton :disabled="saving" @click="backFromForm" />
@@ -358,9 +358,6 @@ function backFromForm() {
 }
 .drawer-footer { display: flex; justify-content: flex-end; gap: 8px; }
 :global(.dashboard-drawer.el-drawer) { border-radius: 0 !important; }
-:global(.dashboard-drawer .el-drawer__header) { margin-bottom: 0; padding: 16px 20px; border-bottom: 1px solid #e5e9f0; }
-:global(.dashboard-drawer .el-drawer__body) { padding: 20px; }
-:global(.dashboard-drawer .el-drawer__footer) { padding: 12px 20px; border-top: 1px solid #e5e9f0; }
 
 /* ── 卡片网格 ── */
 .dashboard-grid {

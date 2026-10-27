@@ -17,7 +17,7 @@
       </div>
     </div>
     <el-card class="datasource-table-card" shadow="never">
-      <el-table :data="tableData" v-loading="loading" row-key="id" border @selection-change="selectedRows = $event" @sort-change="handleSortChange">
+      <el-table :data="tableData" v-loading="loading" row-key="id" @selection-change="selectedRows = $event" @sort-change="handleSortChange">
         <el-table-column type="selection" width="48" />
         <el-table-column prop="name" label="实例名称" min-width="180" sortable="custom"><template #default="{ row }"><span class="instance-name"><img v-if="row.type === 'prometheus'" :src="prometheusLogo" alt="" /><img v-else-if="row.type === 'victoriametrics'" :src="victoriaMetricsLogo" alt="" class="vm-logo" /><img v-else-if="row.type === 'loki'" :src="lokiLogo" alt="" class="loki-logo" /><img v-else-if="row.type === 'elasticsearch'" :src="elasticsearchLogo" alt="" class="log-source-logo" /><img v-else-if="row.type === 'clickhouse'" :src="clickhouseLogo" alt="" class="log-source-logo" /><img v-else-if="row.type === 'jaeger'" :src="jaegerLogo" alt="" class="jaeger-logo" /><el-icon v-else><Connection /></el-icon>{{ row.name }}</span></template></el-table-column>
         <el-table-column prop="type" label="类型" min-width="160"><template #default="{ row }">{{ typeDefinition(row.type).name || row.type }}</template></el-table-column>
@@ -30,7 +30,7 @@
       </el-table>
       <div class="pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next" @current-change="fetchData" @size-change="handleSearch" /></div>
     </el-card>
-    <el-drawer v-model="pickerVisible" class="datasource-drawer" direction="rtl" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
+    <el-drawer v-model="pickerVisible" class="standard-config-drawer datasource-drawer" direction="rtl" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
           <DrawerBackButton @click="pickerVisible = false" />
@@ -58,7 +58,7 @@
       </div>
       <template #footer><el-button @click="pickerVisible = false">取消</el-button></template>
     </el-drawer>
-    <el-drawer v-model="drawerVisible" class="datasource-drawer" direction="rtl" size="min(460px, 94vw)" :show-close="false" :close-on-click-modal="false">
+    <el-drawer v-model="drawerVisible" class="standard-config-drawer datasource-drawer" direction="rtl" size="min(460px, 94vw)" :show-close="false" :close-on-click-modal="false">
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
           <DrawerBackButton :disabled="saving || testing" @click="handleDrawerBack" />
@@ -67,7 +67,7 @@
       </template>
       <div class="step2-wrapper">
         <div class="selected-type-banner">
-          <div class="selected-type-icon" :style="{ background: form.type === 'prometheus' ? '#fff3eb' : (['victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? 'transparent' : '#ecf5ff') }">
+          <div class="selected-type-icon">
             <img v-if="form.type === 'prometheus'" :src="prometheusLogo" alt="" class="selected-type-logo" />
             <img v-else-if="form.type === 'victoriametrics'" :src="victoriaMetricsLogo" alt="" class="selected-type-logo vm-logo" />
             <img v-else-if="form.type === 'loki'" :src="lokiLogo" alt="" class="selected-type-logo loki-logo" />
@@ -78,9 +78,7 @@
           </div>
           <div class="selected-type-text">
             <div class="selected-type-label">{{ selectedType.name }}</div>
-            <div class="selected-type-desc">{{ sourceGroupLabel(sourceGroup(selectedType)) }} / {{ sourceDescription(selectedType) }}</div>
           </div>
-          <el-tag size="small" effect="plain">已选择</el-tag>
         </div>
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="config-form" size="large">
         <el-form-item label="实例名称" prop="name"><el-input v-model="form.name" maxlength="100" :placeholder="['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? '' : '例如：生产环境监控'" /></el-form-item>
@@ -375,51 +373,13 @@ async function handleBatchCommand(command) {
 }
 
 /* ── 步骤 2：表单 ── */
-/* 已选类型横幅 */
-.selected-type-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  background: #f8fafc;
-  border: 1px solid var(--ops-border);
-  border-radius: 10px;
-}
-.selected-type-icon {
-  width: 42px;
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  flex-shrink: 0;
-}
-.selected-type-icon-wide {
-  width: 86px;
-}
-.selected-type-logo {
-  width: 24px;
-  height: 24px;
-  display: block;
-}
-.selected-type-logo-wide {
-  width: 76px;
-  height: 18px;
-  object-fit: contain;
-}
-.selected-type-label {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ops-text);
-}
-.selected-type-desc {
-  font-size: 12px;
-  color: var(--ops-muted);
-  margin-top: 2px;
-}
 
 /* 表单容器 */
+.selected-type-banner { display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:8px 0; }
+.selected-type-icon { display:flex;width:42px;height:42px;align-items:center;justify-content:center;flex-shrink:0; }
+.selected-type-logo { display:block;width:24px;height:24px;object-fit:contain; }
+.selected-type-text { flex:1;min-width:0; }
+.selected-type-label { font-size:15px;font-weight:600;color:var(--ops-text); }
 .config-form {
   display: flex;
   flex-direction: column;
@@ -594,7 +554,6 @@ async function handleBatchCommand(command) {
 .back-button { padding:8px 6px; }
 .type-card { background:var(--el-bg-color); font-family:inherit; color:var(--el-text-color-primary); }
 .type-card:focus-visible,.auth-seg:focus-visible { outline:2px solid var(--ops-primary); outline-offset:3px; }
-.selected-type-text { flex:1; min-width:0; }
 .config-form :deep(.el-form-item__label) { font-size:13px; font-weight:500; color:var(--ops-muted); }
 .config-form .kv-editor>.el-button { width:100%; }
 .picker-footer { display:flex; justify-content:flex-end; }
@@ -604,5 +563,4 @@ async function handleBatchCommand(command) {
 .loki-logo { object-fit: contain; }
 .vm-logo { object-fit:contain; filter:invert(1); }
 html.dark .vm-logo { filter:none; }
-.selected-type-logo { object-fit:contain; }
 </style>

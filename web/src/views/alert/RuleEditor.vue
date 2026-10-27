@@ -5,7 +5,7 @@
     </div>
 
     <el-form ref="formRef" :model="form" :rules="formRules" label-position="top" class="editor-form">
-      <section class="form-section">
+      <div class="rule-config-card">
         <div class="section-heading"><div><strong>基础配置</strong></div><small>{{ group.name || '当前规则组' }}</small></div>
         <div class="two-column">
           <el-form-item label="规则名称" prop="name"><el-input v-model="form.name" maxlength="128" show-word-limit /></el-form-item>
@@ -15,15 +15,13 @@
           <div class="label-editor">
             <el-button class="add-label-button" :icon="Plus" plain @click="addPair('external_labels')">添加标签</el-button>
             <div v-for="(item, index) in form.external_labels" :key="`label-${index}`" class="label-row">
-              <el-input v-model="item.key" placeholder="Key" maxlength="64" />
-              <el-input v-model="item.value" placeholder="Value" maxlength="200" />
+            <el-input v-model="item.key" aria-label="标签名" maxlength="64" />
+            <el-input v-model="item.value" aria-label="标签值" maxlength="200" />
               <el-button class="label-icon-button" :icon="Minus" circle plain aria-label="删除标签" @click="form.external_labels.splice(index, 1)" />
             </div>
           </div>
         </el-form-item>
-      </section>
 
-      <section class="form-section">
         <div class="section-heading"><div><strong>规则配置</strong></div></div>
         <el-form-item class="datasource-field" prop="datasource_ids">
           <template #label><span class="detail-label">实例分组<el-tooltip content="选择实例分组后，规则自动覆盖全部子分组中的指标实例；后续新增实例自动生效。旧规则的直接实例绑定可保留或移除。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="数据源选择说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
@@ -65,6 +63,13 @@
           </div>
         </el-form-item>
 
+        <el-form-item class="alert-detail-field">
+          <template #label>
+            <span class="detail-label">告警详情<el-tooltip content="支持变量：Prometheus 标签使用 ${labels.instance}，数据源标签使用 ${datasource_labels.env}，额外标签使用 ${external_labels.business}。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="告警详情变量说明"><QuestionFilled /></el-icon></el-tooltip></span>
+          </template>
+          <el-input v-model="descriptionAnnotation.value" type="textarea" :rows="4" maxlength="2000" show-word-limit placeholder="例如：${datasource_labels.env} 环境的 ${external_labels.business} 业务实例 ${labels.instance} 触发告警" />
+        </el-form-item>
+
         <div class="policy-grid">
           <div class="policy-block lifecycle-block">
             <div class="policy-block-heading"><strong>调度与告警</strong></div>
@@ -80,7 +85,7 @@
               <div class="interval-control"><el-input-number v-model="form.evaluation_interval_seconds" :min="30" :max="86400" controls-position="right" aria-label="执行频率" @change="validateTimingFields" /><span>秒</span></div>
             </el-form-item>
             <el-form-item class="compact-timing-field lifecycle-policy-field" prop="recovery_wait_seconds">
-              <template #label><span class="detail-label optional-detail-label">恢复时间<el-tooltip content="平台在每次执行评估时确认恢复状态。非零恢复时间不能小于执行频率；0 表示首次不命中立即恢复。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="恢复时间说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
+              <template #label><span class="detail-label">恢复时间<el-tooltip content="平台在每次执行评估时确认恢复状态。非零恢复时间不能小于执行频率；0 表示首次不命中立即恢复。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="恢复时间说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
               <div class="timing-control">
                 <div class="interval-control"><el-input-number v-model="form.recovery_wait_seconds" :min="0" :max="86400" controls-position="right" aria-label="恢复时间" @change="validateTimingFields" /><span>秒</span></div>
                 <small class="timing-summary" :class="{ 'is-invalid': recoveryTiming.invalid }">{{ recoveryTiming.text }}</small>
@@ -90,15 +95,8 @@
           </div>
         </div>
 
-        <el-form-item class="alert-detail-field">
-          <template #label>
-            <span class="detail-label">告警详情<el-tooltip content="支持变量：Prometheus 标签使用 ${labels.instance}，数据源标签使用 ${datasource_labels.env}，额外标签使用 ${external_labels.business}。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="告警详情变量说明"><QuestionFilled /></el-icon></el-tooltip></span>
-          </template>
-          <el-input v-model="descriptionAnnotation.value" type="textarea" :rows="4" maxlength="2000" show-word-limit placeholder="例如：${datasource_labels.env} 环境的 ${external_labels.business} 业务实例 ${labels.instance} 触发告警" />
-        </el-form-item>
-
         <div class="status-line"><strong>启用规则</strong><el-switch v-model="form.status" :active-value="1" :inactive-value="0" /></div>
-      </section>
+      </div>
 
       <editor-action-bar>
         <template #leading><div class="editor-action-copy"><span>规则保存到</span><strong>{{ group.name || '当前规则组' }}</strong></div></template>
@@ -218,6 +216,7 @@ onMounted(async () => {
     datasourceGroups.value = datasourceGroupResult.data || []
     centers.value = centerResult.data || []
     if (ruleResult) hydrateRule(ruleResult.data)
+    else form.fault_center_id = (activeCenters.value.find(center => center.is_default) || activeCenters.value[0])?.id ?? null
   } catch {
     ElMessage.error('告警规则编辑页加载失败')
     cancel()
@@ -336,10 +335,10 @@ async function saveRule() {
 :global(html.dark) .vm-logo { filter: none; }
 .rule-editor-page { --line: #e5e9f0; --muted:var(--ops-muted); display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 16px; padding-bottom: 72px; }
 .preview-header { display: flex; align-items: center; justify-content: space-between; }
-.editor-form { display: flex; flex-direction: column; gap: 16px; }.form-section { padding: 22px 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--ops-surface); }.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--ops-border-soft); }.section-heading > div { display: flex; align-items: baseline; gap: 12px; }.section-heading strong { color: #303846; font-size: 18px; }.section-heading span, .section-heading small { color: var(--muted); font-size: 12px; }.two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }.full-row { grid-column: 1 / -1; }
+.editor-form { display: flex; flex-direction: column; gap: 16px; }.rule-config-card { padding: 22px 24px; border: 1px solid var(--ops-border); border-radius: 8px; background: var(--ops-surface); }.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--ops-border-soft); }.section-heading > div { display: flex; align-items: baseline; gap: 12px; }.section-heading strong { color: #344054; font-size: 14px; font-weight: 600; }.section-heading span, .section-heading small { color: var(--muted); font-size: 12px; }.two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }.full-row { grid-column: 1 / -1; }
 .label-editor { display: flex; width: 100%; flex-direction: column; gap: 8px; }.add-label-button { width: 100%; border-style: dashed; }.label-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px; align-items: center; gap: 8px; }.label-icon-button { width: 26px; height: 26px; color: #8a94a3; background: var(--ops-surface); border-color: var(--ops-border); }.label-icon-button :deep(.el-icon) { font-size: 14px; }.label-icon-button:hover, .label-icon-button:focus-visible { color: #606b7b; background: var(--ops-surface-soft); border-color: #c8cdd5; }.field-label { margin-bottom: 10px; color: #606b7b; font-size: 13px; }.source-cards { display: flex; flex-wrap: wrap; gap: 12px; }.source-card { position: relative; display: grid; width: 132px; height: 108px; place-items: center; padding: 10px; border: 1px solid var(--ops-border); border-radius: 8px; background: var(--ops-surface); cursor: pointer; font: inherit; }.source-card img { width: 64px; height: 42px; object-fit: contain; }.source-card span { color: var(--ops-text); font-size: 12px; font-weight: 600; }.source-card small { color: var(--muted); font-size: 10px; }.source-card > .el-icon { position: absolute; top: 7px; right: 7px; color: var(--ops-primary); }.inherited-datasources { display: flex; width: 100%; min-height: 76px; flex-direction: column; gap: 10px; margin-top: 10px; padding: 14px 16px; border: 1px solid #dbe7f5; border-radius: 8px; background: var(--ops-primary-soft); }.inherited-datasources > div:first-child { display: flex; align-items: baseline; gap: 10px; }.inherited-datasources strong { color: #344054; font-size: 13px; }.inherited-datasources span { color: #8a96a8; font-size: 11px; }.inherited-members { display: flex; flex-wrap: wrap; gap: 6px; }.datasource-field { margin-top: 20px; }.datasource-field :deep(.el-select), .annotation-grid :deep(.el-select) { width: 100%; }.field-help { margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .promql-action-row { display: flex; align-items: flex-start; gap: 10px; }.promql-form-item { min-width: 0; flex: 1; }.promql-input :deep(.el-textarea__inner) { min-height: 32px !important; overflow-y: hidden !important; resize: none !important; color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; }.preview-button { flex: none; margin-top: 30px; }
-.condition-config { margin-top: 20px; }.condition-list { display: flex; flex-direction: column; gap: 10px; }.rule-condition-row { display: grid; grid-template-columns: 140px 90px minmax(140px, 1fr) 30px; align-items: center; gap: 10px; }.rule-condition-row :deep(.el-select), .rule-condition-row :deep(.el-input-number) { width: 100%; }.condition-remove { width: 26px; height: 26px; color: #8a94a3; }.condition-remove :deep(.el-icon) { font-size: 14px; }.add-condition-button { width: 100%; margin-top: 10px; border-style: dashed; }.evaluation-plan { display: flex; flex-direction: column; gap: 18px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--ops-border-soft); }.plan-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 16px; }.plan-row-schedule { align-items: start; }.plan-label { padding-top: 1px; color: #475467; font-size: 13px; font-weight: 500; }.interval-control { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; overflow: hidden; border: 1px solid var(--ops-border); border-radius: 6px; background: var(--ops-surface); transition: border-color .2s, box-shadow .2s; }.interval-control:focus-within { border-color: var(--ops-primary); box-shadow: 0 0 0 2px rgba(64,158,255,.1); }.interval-control :deep(.el-input-number) { width: 100%; }.interval-control :deep(.el-input__wrapper) { box-shadow: none; }.interval-control > span { color: var(--ops-subtle); font-size: 12px; text-align: center; }.schedule-content { min-width: 0; }.schedule-controls { display: grid; grid-template-columns: minmax(420px, 1fr) 280px; gap: 12px; }.schedule-controls :deep(.el-checkbox-group) { display: grid; grid-template-columns: repeat(7, minmax(48px, 1fr)); gap: 6px; }.schedule-controls :deep(.el-checkbox-button) { min-width: 0; }.schedule-controls :deep(.el-checkbox-button__inner) { width: 100%; padding: 8px 5px; border: 1px solid #dfe3e8 !important; border-radius: 6px !important; box-shadow: none !important; color: var(--ops-muted); font-size: 12px; }.schedule-controls :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) { border-color: var(--ops-primary) !important; background: var(--ops-primary-soft); color: #1677d2; font-size: 12px; }.schedule-controls :deep(.el-date-editor) { width: 100%; }.plan-hint { margin-top: 7px; color: var(--ops-subtle); font-size: 11px; }.status-line { display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; border: 1px solid #e6eaf0; border-radius: 7px; background: var(--ops-surface-soft); }.status-line strong { color:#344054; font-size:13px; }
+.condition-config { margin-top: 20px; }.condition-list { display: flex; flex-direction: column; gap: 10px; }.rule-condition-row { display: grid; grid-template-columns: 140px 90px minmax(140px, 1fr) 30px; align-items: center; gap: 10px; }.rule-condition-row :deep(.el-select), .rule-condition-row :deep(.el-input-number) { width: 100%; }.condition-remove { width: 26px; height: 26px; color: #8a94a3; }.condition-remove :deep(.el-icon) { font-size: 14px; }.add-condition-button { width: 100%; margin-top: 10px; border-style: dashed; }.evaluation-plan { display: flex; flex-direction: column; gap: 18px; margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--ops-border-soft); }.plan-row { display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: center; gap: 16px; }.plan-row-schedule { align-items: start; }.plan-label { padding-top: 1px; color: #475467; font-size: 13px; font-weight: 500; }.interval-control { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; overflow: hidden; border: 1px solid var(--ops-border); border-radius: 6px; background: var(--ops-surface); transition: border-color .2s, box-shadow .2s; }.interval-control:focus-within { border-color: var(--ops-primary); box-shadow: 0 0 0 2px rgba(64,158,255,.1); }.interval-control :deep(.el-input-number) { width: 100%; }.interval-control :deep(.el-input__wrapper) { box-shadow: none; }.interval-control > span { color: var(--ops-subtle); font-size: 12px; text-align: center; }.schedule-content { min-width: 0; }.schedule-controls { display: grid; grid-template-columns: minmax(420px, 1fr) 280px; gap: 12px; }.schedule-controls :deep(.el-checkbox-group) { display: grid; grid-template-columns: repeat(7, minmax(48px, 1fr)); gap: 6px; }.schedule-controls :deep(.el-checkbox-button) { min-width: 0; }.schedule-controls :deep(.el-checkbox-button__inner) { width: 100%; padding: 8px 5px; border: 1px solid #dfe3e8 !important; border-radius: 6px !important; box-shadow: none !important; color: var(--ops-muted); font-size: 12px; }.schedule-controls :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) { border-color: var(--ops-primary) !important; background: var(--ops-primary-soft); color: #1677d2; font-size: 12px; }.schedule-controls :deep(.el-date-editor) { width: 100%; }.plan-hint { margin-top: 7px; color: var(--ops-subtle); font-size: 11px; }.status-line { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; padding: 15px 16px; border: 1px solid #e6eaf0; border-radius: 7px; background: var(--ops-surface-soft); }.status-line strong { color:#344054; font-size:13px; }
 .timing-control { width: 100%; }
 .timing-summary { display: block; min-height: 17px; margin-top: 5px; color: var(--ops-muted); font-size: 11px; line-height: 17px; }
 .timing-summary.is-invalid { color: var(--el-color-danger); }
@@ -352,17 +351,16 @@ async function saveRule() {
 .compact-timing-field :deep(.el-form-item__content) { min-width: 0; }
 .evaluation-plan.policy-block { gap: 16px; margin-top: 20px; padding: 4px 0 0; border: 0; }
 .evaluation-plan .plan-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: start; gap: 16px; }
-.policy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; margin-top: 24px; }
-.policy-grid .policy-block { min-width: 0; margin-top: 0; }
+.policy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; margin-top: 0; }
+.policy-grid .policy-block { min-width: 0; margin-top: 0; padding: 0; }
 .policy-grid .lifecycle-block { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px 40px; }
 .policy-grid .lifecycle-block .policy-block-heading { grid-column: 1 / -1; }
 .policy-grid .compact-timing-field { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .policy-grid .compact-timing-field :deep(.el-form-item__label) { height: 20px; justify-content: flex-start; }
 .policy-grid .compact-timing-field :deep(.el-form-item__label::before) { display: none !important; }
+.policy-grid .fault-center-field :deep(.el-form-item__label::before) { display: none !important; }
 .policy-grid .compact-timing-field :deep(.el-form-item__content), .policy-grid .timing-control, .policy-grid .interval-control { width: 100%; }
 .policy-grid .detail-label { display: flex; align-items: center; }
-.policy-grid .detail-label::before { width: 8px; flex: none; margin-right: 4px; color: var(--el-color-danger); content: '*'; }
-.policy-grid .optional-detail-label::before { visibility: hidden; }
 .policy-grid .plan-label { display: flex; min-height: 20px; align-items: center; gap: 5px; padding-top: 0; }
 .policy-grid .plan-label::before { width: 8px; flex: none; margin-right: 4px; content: '*'; visibility: hidden; }
 .policy-grid .schedule-controls { width: 100%; grid-template-columns: minmax(0, 500px) minmax(250px, 1fr); gap: 10px; }
@@ -384,6 +382,6 @@ async function saveRule() {
 @media (max-width: 1100px) { .rule-condition-row { grid-template-columns: 120px 80px minmax(120px, 1fr) 30px; } }
 @media (max-width: 1000px) { .policy-grid, .policy-grid .lifecycle-block { grid-template-columns: 1fr; }.schedule-controls { grid-template-columns: 1fr; }.schedule-controls :deep(.el-date-editor) { max-width: 320px; }.policy-grid .schedule-controls :deep(.el-date-editor) { max-width: none; } }
 @media (max-width: 760px) { .rule-condition-row { grid-template-columns: 1fr 1fr 30px; }.rule-condition-row > :nth-child(3) { grid-column: 1 / 3; }.condition-remove { grid-column: 3; grid-row: 1 / 3; } }
-@media (max-width: 620px) { .form-section { padding: 18px 16px; }.two-column { grid-template-columns: 1fr; }.promql-action-row { flex-direction: column; }.preview-button { width: 100%; margin-top: -8px; }.plan-row { grid-template-columns: 1fr; gap: 8px; }.interval-control { width: 100%; }.schedule-controls :deep(.el-checkbox-group) { grid-template-columns: repeat(4, 1fr); }.schedule-controls :deep(.el-date-editor) { max-width: none; }.section-heading, .section-heading > div { align-items: flex-start; flex-direction: column; }.preview-dialog-meta { grid-template-columns: 1fr; }.preview-dialog-meta time { display: none; } }
-@media (max-width: 620px) { .policy-block { padding: 16px; }.policy-block-heading { align-items: flex-start; flex-direction: column; gap: 4px; }.policy-grid .compact-timing-field, .policy-grid .evaluation-plan .plan-row, .policy-grid .schedule-controls { grid-template-columns: 1fr; gap: 8px; } }
+@media (max-width: 620px) { .rule-config-card { padding: 18px 16px; }.two-column { grid-template-columns: 1fr; }.promql-action-row { flex-direction: column; }.preview-button { width: 100%; margin-top: -8px; }.plan-row { grid-template-columns: 1fr; gap: 8px; }.interval-control { width: 100%; }.schedule-controls :deep(.el-checkbox-group) { grid-template-columns: repeat(4, 1fr); }.schedule-controls :deep(.el-date-editor) { max-width: none; }.section-heading, .section-heading > div { align-items: flex-start; flex-direction: column; }.preview-dialog-meta { grid-template-columns: 1fr; }.preview-dialog-meta time { display: none; } }
+@media (max-width: 620px) { .policy-block { padding: 0; }.policy-block-heading { align-items: flex-start; flex-direction: column; gap: 4px; }.policy-grid .compact-timing-field, .policy-grid .evaluation-plan .plan-row, .policy-grid .schedule-controls { grid-template-columns: 1fr; gap: 8px; } }
 </style>

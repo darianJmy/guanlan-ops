@@ -18,7 +18,7 @@
       <template #empty><TableEmpty /></template>
     </el-table>
 
-    <el-drawer v-model="editorVisible" class="automation-task-drawer" size="min(460px, 94vw)" :close-on-click-modal="false">
+    <el-drawer v-model="editorVisible" class="standard-config-drawer automation-task-drawer" size="min(460px, 94vw)" :close-on-click-modal="false">
       <template #header><div class="drawer-header"><DrawerBackButton @click="editorVisible = false" /><span>{{ form.id ? '编辑自动化任务' : '创建自动化任务' }}</span></div></template>
       <el-form label-position="top">
         <el-form-item label="任务名称" required><el-input v-model="form.name" maxlength="128" /></el-form-item>

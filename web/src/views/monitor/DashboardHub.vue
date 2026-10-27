@@ -45,7 +45,7 @@
 
     <component v-if="selectedType" :is="editors[selectedType]" ref="editor" embedded @changed="load" @view-change="previewing = $event" @select-type="pickerVisible = true" />
 
-    <el-drawer v-model="pickerVisible" class="dashboard-type-drawer" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
+    <el-drawer v-model="pickerVisible" class="standard-config-drawer dashboard-type-drawer" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
           <DrawerBackButton @click="pickerVisible = false" />

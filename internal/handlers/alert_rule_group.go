@@ -34,7 +34,7 @@ func ListAlertRuleGroups(c *gin.Context) {
 	query := database.DB.Model(&models.AlertRuleGroup{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
-		query = query.Where("name LIKE ? OR description LIKE ?", like, like)
+		query = query.Where("name LIKE ?", like)
 	}
 	var total int64
 	if err := query.Count(&total).Error; err != nil {

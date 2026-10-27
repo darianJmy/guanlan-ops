@@ -4,7 +4,7 @@
       <div><el-input v-model="ruleKeyword" clearable aria-label="搜索自动化处置规则" placeholder="搜索规则名称或匹配条件" @keyup.enter="searchRules" @clear="searchRules"><template #append><el-button aria-label="搜索" @click="searchRules"><el-icon><Search /></el-icon></el-button></template></el-input></div>
       <div><el-button :icon="Refresh" @click="loadRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openRule()">创建</el-button></div>
     </div>
-    <el-table v-loading="rulesLoading" :data="pagedRules" border>
+    <el-table v-loading="rulesLoading" :data="pagedRules">
       <el-table-column prop="name" label="规则名称" min-width="170" show-overflow-tooltip />
       <el-table-column label="匹配告警" min-width="230" show-overflow-tooltip>
         <template #default="{ row }"><code>{{ matcherSummary(row.matchers) }}</code></template>

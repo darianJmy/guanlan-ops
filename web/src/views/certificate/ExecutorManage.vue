@@ -1,158 +1,32 @@
 <template>
-  <div class="page-container">
-    <div class="node-toolbar">
-      <el-input v-model="nodeSearchInput" clearable aria-label="搜索节点" placeholder="搜索名称、地址或备注" class="node-search" @keyup.enter="searchNodes" @clear="searchNodes">
-        <template #append><el-button aria-label="搜索" @click="searchNodes"><el-icon><Search /></el-icon></el-button></template>
-      </el-input>
-      <div class="toolbar-actions">
-        <el-button :icon="Refresh" :loading="nodeLoading" @click="loadAll">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="openDrawer()" v-permission="['certificate:executor:edit']">
-          创建
-        </el-button>
-      </div>
-    </div>
-
-    <section class="node-panel">
-      <el-table :data="filteredNodes" v-loading="nodeLoading" row-key="node_key" class="node-table" border>
-        <el-table-column prop="name" label="节点名称" min-width="160" show-overflow-tooltip />
-        <el-table-column label="节点类型" width="110" align="center">
-          <template #default="{ row }">
-            <el-tag :type="nodeTypeTagType(row)" size="small" effect="plain">
-              {{ nodeTypeText(row) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="节点地址" min-width="210" show-overflow-tooltip>
-          <template #default="{ row }">{{ nodeAddress(row) }}</template>
-        </el-table-column>
-        <el-table-column label="连接信息" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">{{ nodeConnection(row) }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="nodeStatusType(row)" size="small">{{ nodeStatusText(row) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="最近在线" width="150">
-          <template #default="{ row }">{{ isAgentNode(row) ? formatRelativeTime(row.last_seen_at) : '-' }}</template>
-        </el-table-column>
-        <el-table-column label="版本" width="90" align="center">
-          <template #default="{ row }">{{ isAgentNode(row) ? (row.version || '-') : '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="description" label="备注" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.description || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="330" fixed="right">
-          <template #default="{ row }">
-            <div class="row-actions">
-              <template v-if="row.node_type === 'ssh'">
-                <el-button link type="primary" :loading="testingId === row.id" @click="testSSH(row)">测试</el-button>
-              </template>
+  <div class="settings-typography node-settings">
+    <section class="node-list" v-loading="nodeLoading" aria-label="节点列表">
+      <button v-if="!editorVisible" class="add-node-row" type="button" v-permission="['certificate:executor:edit']" @click="openEditor()"><el-icon><Plus /></el-icon><span>添加节点</span></button>
+      <NodeEditor v-if="editorVisible && !form.id" :ref="setEditorRef" :form="form" :rules="rules" :node-types="nodeTypes" :saving="saving" @save="saveNode" @cancel="closeEditor" @select-type="selectType" />
+      <template v-for="row in nodes" :key="row.node_key">
+        <article class="node-row" :class="{ 'is-active': isEditing(row) }">
+          <button class="node-summary" type="button" :disabled="saving" :aria-label="`查看节点 ${row.name}`" :aria-expanded="isEditing(row)" :aria-controls="`node-editor-${row.node_key}`" @click="toggleEditor(row)">
+            <span class="node-mark" aria-hidden="true"><el-icon><component :is="row.node_type === 'ssh' ? Connection : row.node_type === 'docker' ? Platform : Monitor" /></el-icon></span>
+            <span class="node-main"><strong>{{ row.name }}</strong></span>
+          </button>
+          <span class="node-status" :class="{ 'is-online': isAgentNode(row) ? row.status === 'online' : row.status === 1 }"><i />{{ nodeStatusText(row) }}</span>
+          <el-icon class="row-arrow" aria-hidden="true"><ArrowDown /></el-icon>
+        </article>
+        <div v-if="isEditing(row)" :id="`node-editor-${row.node_key}`">
+          <div v-if="isAgentNode(row)" class="node-details"><span>最近在线：{{ formatRelativeTime(row.last_seen_at) }}</span><span>版本：{{ row.version || '-' }}</span></div>
+          <NodeEditor :ref="setEditorRef" :form="form" :rules="rules" :node-types="nodeTypes" :saving="saving" @save="saveNode" @cancel="closeEditor" @select-type="selectType">
+            <template #actions>
+              <el-button v-permission="['certificate:executor:edit']" type="danger" plain @click="removeNode(row)">删除</el-button>
+              <el-button v-if="row.node_type === 'ssh'" :loading="testingId === row.id" @click="testSSH(row)">测试连接</el-button>
               <template v-else>
-                <el-button link type="primary" :loading="runningAgentId === row.id" @click="openAgentRunDialog(row)" v-permission="['certificate:executor:edit']">执行命令</el-button>
-                <el-button link type="primary" @click="rotateToken(row)" v-permission="['certificate:executor:edit']">刷新 Token</el-button>
+                <el-button v-permission="['certificate:executor:edit']" :loading="runningAgentId === row.id" @click="openAgentRunDialog(row)">执行命令</el-button>
+                <el-button v-permission="['certificate:executor:edit']" @click="rotateToken(row)">刷新 Token</el-button>
               </template>
-              <el-button link type="primary" @click="openDrawer(row)" v-permission="['certificate:executor:edit']">编辑</el-button>
-              <el-button link type="danger" @click="removeNode(row)" v-permission="['certificate:executor:edit']">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-        <template #empty><TableEmpty /></template>
-      </el-table>
+            </template>
+          </NodeEditor>
+        </div>
+      </template>
     </section>
-
-    <el-drawer v-model="drawerVisible" class="node-drawer" size="min(460px, 94vw)" direction="rtl" :close-on-click-modal="false">
-      <template #header>
-        <div class="drawer-header">
-          <DrawerBackButton @click="drawerVisible = false" />
-          <span class="drawer-title">{{ form.id ? '编辑节点' : '创建节点' }}</span>
-        </div>
-      </template>
-
-      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="drawer-form">
-        <el-form-item label="节点类型" prop="type">
-          <div class="type-card-list">
-            <button
-              v-for="item in nodeTypes"
-              :key="item.value"
-              class="type-card"
-              :class="{ active: form.type === item.value, disabled: form.id && form.type !== item.value }"
-              type="button"
-              :disabled="!!form.id"
-              @click="selectType(item.value)"
-            >
-              <span class="type-icon"><el-icon><component :is="item.icon" /></el-icon></span>
-              <span class="type-content">
-                <strong>{{ item.label }}</strong>
-                <small>{{ item.description }}</small>
-              </span>
-            </button>
-          </div>
-        </el-form-item>
-
-        <el-form-item label="节点名称" prop="name">
-          <el-input v-model="form.name" :placeholder="form.type === 'ssh' ? 'production-web-01' : (form.type === 'docker' ? 'python-data-container' : 'oversea-sg-01')" />
-        </el-form-item>
-
-        <template v-if="form.type === 'ssh'">
-          <div class="form-grid">
-            <el-form-item label="主机地址" prop="host">
-              <el-input v-model="form.host" placeholder="10.0.0.1" />
-            </el-form-item>
-            <el-form-item label="端口">
-              <el-input-number v-model="form.port" :min="1" :max="65535" controls-position="right" />
-            </el-form-item>
-          </div>
-          <el-form-item label="用户名" prop="username">
-            <el-input v-model="form.username" placeholder="root" />
-          </el-form-item>
-          <el-form-item label="认证方式">
-            <el-radio-group v-model="form.auth_type">
-              <el-radio-button value="password">密码</el-radio-button>
-              <el-radio-button value="private_key">私钥</el-radio-button>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item v-if="form.auth_type === 'password'" label="密码">
-            <el-input v-model="form.password" type="password" show-password autocomplete="off" :placeholder="form.id ? '不修改请留空' : ''" />
-          </el-form-item>
-          <el-form-item v-else label="私钥">
-            <el-input v-model="form.private_key" type="textarea" :rows="8" class="mono-input" :placeholder="form.id ? '不修改请留空' : '-----BEGIN OPENSSH PRIVATE KEY-----'" />
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-switch v-model="form.enabled" active-text="启用" inactive-text="停用" />
-          </el-form-item>
-        </template>
-
-        <template v-else>
-          <el-form-item label="地域">
-            <el-input v-model="form.region" placeholder="新加坡 / 美国 / 香港" />
-          </el-form-item>
-          <el-form-item v-if="form.type === 'docker'" label="Docker 镜像">
-            <el-input v-model="form.docker_image" :disabled="!!form.id" placeholder="aiops-agent:latest" />
-          </el-form-item>
-          <el-alert
-            v-if="!form.id"
-            :title="form.type === 'docker' ? '创建后直接生成 docker run 命令，请在已安装 Docker 的主机执行。' : '创建后会生成一次性 Token 和部署命令，请及时复制并在目标主机执行。'"
-            type="info"
-            :closable="false"
-            show-icon
-          />
-        </template>
-
-        <el-form-item label="备注" class="description-field">
-          <el-input v-model="form.description" type="textarea" :rows="3" />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <div class="drawer-footer">
-          <el-button @click="drawerVisible = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="saveNode">
-            {{ form.type !== 'ssh' && !form.id ? '创建并生成' : '保存' }}
-          </el-button>
-        </div>
-      </template>
-    </el-drawer>
 
     <el-dialog v-model="tokenDialogVisible" :title="deploymentCommandTitle" width="760px">
       <div class="token-tip">Token 只显示这一次，部署后可在列表里看到 Agent 在线状态。</div>
@@ -166,7 +40,7 @@
     </el-dialog>
 
     <el-dialog v-model="agentCommandVisible" :title="`执行命令 - ${selectedAgent?.name || ''}`" width="760px" :close-on-click-modal="false">
-      <el-input v-model="agentCommand" type="textarea" :rows="6" class="mono-input" placeholder="输入要在 Agent 机器上执行的 Shell 命令" />
+      <el-input v-model="agentCommand" type="textarea" :rows="6" class="mono-input" />
       <pre v-if="agentCommandResult" class="command-result">{{ agentCommandResult }}</pre>
       <template #footer>
         <el-button @click="agentCommandVisible = false">关闭</el-button>
@@ -177,10 +51,10 @@
 </template>
 
 <script setup>
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
+import NodeEditor from '../../components/NodeEditor.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Connection, CopyDocument, Monitor, Platform, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { ArrowDown, Connection, CopyDocument, Monitor, Platform, Plus } from '@element-plus/icons-vue'
 import {
   createAgent,
   createCertificateExecutor,
@@ -202,7 +76,7 @@ const loading = ref(false)
 const loadingAgents = ref(false)
 const saving = ref(false)
 const testingId = ref(null)
-const drawerVisible = ref(false)
+const editorVisible = ref(false)
 const tokenDialogVisible = ref(false)
 const agentCommandVisible = ref(false)
 const formRef = ref()
@@ -212,8 +86,6 @@ const selectedAgent = ref(null)
 const agentCommand = ref('echo agent-ok && hostname')
 const agentCommandResult = ref('')
 const runningAgentId = ref(null)
-const nodeSearchInput = ref('')
-const nodeSearchKeyword = ref('')
 let agentPollTimer = null
 
 const nodeTypes = [
@@ -248,20 +120,6 @@ const nodes = computed(() => [
   ...executors.value.map(item => ({ ...item, node_type: 'ssh', node_key: `ssh-${item.id}` })),
   ...agents.value.map(item => ({ ...item, node_type: agentDeploymentType(item), execution_type: 'agent', node_key: `agent-${item.id}` })),
 ])
-const filteredNodes = computed(() => {
-  const keyword = nodeSearchKeyword.value.toLowerCase()
-  if (!keyword) return nodes.value
-  return nodes.value.filter(item => [
-    item.name,
-    item.node_type,
-    item.host,
-    item.username,
-    item.region,
-    item.description,
-    nodeAddress(item),
-    nodeConnection(item),
-  ].some(value => String(value || '').toLowerCase().includes(keyword)))
-})
 const nodeLoading = computed(() => loading.value || loadingAgents.value)
 
 onMounted(() => {
@@ -277,10 +135,6 @@ onBeforeUnmount(() => {
 
 async function loadAll() {
   await Promise.all([loadExecutors(), loadAgents()])
-}
-
-function searchNodes() {
-  nodeSearchKeyword.value = nodeSearchInput.value.trim()
 }
 
 async function loadExecutors() {
@@ -322,7 +176,12 @@ function handleVisibilityChange() {
   if (!document.hidden) loadAgents({ silent: true })
 }
 
-function openDrawer(row) {
+function setEditorRef(value) { formRef.value = value }
+function isEditing(row) { return editorVisible.value && form.id === row.id && form.type === row.node_type }
+function closeEditor() { if (saving.value) return; editorVisible.value = false; form.password = ''; form.private_key = '' }
+function toggleEditor(row) { if (saving.value) return; if (isEditing(row)) closeEditor(); else openEditor(row) }
+function openEditor(row) {
+  if (saving.value) return
   if (row && isAgentNode(row)) {
     resetForm({
       id: row.id,
@@ -347,7 +206,7 @@ function openDrawer(row) {
   } else {
     resetForm()
   }
-  drawerVisible.value = true
+  editorVisible.value = true
 }
 
 function resetForm(values = {}) {
@@ -375,14 +234,17 @@ function selectType(type) {
 }
 
 async function saveNode() {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
+  if (saving.value) return
   saving.value = true
   try {
     if (form.type === 'ssh') await saveSSHNode()
     else await saveAgentNode()
   } finally {
     saving.value = false
+    if (!editorVisible.value) {
+      form.password = ''
+      form.private_key = ''
+    }
   }
 }
 
@@ -402,7 +264,7 @@ async function saveSSHNode() {
   if (form.id) await updateCertificateExecutor(form.id, payload)
   else await createCertificateExecutor(payload)
   ElMessage.success('SSH 节点已保存')
-  drawerVisible.value = false
+  editorVisible.value = false
   await loadExecutors()
 }
 
@@ -428,7 +290,7 @@ async function saveAgentNode() {
     }
     tokenDialogVisible.value = true
   }
-  drawerVisible.value = false
+  editorVisible.value = false
   await loadAgents()
 }
 
@@ -452,6 +314,7 @@ async function removeNode(row) {
     await deleteCertificateExecutor(row.id)
     await loadExecutors()
   }
+  if (isEditing(row)) closeEditor()
   ElMessage.success('已删除')
 }
 
@@ -547,12 +410,6 @@ function nodeTypeText(row) {
   return 'SSH'
 }
 
-function nodeTypeTagType(row) {
-  if (row?.node_type === 'docker') return 'warning'
-  if (row?.node_type === 'agent') return 'success'
-  return 'primary'
-}
-
 async function copyAgentRunCommand() {
   const command = agentRunCommand.value
   if (!command) return
@@ -599,11 +456,6 @@ function nodeStatusText(row) {
   return row.status === 1 ? '启用' : '停用'
 }
 
-function nodeStatusType(row) {
-  if (isAgentNode(row)) return row.status === 'online' ? 'success' : 'info'
-  return row.status === 1 ? 'success' : 'info'
-}
-
 function formatRelativeTime(value) {
   if (!value) return '-'
   const date = new Date(value)
@@ -619,38 +471,13 @@ function formatRelativeTime(value) {
 </script>
 
 <style scoped>
-.page-container { display: flex; flex-direction: column; gap: 12px; }
-.node-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.node-search { width: 240px; }
-.toolbar-actions { display: flex; align-items: center; gap: 10px; }
-.node-panel { background: var(--ops-surface); border: 1px solid #e5e8ef; border-radius: 6px; padding: 14px; }
-:deep(.node-table.el-table) { --el-table-border-color: #edf0f5; --el-table-header-bg-color: #f7f9fc; }
-:deep(.node-table .el-table__header-wrapper th) { color: #5d6675; font-weight: 700; }
-:deep(.node-table .el-table__cell) { padding: 11px 0; }
-:deep(.node-table .el-table__row:hover > td.el-table__cell) { background: #f8fbff; }
-.row-actions { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
-.row-actions :deep(.el-button) { margin-left: 0; }
-:deep(.node-drawer.el-drawer) { border-radius: 0; }
-:deep(.node-drawer .el-drawer__header) { margin-bottom: 0; padding: 18px 20px; border-bottom: 1px solid #e5e9f2; }
-:deep(.node-drawer .el-drawer__body) { background: var(--ops-surface); padding: 18px 20px; }
-:deep(.node-drawer .el-drawer__footer) { border-top: 1px solid #e5e9f2; padding: 12px 20px; }
-.drawer-header { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; }
-.back-button { height: 32px; padding: 0 8px; font-size: 14px; color: var(--ops-primary); }
-.drawer-title { color: var(--ops-text); font-size: 16px; font-weight: 600; }
-.drawer-form :deep(.el-form-item) { margin-bottom: 18px; }
-.type-card-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; width: 100%; }
-.type-card { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 14px; text-align: left; color: #334155; background: var(--ops-surface); border: 1px solid #dfe5ed; border-radius: 8px; cursor: pointer; transition: border-color .2s, box-shadow .2s, background .2s; }
-.type-card:hover { border-color: #9fc1ec; background: #f8fbff; }
-.type-card.active { border-color: var(--ops-primary); background: #f3f8ff; box-shadow: 0 0 0 1px var(--ops-primary) inset; }
-.type-card.disabled { cursor: not-allowed; opacity: .5; }
-.type-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: 0 0 40px; color: #3b82f6; background: #eaf3ff; border-radius: 8px; font-size: 22px; }
-.type-content { display: flex; flex-direction: column; gap: 3px; }
-.type-content strong { color: var(--ops-text); font-size: 14px; }
-.type-content small { color: #8490a2; font-size: 12px; line-height: 1.4; }
-.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 14px; }
-.form-grid :deep(.el-input-number) { width: 100%; }
-.description-field { margin-top: 18px; }
-.drawer-footer { display: flex; justify-content: flex-end; gap: 8px; width: 100%; }
+.node-settings{max-width:980px;margin:0 auto}.node-list{min-height:160px}
+.add-node-row{display:flex;width:100%;min-height:58px;align-items:center;gap:12px;margin:0 0 12px;padding:0 18px;color:var(--ops-primary);background:var(--ops-surface);border:1px dashed color-mix(in srgb,var(--ops-primary) 55%,var(--ops-border));cursor:pointer;font:inherit;font-size:13px;font-weight:600;text-align:left}.add-node-row .el-icon{font-size:21px}.add-node-row:hover{background:color-mix(in srgb,var(--ops-primary) 4%,var(--ops-surface));border-color:var(--ops-primary)}
+.node-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto 16px;align-items:center;gap:14px;min-height:70px;margin-bottom:8px;padding:10px 16px;border:1px solid var(--ops-border);background:var(--ops-surface)}.node-row:hover,.node-row.is-active{border-color:color-mix(in srgb,var(--ops-primary) 55%,var(--ops-border));box-shadow:0 2px 9px color-mix(in srgb,var(--ops-text) 7%,transparent)}
+.node-summary{display:flex;align-items:center;gap:16px;min-width:0;padding:0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}.node-summary::after{position:absolute;inset:0;content:''}.node-summary:disabled{cursor:wait}.node-summary:focus-visible,.add-node-row:focus-visible{outline:2px solid var(--ops-primary);outline-offset:2px}
+.node-mark{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;color:var(--ops-text);background:var(--ops-surface-soft);border:1px solid var(--ops-border-soft);border-radius:6px;font-size:20px}.node-main{display:flex;flex:1;min-width:0;align-items:center;gap:20px}.node-main strong{font-weight:400;flex:0 1 180px;min-width:0;overflow:hidden;color:var(--ops-text);font-size:13px;text-overflow:ellipsis;white-space:nowrap}.node-main>span{flex:1;min-width:0;overflow:hidden;color:var(--ops-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.node-status{display:flex;align-items:center;gap:5px;color:var(--ops-muted);font-size:11px;white-space:nowrap}.node-status i{width:6px;height:6px;border-radius:50%;background:var(--ops-muted)}.node-status.is-online{color:var(--el-color-success)}.node-status.is-online i{background:var(--el-color-success)}.row-arrow{color:var(--ops-muted);pointer-events:none;transition:transform .18s}.node-row.is-active .row-arrow{transform:rotate(180deg)}
+.node-details{display:flex;flex-wrap:wrap;gap:16px;margin:-8px 0 8px;padding:12px 18px;color:var(--ops-muted);font-size:11px;background:var(--ops-surface-soft);border:1px solid var(--ops-primary);border-top:0;border-bottom:0}
 .mono-input :deep(textarea) { font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 12px; line-height: 1.45; }
 .token-tip { margin-bottom: 10px; color: var(--ops-muted); font-size: 13px; }
 .command-card { position: relative; }
@@ -659,13 +486,9 @@ function formatRelativeTime(value) {
 .copy-command-button:focus-visible { color: #fff; background: #34517a; border-color: #5f82b2; }
 .command-box { margin: 0; padding: 48px 14px 14px; max-height: 280px; overflow-y: auto; color: #d1d5db; background: #111827; border-radius: 6px; font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; user-select: text; }
 .command-result { margin: 12px 0 0; padding: 14px; max-height: 360px; overflow: auto; color: #d1d5db; background: #111827; border-radius: 6px; font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
-@media (max-width: 760px) {
-  .node-toolbar { align-items: stretch; flex-direction: column; }
-  .node-search { width: 100%; }
-  .toolbar-actions { width: 100%; justify-content: flex-end; }
-  .type-card-list,
-  .form-grid { grid-template-columns: 1fr; }
-}
 
-.form-grid { grid-template-columns:minmax(0,1fr); }
+
+.node-main>.node-description{flex:0 1 160px}
+@media(max-width:760px){.node-main>.node-description{display:none}}
+@media(max-width:760px){.node-main{gap:10px}.node-main strong{flex-basis:40%}}
 </style>
