@@ -12,7 +12,7 @@ func TestElasticsearchAPIKeyAuthentication(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest("GET", "https://es.example/_search", nil)
-	setAuthHeader(req, ds.AuthType, ds.AuthConfig)
+	datasourceHTTPAuth(ds.AuthType, ds.AuthConfig).Apply(req)
 	if req.Header.Get("Authorization") != "ApiKey encoded-key" {
 		t.Fatal("incorrect authorization header")
 	}
@@ -33,7 +33,7 @@ func TestClickHouseAllowsEmptyPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest("GET", "http://localhost:8123", nil)
-	setAuthHeader(req, ds.AuthType, ds.AuthConfig)
+	datasourceHTTPAuth(ds.AuthType, ds.AuthConfig).Apply(req)
 	user, password, ok := req.BasicAuth()
 	if !ok || user != "default" || password != "" {
 		t.Fatal("incorrect basic credentials")

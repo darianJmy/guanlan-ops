@@ -53,7 +53,7 @@ func platformCall(t *testing.T, name string, args map[string]interface{}) map[st
 func TestPlatformMCPQueriesAndProjection(t *testing.T) {
 	db := platformToolDB(t)
 	now := time.Now()
-	expiry := now.Add(24 * time.Hour)
+
 	for _, row := range []interface{}{
 		&models.FaultCenter{ID: 1, Name: "default", Status: 1, IsDefault: true},
 		&models.DatasourceGroup{ID: 1, Name: "production"}, &models.DatasourceGroupMember{GroupID: 1, DatasourceID: 7},
@@ -61,8 +61,6 @@ func TestPlatformMCPQueriesAndProjection(t *testing.T) {
 		&models.NotificationChannel{ID: 1, Name: "mail", Type: "email", Status: 1, WebhookURLCipher: "hidden-secret", SignSecretCipher: "hidden-secret", EmailRecipientsJSON: `["hidden-secret@example.com"]`},
 		&models.NotificationTemplate{ID: 1, Name: "mail template", Type: "email", Content: "告警 {{ .alertname }}", Status: 1},
 		&models.NotificationRecord{ChannelID: 1, ChannelName: "mail", Status: "failed", Title: "failed alert", EventType: "alert", EventKey: "event", RequestBody: "hidden-secret", Response: "hidden-secret", Error: "hidden-secret", CreatedAt: now},
-		&models.Certificate{ID: 1, Name: "certificate", Domains: `["example.com"]`, NotAfter: expiry},
-		&models.CertificateDomain{ID: 1, Domain: "example.com", ObservedExpiresAt: &expiry, Status: "expiring", DeployParams: "hidden-secret", DeployReloadCommand: "hidden-secret", LastCheckError: "hidden-secret"},
 		&models.InspectionRecord{ItemID: 7, Status: "fail", Result: "hidden-secret", CreatedAt: now},
 		&models.AlertEvent{AlertID: 7, EventType: "firing", Labels: "hidden-secret", Reason: "hidden-secret", CreatedAt: now},
 		&models.AlertEvaluationRecord{RuleID: 7, DatasourceID: 7, Status: "error", Message: "hidden-secret", EvaluatedAt: now},
@@ -104,12 +102,6 @@ func TestPlatformMCPQueriesAndProjection(t *testing.T) {
 	}
 	if got := platformCall(t, "query_fault_centers", map[string]interface{}{"enabled": false})["total"]; got != int64(0) {
 		t.Fatal("boolean filter ignored")
-	}
-	if got := platformCall(t, "query_certificates", map[string]interface{}{"expires_within_days": 0})["total"]; got != int64(0) {
-		t.Fatal("expiry filter ignored")
-	}
-	if got := platformCall(t, "query_certificates", map[string]interface{}{"expires_within_days": 30})["total"]; got != int64(1) {
-		t.Fatal("expiry filter excluded certificate")
 	}
 	groups := platformCall(t, "query_datasource_groups", nil)["list"].([]map[string]interface{})
 	if len(groups[0]["datasource_ids"].([]uint)) != 1 {
@@ -316,5 +308,16 @@ func TestPlatformMCPLegacyQueryProjection(t *testing.T) {
 	raw, _ := json.Marshal(projected)
 	if err != nil || !strings.Contains(string(raw), "started_at") || strings.Contains(string(raw), "hidden-secret") {
 		t.Fatalf("incorrect alert projection: %s %v", raw, err)
+	}
+}
+
+func TestRetiredCertificateToolsAreUnavailable(t *testing.T) {
+	for _, name := range []string{"query_certificates", "query_certificate_domains"} {
+		if _, ok := findMCPTool(name); ok {
+			t.Fatalf("retired tool still registered: %s", name)
+		}
+		if _, err := executePlatformMCPTool(context.Background(), 1, name, nil); err == nil {
+			t.Fatalf("retired tool executed: %s", name)
+		}
 	}
 }

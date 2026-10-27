@@ -2,7 +2,7 @@
   <div class="page-container">
     <div class="fault-toolbar">
       <div class="fault-filters" role="search" aria-label="故障中心筛选">
-        <el-input v-model="keyword" class="keyword-filter" :prefix-icon="Search" aria-label="搜索故障中心" placeholder="搜索故障中心名称或描述" clearable />
+        <el-input v-model="keyword" class="keyword-filter" :prefix-icon="Search" aria-label="搜索故障中心名称" placeholder="搜索故障中心名称" clearable />
       </div>
       <div class="toolbar-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadPage">刷新</el-button>
@@ -84,7 +84,7 @@ const centerForm = reactive({ id: null, name: '', description: '', status: 1 })
 const centerRules = { name: [{ required: true, message: '请输入故障中心名称', trigger: 'blur' }] }
 const filteredCenters = computed(() => {
   const query = keyword.value.trim().toLowerCase()
-  return centers.value.filter(center => `${center.name || ''} ${center.description || ''}`.toLowerCase().includes(query))
+  return centers.value.filter(center => (center.name || '').toLowerCase().includes(query))
 })
 
 onMounted(loadPage)

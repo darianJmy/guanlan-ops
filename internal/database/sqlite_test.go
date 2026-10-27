@@ -31,6 +31,19 @@ func freshSQLite(t *testing.T) *gorm.DB {
 
 func TestSQLiteInitializationAndReopen(t *testing.T) {
 	db := freshSQLite(t)
+	for _, table := range []string{"certificates", "certificate_versions", "certificate_domains", "certificate_deploy_scripts", "certificate_deployment_records", "certificate_rotation_records", "scheduled_tasks", "scheduled_task_executions"} {
+		if db.Migrator().HasTable(table) {
+			t.Errorf("fresh database created retired table %s", table)
+		}
+	}
+	for _, column := range []string{"runtime_profile", "certificate_id"} {
+		if db.Migrator().HasColumn(&models.AutomationTask{}, column) {
+			t.Errorf("fresh tasks retain retired column %s", column)
+		}
+	}
+	if !db.Migrator().HasTable(&models.CertificateExecutor{}) {
+		t.Fatal("shared execution nodes missing")
+	}
 	var mcpMenus int64
 	if err := db.Model(&models.Menu{}).Where("path = ? OR component = ?", "/settings/mcp", "system/MCPServiceManage").Count(&mcpMenus).Error; err != nil {
 		t.Fatal(err)

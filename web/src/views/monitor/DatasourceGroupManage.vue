@@ -31,7 +31,7 @@
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑分组' : '创建分组'" width="min(380px, 92vw)" :close-on-click-modal="false" :close-on-press-escape="!saving" :show-close="!saving" destroy-on-close @opened="groupNameInput?.focus()">
       <el-form ref="formRef" :model="form" :rules="formRules" @submit.prevent="saveGroup">
         <el-form-item prop="name">
-          <el-input ref="groupNameInput" v-model="form.name" placeholder="输入分组名称，如生产环境、eu" aria-label="分组名称" maxlength="128" :disabled="saving" />
+          <el-input ref="groupNameInput" v-model="form.name" aria-label="分组名称" maxlength="128" :disabled="saving" />
         </el-form-item>
       </el-form>
       <template #footer><el-button :disabled="saving" @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="saveGroup">{{ form.id ? '保存' : '创建' }}</el-button></template>
@@ -110,15 +110,16 @@ async function removeGroup(row) {
 .group-node-action:disabled { opacity: .3; cursor: not-allowed; }
 .group-node-action:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
 
-.group-layout { display: flex; align-items: stretch; gap: 16px; min-height: 480px; }
-.group-sidebar { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; max-height: calc(100vh - 120px); min-height: 320px; border: 1px solid var(--ops-border-soft); border-radius: 0; background: var(--ops-surface); }
+.group-page { height: 100%; min-height: 0; }
+.group-layout { display: flex; align-items: stretch; gap: 16px; height: 100%; min-height: 0; }
+.group-sidebar { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--ops-border-soft); border-radius: 0; background: var(--ops-surface); }
 .sidebar-heading { display: flex; align-items: center; gap: 6px; padding: 10px 12px; color: var(--ops-muted); font-size: 14px; }
 .sidebar-heading strong { color: var(--ops-text); font-size: 13px; }
 .sidebar-heading .el-button { margin-left: auto; padding: 4px; }
 .group-count, .member-count { flex-shrink: 0; padding: 2px 6px; border-radius: 3px; background: var(--ops-surface-soft); color: var(--ops-subtle); font-size: 11px; font-weight: 400; }
 .group-search { padding: 0 8px 10px; }
 .group-search :deep(.el-input__wrapper) { border-radius: 3px; }
-.group-menu { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+.group-menu { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px; }
 .group-item { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; margin-bottom: 6px; padding: 0 8px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--ops-text); cursor: pointer; text-align: left; font: inherit; font-size: 12px; transition: background .12s, border-color .12s; }
 .group-select { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; padding: 9px 4px; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
 .group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -128,15 +129,17 @@ async function removeGroup(row) {
 .group-item.active > .el-icon { color: inherit; }
 .group-select:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
 .sidebar-empty { padding: 12px 4px; text-align: center; color: var(--ops-subtle); font-size: 12px; }
-.group-content { flex: 1; min-width: 0; }
+.group-content { flex: 1; min-width: 0; min-height: 0; overflow: auto; }
 .group-content :deep(.datasource-table-card) { border: 1px solid var(--ops-border); border-radius: 8px; box-shadow: none; background: var(--ops-surface); }
 .group-content :deep(.datasource-table-card > .el-card__body) { padding: 16px; }
 .instance-name .el-icon { color: var(--ops-subtle); }
 .pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; overflow-x: auto; }
 @media (max-width: 720px) {
-  .group-layout { flex-direction: column; }
+  .group-page { height: auto; }
+  .group-layout { height: auto; flex-direction: column; }
   .group-sidebar { width: 100%; min-height: 0; max-height: 260px; }
   .group-menu { min-height: 60px; }
+  .group-content { overflow: visible; }
   .pagination-wrap { justify-content: flex-start; }
 }
 </style>

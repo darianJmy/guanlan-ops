@@ -36,9 +36,9 @@
       <div class="rule-toolbar" role="search" aria-label="告警规则筛选">
         <div class="filters">
           <el-input v-model="query.keyword" :prefix-icon="Search" clearable placeholder="搜索规则名称或 PromQL" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
-          <el-select v-model="query.status" clearable placeholder="启用状态" @change="handleSearch">
-            <el-option label="已启用" value="enabled" />
-            <el-option label="已停用" value="disabled" />
+          <el-select v-model="query.status" clearable placeholder="状态" @change="handleSearch">
+            <el-option label="启用" value="enabled" />
+            <el-option label="禁用" value="disabled" />
           </el-select>
           <el-button :disabled="!query.keyword && !query.status" @click="clearFilters">清空</el-button>
         </div>

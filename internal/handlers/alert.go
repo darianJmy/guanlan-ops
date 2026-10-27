@@ -155,12 +155,11 @@ func DeleteFaultCenter(c *gin.Context) {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "默认故障中心不能删除")
 		return
 	}
-	var taskCount, alertCount, certificateDomainCount int64
+	var taskCount, alertCount int64
 	database.DB.Model(&models.InspectionItem{}).Where("fault_center_id = ?", id).Count(&taskCount)
 	database.DB.Model(&models.AlertInstance{}).Where("fault_center_id = ?", id).Count(&alertCount)
-	database.DB.Model(&models.CertificateDomain{}).Where("fault_center_id = ?", id).Count(&certificateDomainCount)
-	if taskCount > 0 || alertCount > 0 || certificateDomainCount > 0 {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "故障中心已有拨测任务、证书域名或告警，请先迁移后再删除")
+	if taskCount > 0 || alertCount > 0 {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "故障中心已有拨测任务或告警，请先迁移后再删除")
 		return
 	}
 	result := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -255,7 +254,8 @@ func ListAlerts(c *gin.Context) {
 	tx = applyAlertTriggerDateFilters(tx, c.Query("start_date"), c.Query("end_date"))
 	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
 		like := "%" + keyword + "%"
-		if strings.EqualFold(strings.TrimSpace(c.Query("status")), "active") {
+		status := strings.ToLower(strings.TrimSpace(c.Query("status")))
+		if status == "active" || status == "history" {
 			tx = tx.Where("title LIKE ?", like)
 		} else {
 			tx = tx.Where("title LIKE ? OR target LIKE ? OR labels LIKE ?", like, like, like)
@@ -404,107 +404,6 @@ func recordAlertEvent(tx *gorm.DB, alert models.AlertInstance, eventType, fromSt
 		return err
 	}
 	return enqueueAlertActions(tx, alert, eventType, toStatus, now)
-}
-
-func syncCertificateDomainAlert(item models.CertificateDomain, now time.Time) error {
-	active := item.Status == "failed" || item.Status == "expired" || item.Status == "expiring" || item.Status == "mismatch"
-	var alert models.AlertInstance
-	query := database.DB.Where("source = ? AND source_id = ? AND status IN ?", "certificate-domain", item.ID, []string{alertStatusPending, alertStatusFiring, alertStatusRecovering}).Order("id DESC").Limit(1).Find(&alert)
-	if query.Error != nil {
-		return query.Error
-	}
-	if query.RowsAffected == 0 && !active {
-		return nil
-	}
-
-	var center models.FaultCenter
-	centerQuery := database.DB.Where("status = ?", 1)
-	if item.FaultCenterID > 0 {
-		centerQuery = centerQuery.Where("id = ?", item.FaultCenterID)
-	} else {
-		centerQuery = centerQuery.Order("id ASC")
-	}
-	if err := centerQuery.First(&center).Error; err != nil {
-		return errors.New("没有可用的故障中心")
-	}
-	severity := normalizeCertificateDomainSeverity(item.Severity)
-	labels := map[string]string{
-		"alertname": "域名证书异常", "domain": item.Domain, "port": strconv.Itoa(defaultPort(item.Port)),
-		"certificate_status": item.Status,
-	}
-	encodedLabels, _ := json.Marshal(labels)
-	snapshot, _ := json.Marshal(gin.H{
-		"alertname": "域名证书异常", "source": "certificate-domain", "source_id": item.ID,
-		"status": item.Status, "domain": item.Domain, "port": defaultPort(item.Port),
-		"days_remaining": item.DaysRemaining, "expires_at": item.ObservedExpiresAt, "expiry_alert_days": item.ExpiryAlertDays,
-		"severity": severity,
-		"error":    item.LastCheckError, "labels": labels,
-	})
-	title := fmt.Sprintf("%s:%d · 证书%s", item.Domain, defaultPort(item.Port), statusTextForCertificateAlert(item.Status))
-	fingerprint := fmt.Sprintf("certificate-domain:%d", item.ID)
-
-	if query.RowsAffected == 0 {
-		alert = models.AlertInstance{
-			FaultCenterID: center.ID, Source: "certificate-domain", SourceID: item.ID, Fingerprint: fingerprint,
-			Title: title, Target: item.Domain, Severity: severity, Status: alertStatusFiring, Labels: string(encodedLabels),
-			FailureCount: 1, FailureThreshold: 1, LastProbeStatus: item.LastCheckStatus, LastResult: string(snapshot),
-			StartedAt: now, FiredAt: &now, StateChangedAt: now, LastEventAt: now,
-		}
-		if err := database.DB.Create(&alert).Error; err != nil {
-			return err
-		}
-		if err := recordAlertEvent(database.DB, alert, "created", "", alertStatusFiring, "", severity, "certificate_domain_unhealthy", item.Status, item.LastCheckStatus, now); err != nil {
-			return err
-		}
-		applyActiveSilenceRule(&alert, now)
-		sendCertificateDomainAlertNotification(item, &alert, false, now)
-		return nil
-	}
-
-	previous, previousSeverity := alert.Status, alert.Severity
-	next := alertStatusFiring
-	if !active {
-		next = alertStatusResolved
-	}
-	updates := map[string]interface{}{
-		"fault_center_id": center.ID, "title": title, "target": item.Domain, "severity": severity,
-		"status": next, "labels": string(encodedLabels), "last_probe_status": item.LastCheckStatus,
-		"last_result": string(snapshot), "last_event_at": now,
-	}
-	applyAlertStateTransition(updates, previous, next, now)
-	if err := database.DB.Model(&alert).Updates(updates).Error; err != nil {
-		return err
-	}
-	alert.FaultCenterID, alert.Title, alert.Target, alert.Severity = center.ID, title, item.Domain, severity
-	alert.Status, alert.Labels, alert.LastResult, alert.LastProbeStatus, alert.LastEventAt = next, string(encodedLabels), string(snapshot), item.LastCheckStatus, now
-	eventType := alertTransitionEventType(previous, next, previousSeverity, severity)
-	if eventType != "" {
-		reason := "certificate_domain_changed"
-		if next == alertStatusResolved {
-			reason = "certificate_domain_recovered"
-		}
-		if err := recordAlertEvent(database.DB, alert, eventType, previous, next, previousSeverity, severity, reason, item.Status, item.LastCheckStatus, now); err != nil {
-			return err
-		}
-	}
-	applyActiveSilenceRule(&alert, now)
-	sendCertificateDomainAlertNotification(item, &alert, next == alertStatusResolved, now)
-	return nil
-}
-
-func statusTextForCertificateAlert(status string) string {
-	switch status {
-	case "failed":
-		return "检测失败"
-	case "expired":
-		return "已过期"
-	case "expiring":
-		return "即将过期"
-	case "mismatch":
-		return "与资产不一致"
-	default:
-		return "状态异常"
-	}
 }
 
 func alertTransitionEventType(previousStatus, nextStatus, previousSeverity, nextSeverity string) string {

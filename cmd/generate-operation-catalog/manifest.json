@@ -1826,6 +1826,11 @@
       "method": "POST",
       "path": "/query/traces",
       "reason": "统一查询工作台交互接口，AI 工具输出结构与结果裁剪另行设计。"
+    },
+    {
+      "method": "GET",
+      "path": "/query/traces/metadata",
+      "reason": "统一查询工作台交互接口，AI 工具输出结构与结果裁剪另行设计。"
     }
   ]
 }

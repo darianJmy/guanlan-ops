@@ -22,7 +22,7 @@ func TestDeleteFaultCenterDefaultProtection(t *testing.T) {
 	previous := database.DB
 	database.DB = db
 	t.Cleanup(func() { database.DB = previous; _ = sqlDB.Close() })
-	if err := db.AutoMigrate(&models.FaultCenter{}, &models.InspectionItem{}, &models.AlertInstance{}, &models.CertificateDomain{}, &models.AlertGroupState{}, &models.AlertGroupingRule{}, &models.AlertActionExecution{}, &models.AlertActionRule{}); err != nil {
+	if err := db.AutoMigrate(&models.FaultCenter{}, &models.InspectionItem{}, &models.AlertInstance{}, &models.AlertGroupState{}, &models.AlertGroupingRule{}, &models.AlertActionExecution{}, &models.AlertActionRule{}); err != nil {
 		t.Fatal(err)
 	}
 	router := gin.New()

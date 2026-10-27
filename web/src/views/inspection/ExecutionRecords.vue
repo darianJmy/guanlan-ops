@@ -6,7 +6,7 @@
           v-model="query.keyword"
           :prefix-icon="Search"
           clearable
-          placeholder="搜索自动化任务名称"
+          placeholder="搜索任务名称"
           @input="handleKeywordInput"
           @keyup.enter="handleSearch"
           @clear="handleSearch"

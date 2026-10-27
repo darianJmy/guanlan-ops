@@ -7,11 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"guanlan/internal/database"
-	"guanlan/internal/models"
-	"guanlan/pkg/resp"
-	"guanlan/pkg/shellutil"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -22,6 +17,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"guanlan/internal/database"
+	"guanlan/internal/models"
+	"guanlan/pkg/resp"
+	"guanlan/pkg/shellutil"
 )
 
 const probeMetaMarker = "\n__AIOPS_PROBE_META__:"
@@ -52,9 +51,6 @@ type ProbeReq struct {
 	NodeID          uint              `json:"node_id"`
 	Count           int               `json:"count"`
 	ServerName      string            `json:"server_name"`
-	ClientID        string            `json:"client_id"`
-	MQTTTLS         bool              `json:"mqtt_tls"`
-	KeepAlive       int               `json:"keepalive_seconds"`
 }
 
 type probeExecutionResult struct {
@@ -409,145 +405,6 @@ func executeSSLProbe(req ProbeReq) (networkProbeResult, int64, error) {
 	result.NodeName = nodeName
 	result.Output = strings.TrimSpace(output)
 	return result, time.Since(start).Milliseconds(), nil
-}
-
-func executeMQTTProbe(req ProbeReq) (networkProbeResult, int64, error) {
-	start := time.Now()
-	defaultPort := 1883
-	if req.MQTTTLS {
-		defaultPort = 8883
-	}
-	host, port, timeout, err := normalizeNetworkProbe(req, defaultPort)
-	result := networkProbeResult{ProbeType: "mqtt", Host: host, Port: port}
-	if err != nil {
-		return result, 0, err
-	}
-	nodeType := certificateDefaultString(strings.TrimSpace(req.NodeType), "direct")
-	if nodeType != "direct" {
-		return result, time.Since(start).Milliseconds(), errors.New("MQTT 拨测当前仅支持服务端直连")
-	}
-
-	dialer := &net.Dialer{Timeout: timeout}
-	var connection net.Conn
-	address := net.JoinHostPort(host, strconv.Itoa(port))
-	if req.MQTTTLS {
-		serverName := strings.TrimSpace(req.ServerName)
-		if serverName == "" && net.ParseIP(host) == nil {
-			serverName = host
-		}
-		connection, err = tls.DialWithDialer(dialer, "tcp", address, &tls.Config{
-			ServerName: serverName, InsecureSkipVerify: true, // 即时拨测需兼容自签名 Broker。
-		})
-	} else {
-		connection, err = dialer.Dial("tcp", address)
-	}
-	if err != nil {
-		return result, time.Since(start).Milliseconds(), fmt.Errorf("MQTT 连接失败: %v", err)
-	}
-	defer connection.Close()
-	_ = connection.SetDeadline(time.Now().Add(timeout))
-
-	packet, clientID, err := buildMQTTConnectPacket(req)
-	if err != nil {
-		return result, time.Since(start).Milliseconds(), err
-	}
-	if _, err = connection.Write(packet); err != nil {
-		return result, time.Since(start).Milliseconds(), fmt.Errorf("MQTT CONNECT 发送失败: %v", err)
-	}
-	response := make([]byte, 4)
-	if _, err = io.ReadFull(connection, response); err != nil {
-		return result, time.Since(start).Milliseconds(), fmt.Errorf("MQTT CONNACK 读取失败: %v", err)
-	}
-	if response[0] != 0x20 || response[1] != 0x02 {
-		return result, time.Since(start).Milliseconds(), errors.New("Broker 返回了无效的 MQTT CONNACK")
-	}
-	if response[3] != 0 {
-		return result, time.Since(start).Milliseconds(), fmt.Errorf("MQTT 连接被拒绝: %s", mqttConnAckMessage(response[3]))
-	}
-	result.Connected = true
-	result.NodeType = "direct"
-	result.NodeName = "服务端直连"
-	transport := "TCP"
-	if req.MQTTTLS {
-		transport = "TLS"
-	}
-	result.Output = fmt.Sprintf("MQTT 3.1.1 建连成功，Client ID: %s，传输协议: %s", clientID, transport)
-	return result, time.Since(start).Milliseconds(), nil
-}
-
-func buildMQTTConnectPacket(req ProbeReq) ([]byte, string, error) {
-	if req.Password != "" && req.Username == "" {
-		return nil, "", errors.New("填写 MQTT 密码时必须同时填写用户名")
-	}
-	clientID := strings.TrimSpace(req.ClientID)
-	if clientID == "" {
-		clientID = fmt.Sprintf("aiops-probe-%x", time.Now().UnixNano())
-	}
-	keepAlive := req.KeepAlive
-	if keepAlive <= 0 {
-		keepAlive = 30
-	}
-	if keepAlive > 65535 {
-		return nil, "", errors.New("MQTT Keep Alive 不能超过 65535 秒")
-	}
-	flags := byte(0x02) // Clean Session
-	if req.Username != "" {
-		flags |= 0x80
-	}
-	if req.Password != "" {
-		flags |= 0x40
-	}
-	variable := []byte{0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, flags, byte(keepAlive >> 8), byte(keepAlive)}
-	payload := make([]byte, 0, len(clientID)+len(req.Username)+len(req.Password)+6)
-	var err error
-	if payload, err = appendMQTTString(payload, clientID); err != nil {
-		return nil, "", errors.New("MQTT Client ID 过长")
-	}
-	if req.Username != "" {
-		if payload, err = appendMQTTString(payload, req.Username); err != nil {
-			return nil, "", errors.New("MQTT 用户名过长")
-		}
-	}
-	if req.Password != "" {
-		if payload, err = appendMQTTString(payload, req.Password); err != nil {
-			return nil, "", errors.New("MQTT 密码过长")
-		}
-	}
-	remaining := len(variable) + len(payload)
-	packet := []byte{0x10}
-	for {
-		encoded := byte(remaining % 128)
-		remaining /= 128
-		if remaining > 0 {
-			encoded |= 0x80
-		}
-		packet = append(packet, encoded)
-		if remaining == 0 {
-			break
-		}
-	}
-	packet = append(packet, variable...)
-	packet = append(packet, payload...)
-	return packet, clientID, nil
-}
-
-func appendMQTTString(target []byte, value string) ([]byte, error) {
-	if len(value) > 65535 {
-		return target, errors.New("MQTT 字符串过长")
-	}
-	target = append(target, byte(len(value)>>8), byte(len(value)))
-	return append(target, []byte(value)...), nil
-}
-
-func mqttConnAckMessage(code byte) string {
-	messages := map[byte]string{
-		1: "协议版本不受支持", 2: "Client ID 被拒绝", 3: "Broker 暂不可用",
-		4: "用户名或密码错误", 5: "未授权",
-	}
-	if message, ok := messages[code]; ok {
-		return message
-	}
-	return fmt.Sprintf("未知返回码 %d", code)
 }
 
 func normalizeNetworkProbe(req ProbeReq, defaultPort int) (string, int, time.Duration, error) {

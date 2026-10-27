@@ -8,9 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"guanlan/internal/database"
-	"guanlan/internal/models"
-	"guanlan/pkg/resp"
 	"io"
 	"net/http"
 	"strconv"
@@ -19,6 +16,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"guanlan/internal/database"
+	"guanlan/internal/models"
+	"guanlan/pkg/resp"
 )
 
 type saveNotificationChannelReq struct {
@@ -251,7 +251,6 @@ func notificationChannelResponse(item models.NotificationChannel) gin.H {
 
 func DeleteNotificationChannel(c *gin.Context) {
 	id := c.Param("id")
-	database.DB.Model(&models.CertificateDomain{}).Where("notification_channel_id = ?", id).Update("notification_channel_id", 0)
 	database.DB.Delete(&models.NotificationChannel{}, id)
 	resp.Success(c, http.StatusOK, "删除成功")
 }
@@ -317,58 +316,6 @@ func ListNotificationRecords(c *gin.Context) {
 	tx.Count(&total)
 	tx.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows)
 	resp.Success(c, http.StatusOK, "成功", gin.H{"list": rows, "total": total, "page": page, "page_size": pageSize})
-}
-
-func SendCertificateDomainAlert(item models.CertificateDomain, reason string) {
-	certExpireTime := ""
-	if item.ObservedExpiresAt != nil {
-		certExpireTime = item.ObservedExpiresAt.Format("2006-01-02 15:04:05")
-	}
-	payload := map[string]interface{}{
-		"title":            certificateAlertTitle(item, reason),
-		"content":          certificateAlertContent(item, reason),
-		"level":            certificateAlertLevel(item),
-		"source":           "certificate-domain",
-		"domain":           item.Domain,
-		"cert_expire_time": certExpireTime,
-		"port":             item.Port,
-		"status":           item.Status,
-		"days_remaining":   item.DaysRemaining,
-		"expires_at":       item.ObservedExpiresAt,
-		"checked_at":       item.LastCheckedAt,
-		"error":            item.LastCheckError,
-	}
-	eventKey := certificateAlertEventKey(item, reason)
-	var channels []models.NotificationChannel
-	if item.NotificationChannelID > 0 {
-		database.DB.Where("id = ? AND status = ?", item.NotificationChannelID, 1).Find(&channels)
-	} else {
-		database.DB.Where("status = ?", 1).Order("id DESC").Find(&channels)
-	}
-	for _, channel := range channels {
-		if notificationSentRecently(channel.ID, eventKey) {
-			continue
-		}
-		_ = sendNotificationToChannel(channel, "certificate.domain.alert", eventKey, certificateAlertTitle(item, reason), payload)
-	}
-}
-
-func ShouldNotifyCertificateDomain(item models.CertificateDomain) (string, bool) {
-	if item.Status == "failed" {
-		return "failed", true
-	}
-	if item.Status == "expired" {
-		return "expired", true
-	}
-	if item.ObservedExpiresAt == nil {
-		return "", false
-	}
-	for _, day := range parseAlertDays(item.AlertBeforeDays) {
-		if item.DaysRemaining == day {
-			return fmt.Sprintf("%d-days", day), true
-		}
-	}
-	return "", false
 }
 
 func sendNotificationToChannel(channel models.NotificationChannel, eventType, eventKey, title string, payload map[string]interface{}) error {
@@ -616,14 +563,6 @@ func postWebhook(channel models.NotificationChannel, body []byte, name string) e
 	return nil
 }
 
-func notificationSentRecently(channelID uint, eventKey string) bool {
-	var count int64
-	database.DB.Model(&models.NotificationRecord{}).
-		Where("channel_id = ? AND event_key = ? AND status = ? AND created_at > ?", channelID, eventKey, "success", time.Now().Add(-23*time.Hour)).
-		Count(&count)
-	return count > 0
-}
-
 func encryptWebhookURL(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -692,53 +631,6 @@ func normalizedStatus(value int) int {
 		return 2
 	}
 	return 1
-}
-
-func certificateAlertTitle(item models.CertificateDomain, reason string) string {
-	switch reason {
-	case "failed":
-		return fmt.Sprintf("证书检测失败: %s", item.Domain)
-	case "expired":
-		return fmt.Sprintf("证书已过期: %s", item.Domain)
-	default:
-		return fmt.Sprintf("证书即将过期: %s", item.Domain)
-	}
-}
-
-func certificateAlertContent(item models.CertificateDomain, reason string) string {
-	if reason == "failed" {
-		return fmt.Sprintf("%s:%d 证书检测失败: %s", item.Domain, item.Port, item.LastCheckError)
-	}
-	return fmt.Sprintf("%s:%d 线上证书剩余 %d 天过期", item.Domain, item.Port, item.DaysRemaining)
-}
-
-func certificateAlertLevel(item models.CertificateDomain) string {
-	if item.Status == "failed" || item.Status == "expired" {
-		return "critical"
-	}
-	return "warning"
-}
-
-func certificateAlertEventKey(item models.CertificateDomain, reason string) string {
-	if reason == "failed" {
-		return fmt.Sprintf("certificate-domain:%d:failed", item.ID)
-	}
-	if reason == "expired" {
-		return fmt.Sprintf("certificate-domain:%d:expired", item.ID)
-	}
-	return fmt.Sprintf("certificate-domain:%d:%d-days", item.ID, item.DaysRemaining)
-}
-
-func parseAlertDays(value string) []int {
-	parts := strings.Split(defaultAlertDays(value), ",")
-	days := make([]int, 0, len(parts))
-	for _, part := range parts {
-		n := atoiDefault(strings.TrimSpace(part), -1)
-		if n >= 0 {
-			days = append(days, n)
-		}
-	}
-	return days
 }
 
 func queryInt(c *gin.Context, key string, fallback int) int {

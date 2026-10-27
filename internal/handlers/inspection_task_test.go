@@ -107,8 +107,8 @@ func TestInspectionTaskKeywordMatchesNameOnly(t *testing.T) {
 }
 
 func TestTaskAlertSnapshotKeepsLabelNamespacesSeparate(t *testing.T) {
-	runtimeLabels, snapshot := buildTaskAlertSnapshot("scheduled-task", "每日巡检", "script", "check.sh", "fail", "exit 1", "检查核心服务", `{"env":"prod","service":"order"}`)
-	alert := models.AlertInstance{Source: "scheduled-task", Severity: "P2", Labels: runtimeLabels, LastResult: snapshot}
+	runtimeLabels, snapshot := buildTaskAlertSnapshot("probe-task", "每日巡检", "script", "check.sh", "fail", "exit 1", "检查核心服务", `{"env":"prod","service":"order"}`)
+	alert := models.AlertInstance{Source: "probe-task", Severity: "P2", Labels: runtimeLabels, LastResult: snapshot}
 	namespaces := alertLabelNamespaces(alert)
 	if namespaces["system_labels"]["alertname"] != "每日巡检" || namespaces["system_labels"]["severity"] != "P2" {
 		t.Fatalf("unexpected system labels: %#v", namespaces["system_labels"])

@@ -22,9 +22,9 @@
         <el-select v-model="filters.type" class="filter-select filter-type" clearable aria-label="按拨测类型筛选" placeholder="类型" @change="handleSearch">
           <el-option v-for="item in taskTypes" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
-        <el-select v-model="filters.status" class="filter-select filter-status" clearable aria-label="按任务状态筛选" placeholder="状态" @change="handleSearch">
-          <el-option label="已启用" value="enabled" />
-          <el-option label="已停用" value="disabled" />
+        <el-select v-model="filters.status" class="filter-select filter-status" clearable aria-label="按状态筛选" placeholder="状态" @change="handleSearch">
+          <el-option label="启用" value="enabled" />
+          <el-option label="禁用" value="disabled" />
         </el-select>
         <el-button :disabled="!filters.keyword && !filters.type && !filters.status" @click="clearFilters">清空</el-button>
       </div>

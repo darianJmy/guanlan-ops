@@ -79,51 +79,6 @@ func TestExecuteDirectSSLProbe(t *testing.T) {
 	}
 }
 
-func TestExecuteMQTTProbe(t *testing.T) {
-	host, port, closeBroker := startMQTTTestBroker(t, 0)
-	defer closeBroker()
-	result, _, err := executeMQTTProbe(ProbeReq{
-		Host: host, Port: port, ClientID: "aiops-test", Username: "probe", Password: "secret", TimeoutMS: 1000,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.Connected || result.ProbeType != "mqtt" || !strings.Contains(result.Output, "aiops-test") {
-		t.Fatalf("unexpected MQTT result: %+v", result)
-	}
-}
-
-func TestExecuteMQTTProbeReportsAuthenticationFailure(t *testing.T) {
-	host, port, closeBroker := startMQTTTestBroker(t, 4)
-	defer closeBroker()
-	_, _, err := executeMQTTProbe(ProbeReq{Host: host, Port: port, TimeoutMS: 1000})
-	if err == nil || !strings.Contains(err.Error(), "用户名或密码错误") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func startMQTTTestBroker(t *testing.T, returnCode byte) (string, int, func()) {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		connection, acceptErr := listener.Accept()
-		if acceptErr != nil {
-			return
-		}
-		defer connection.Close()
-		_ = connection.SetDeadline(time.Now().Add(time.Second))
-		buffer := make([]byte, 512)
-		if count, readErr := connection.Read(buffer); readErr == nil && count > 0 && buffer[0] == 0x10 {
-			_, _ = connection.Write([]byte{0x20, 0x02, 0x00, returnCode})
-		}
-	}()
-	address := listener.Addr().(*net.TCPAddr)
-	return address.IP.String(), address.Port, func() { _ = listener.Close() }
-}
-
 func TestProbeHostValidationRejectsShellInput(t *testing.T) {
 	for _, host := range []string{"example.com;id", "example.com $(id)", "example.com/path"} {
 		if err := validateProbeHost(host); err == nil {

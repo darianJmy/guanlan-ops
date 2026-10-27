@@ -60,13 +60,6 @@ func queryPlatformMCP(ctx context.Context, definition platformMCPQuery, args map
 		}
 		query = query.Where("status = ?", status)
 	}
-	if days, ok := args["expires_within_days"].(float64); ok {
-		column := "not_after"
-		if definition.name == "query_certificate_domains" {
-			column = "observed_expires_at"
-		}
-		query = query.Where(column+" <= ?", time.Now().AddDate(0, 0, int(days)))
-	}
 	var start, end time.Time
 	for _, key := range []string{"start_time", "end_time"} {
 		if raw, ok := args[key]; ok {

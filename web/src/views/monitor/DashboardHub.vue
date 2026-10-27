@@ -7,7 +7,7 @@
       </section>
       <div class="hub-toolbar">
         <div class="hub-filters">
-          <el-input v-model="keyword" :prefix-icon="Search" clearable placeholder="搜索仪表盘名称或描述" aria-label="搜索仪表盘" />
+          <el-input v-model="keyword" :prefix-icon="Search" clearable placeholder="搜索仪表盘名称" aria-label="搜索仪表盘名称" />
         </div>
         <div class="hub-actions">
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
@@ -150,7 +150,7 @@ function endDrag() {
 let requestID = 0
 const filteredItems = computed(() => {
   const query = keyword.value.trim().toLowerCase()
-  return items.value.filter(item => `${item.name} ${item.description || ''}`.toLowerCase().includes(query))
+  return items.value.filter(item => (item.name || '').toLowerCase().includes(query))
 })
 function itemType(item) { return item.kind === 'logs' ? item.provider : item.kind }
 function iconFor(item) { return types.find(type => type.id === itemType(item))?.icon }

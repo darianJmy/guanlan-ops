@@ -705,7 +705,7 @@ func validateInspectionItemReq(req CreateInspectionItemReq) error {
 			return err
 		}
 	}
-	if err := validateInspectionExecutionNodes(req.Config, taskType); err != nil {
+	if err := validateInspectionExecutionNodes(req.Config); err != nil {
 		return err
 	}
 	if req.GroupID > 0 {
@@ -766,7 +766,7 @@ func inspectionNodeKey(node inspectionExecutionNode) string {
 	return fmt.Sprintf("%s:%d", node.NodeType, node.NodeID)
 }
 
-func validateInspectionExecutionNodes(config, taskType string) error {
+func validateInspectionExecutionNodes(config string) error {
 	nodes := inspectionExecutionNodes(config)
 	if len(nodes) == 0 {
 		return fmt.Errorf("请至少选择一个执行节点")
@@ -775,9 +775,6 @@ func validateInspectionExecutionNodes(config, taskType string) error {
 		return fmt.Errorf("执行节点最多选择 50 个")
 	}
 	for _, node := range nodes {
-		if taskType == "mqtt" && node.NodeType != "direct" {
-			return fmt.Errorf("MQTT 拨测当前仅支持服务端直连")
-		}
 		switch node.NodeType {
 		case "direct":
 			continue
@@ -846,8 +843,10 @@ func RunInspectionItem(c *gin.Context) {
 		return
 	}
 
-	if item.Type == "mqtt" || item.Type == "ssl" {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "该拨测类型已移除，请先修改任务类型")
+	switch item.Type {
+	case "http", "icmp", "tcp", "certificate_expiry", "script":
+	default:
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "不支持的拨测类型")
 		return
 	}
 

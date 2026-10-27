@@ -209,10 +209,6 @@ func RotateAgentToken(c *gin.Context) {
 
 func DeleteAgent(c *gin.Context) {
 	id := c.Param("id")
-	if names := boundCertificateDomainNames("agent_id", id); len(names) > 0 {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, boundResourceMessage("Agent", names))
-		return
-	}
 	agentHub.Lock()
 	if conn := agentHub.clients[mustParseUint(id)]; conn != nil {
 		_ = conn.conn.Close()

@@ -294,3 +294,9 @@ func decryptSLSDashboardCredentials(project models.SLSDashboardProject) (slsAuth
 	}
 	return slsAuth{AccessKeyID: accessKeyID, AccessKeySecret: accessKeySecret}, nil
 }
+
+type slsAuth struct {
+	AccessKeyID     string `json:"access_key_id"`
+	AccessKeySecret string `json:"access_key_secret"`
+	SecurityToken   string `json:"security_token"`
+}

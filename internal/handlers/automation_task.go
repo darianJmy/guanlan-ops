@@ -29,8 +29,6 @@ type saveAutomationTaskReq struct {
 	RepositoryID   uint   `json:"repository_id"`
 	GitRef         string `json:"git_ref"`
 	Command        string `json:"command"`
-	RuntimeProfile string `json:"runtime_profile"`
-	CertificateID  uint   `json:"certificate_id"`
 	NodeType       string `json:"node_type"`
 	NodeID         uint   `json:"node_id"`
 	TimeoutSeconds int    `json:"timeout_seconds"`
@@ -81,7 +79,7 @@ func UpdateAutomationTask(c *gin.Context) {
 		"name": item.Name, "description": item.Description, "script_id": item.ScriptID,
 		"source_type": item.SourceType, "repository_id": item.RepositoryID, "git_ref": item.GitRef,
 		"working_directory": item.WorkingDirectory, "command": item.Command,
-		"runtime_profile": item.RuntimeProfile, "certificate_id": item.CertificateID, "node_type": item.NodeType, "node_id": item.NodeID,
+		"node_type": item.NodeType, "node_id": item.NodeID,
 		"timeout_seconds": item.TimeoutSeconds, "max_retries": item.MaxRetries, "status": item.Status,
 	}).Error; err != nil {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "任务名称已存在")
@@ -210,11 +208,8 @@ func buildAutomationTask(req saveAutomationTaskReq) (models.AutomationTask, erro
 		Name: strings.TrimSpace(req.Name), Description: strings.TrimSpace(req.Description), ScriptID: req.ScriptID,
 		SourceType: strings.TrimSpace(req.SourceType), RepositoryID: req.RepositoryID, GitRef: strings.TrimSpace(req.GitRef),
 		WorkingDirectory: "", Command: strings.TrimSpace(req.Command),
-		RuntimeProfile: strings.TrimSpace(req.RuntimeProfile), CertificateID: req.CertificateID, NodeType: strings.TrimSpace(req.NodeType), NodeID: req.NodeID,
+		NodeType: strings.TrimSpace(req.NodeType), NodeID: req.NodeID,
 		TimeoutSeconds: req.TimeoutSeconds, MaxRetries: 0, Status: req.Status,
-	}
-	if item.RuntimeProfile == "" {
-		item.RuntimeProfile = "standard"
 	}
 	if item.SourceType == "" {
 		item.SourceType = "script"
@@ -240,10 +235,6 @@ func buildAutomationTask(req saveAutomationTaskReq) (models.AutomationTask, erro
 	if item.NodeType != "direct" && item.NodeID == 0 {
 		return item, errors.New("请选择执行节点")
 	}
-	if item.RuntimeProfile != "standard" {
-		return item, errors.New("仅支持标准脚本运行环境")
-	}
-	item.CertificateID = 0
 	if item.SourceType == "repository" {
 		var repository models.GitRepository
 		if database.DB.First(&repository, item.RepositoryID).Error != nil || repository.Status != 1 {
@@ -293,7 +284,7 @@ func executeAutomationTask(task models.AutomationTask, triggerType string, trigg
 		}
 	}
 	if err == nil {
-		result, err = executeAutomationTaskOnce(task, encoded, input, artifact)
+		result, err = executeAutomationTaskOnce(task, encoded, artifact)
 	}
 	record.DurationMs = time.Since(startedAt).Milliseconds()
 	record.Output = textutil.Ellipsis(strings.TrimSpace(result.Output), 16000)
@@ -315,10 +306,7 @@ type automationRunResult struct {
 	ExitCode int
 }
 
-func executeAutomationTaskOnce(task models.AutomationTask, encodedInput []byte, input map[string]interface{}, artifact *repositoryArtifact) (automationRunResult, error) {
-	if task.RuntimeProfile == "certificate_deploy" {
-		return automationRunResult{}, errors.New("证书管理模块已移除，证书部署任务不可执行")
-	}
+func executeAutomationTaskOnce(task models.AutomationTask, encodedInput []byte, artifact *repositoryArtifact) (automationRunResult, error) {
 	if task.SourceType == "repository" {
 		if artifact == nil {
 			return automationRunResult{}, errors.New("Git 制品不存在")
@@ -405,48 +393,6 @@ func processExitCode(err error) int {
 	return 1
 }
 
-func automationCertificateMaterial(task models.AutomationTask, input map[string]interface{}) (models.Certificate, models.CertificateVersion, string, models.CertificateDomain, error) {
-	cert, version, privateKey, err := currentCertificateMaterial(task.CertificateID)
-	if err != nil {
-		return cert, version, privateKey, models.CertificateDomain{}, err
-	}
-	domain := models.CertificateDomain{Domain: primaryCertificateDomain(cert)}
-	domainID := automationCertificateDomainID(input)
-	if domainID > 0 && database.DB.First(&domain, domainID).Error != nil {
-		return models.Certificate{}, models.CertificateVersion{}, "", domain, errors.New("证书域名不存在")
-	}
-	return cert, version, privateKey, domain, nil
-}
-
-func primaryCertificateDomain(cert models.Certificate) string {
-	var domains []string
-	if json.Unmarshal([]byte(cert.Domains), &domains) == nil && len(domains) > 0 && strings.TrimSpace(domains[0]) != "" {
-		return strings.TrimSpace(domains[0])
-	}
-	return strings.TrimSpace(cert.Name)
-}
-
-func buildCertificateRepositoryCommand(command, certPEM, privateKey string, params map[string]string) string {
-	lines := []string{
-		"set -e", "set -o pipefail",
-		"CERT_DEPLOY_DIR=\"$(mktemp -d /tmp/cert-deploy-XXXXXX)\"",
-		"trap 'rm -rf \"$CERT_DEPLOY_DIR\"' EXIT",
-		"CERT_FILE=\"$CERT_DEPLOY_DIR/certificate.pem\"",
-		"KEY_FILE=\"$CERT_DEPLOY_DIR/private_key.pem\"",
-		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(certPEM)+"\n"))) + " | base64 -d > \"$CERT_FILE\"",
-		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(strings.TrimSpace(privateKey)+"\n"))) + " | base64 -d > \"$KEY_FILE\"",
-		"chmod 600 \"$KEY_FILE\"",
-		"export CERT_DEPLOY_DIR CERT_FILE KEY_FILE",
-		"export PRIVATE_KEY_FILE=\"$KEY_FILE\"",
-	}
-	for key, value := range params {
-		if shellutil.IsIdentifier(key) {
-			lines = append(lines, "export "+key+"="+shellutil.Quote(value))
-		}
-	}
-	return strings.Join(append(lines, "bash -c "+shellutil.Quote(shellutil.NormalizeLineEndings(command))), "\n")
-}
-
 func buildAutomationGitCommand(script models.Script, input []byte) string {
 	runner := "bash"
 	if script.Type == "python" {
@@ -484,21 +430,6 @@ func buildAutomationScriptCommand(scriptType, scriptContent string, input []byte
 		"printf '%s' " + shellutil.Quote(base64.StdEncoding.EncodeToString([]byte(shellutil.NormalizeLineEndings(scriptContent)))) + " | base64 -d > \"$AIOPS_SCRIPT_FILE\"",
 		"chmod 700 \"$AIOPS_SCRIPT_FILE\"", "export AIOPS_INPUT_FILE", runner + " \"$AIOPS_SCRIPT_FILE\"",
 	}, "\n")
-}
-
-func automationCertificateDomainID(input map[string]interface{}) uint {
-	if value := automationUint(input["certificate_domain_id"]); value > 0 {
-		return value
-	}
-	if alert, ok := input["alert"].(map[string]interface{}); ok && fmt.Sprint(alert["source"]) == "certificate-domain" {
-		return automationUint(alert["source_id"])
-	}
-	return 0
-}
-
-func automationUint(value interface{}) uint {
-	number, _ := strconv.ParseUint(fmt.Sprint(value), 10, 64)
-	return uint(number)
 }
 
 func automationExecutionMessage(record models.AutomationExecution) string {

@@ -3,7 +3,6 @@ package models
 import "time"
 
 // AutomationTask binds one reusable script to one execution node.
-// RuntimeProfile controls which trusted runtime variables the platform injects.
 type AutomationTask struct {
 	ID               uint      `gorm:"primaryKey" json:"id"`
 	Name             string    `gorm:"size:128;not null;uniqueIndex" json:"name"`
@@ -14,8 +13,6 @@ type AutomationTask struct {
 	GitRef           string    `gorm:"size:255" json:"git_ref"`
 	WorkingDirectory string    `gorm:"size:500" json:"working_directory"`
 	Command          string    `gorm:"type:text" json:"command"`
-	RuntimeProfile   string    `gorm:"size:32;not null;default:standard;index" json:"runtime_profile"`
-	CertificateID    uint      `gorm:"index" json:"certificate_id"`
 	NodeType         string    `gorm:"size:20;not null;default:direct" json:"node_type"`
 	NodeID           uint      `gorm:"index" json:"node_id"`
 	TimeoutSeconds   int       `gorm:"not null;default:300" json:"timeout_seconds"`

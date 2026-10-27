@@ -4,7 +4,9 @@ import (
 	"crypto/hmac"
 	cryptorand "crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"guanlan/pkg/textutil"
@@ -214,4 +216,16 @@ func secureLoginNonce() int64 {
 		return time.Now().UnixNano()%span + minimum
 	}
 	return value.Int64() + minimum
+}
+
+func sha256Hex(s string) string {
+	h := sha256.New()
+	h.Write([]byte(s))
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func hmacSHA256(key []byte, data string) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(data))
+	return h.Sum(nil)
 }

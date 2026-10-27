@@ -163,7 +163,7 @@ func auditResource(path string) (string, string) {
 		"datasources": {"接入中心", "datasource"}, "datasource-groups": {"数据源分组", "workspace"}, "prometheus": {"指标查询", "prometheus_query"}, "query": {"查询中心", "log_query"},
 		"dashboards": {"仪表盘", "dashboard"}, "cloud-monitor-workspaces": {"云监控2.0", "cloud_monitor_workspace"}, "inspection-items": {"拨测中心", "inspection_task"},
 		"instant-probe": {"拨测中心", "instant_probe"}, "scripts": {"自动化脚本库", "script"},
-		"workflows": {"工作流", "workflow"}, "scheduled-tasks": {"定时任务", "scheduled_task"},
+		"workflows":       {"工作流", "workflow"},
 		"mcp-service":     {"MCP 服务", "mcp_service"},
 		"mcp-clients":     {"MCP 服务", "mcp_client"},
 		"mcp":             {"MCP 服务", "mcp_tool"},
@@ -175,7 +175,6 @@ func auditResource(path string) (string, string) {
 		"alerts": {"故障中心", "alert"}, "fault-centers": {"故障中心", "fault_center"},
 		"inspection-rule-groups": {"拨测中心", "inspection_rule_group"},
 		"alert-rule-groups":      {"告警管理", "alert_rule_group"}, "alert-rules": {"告警管理", "alert_rule"},
-		"certificates": {"证书管理", "certificate"}, "certificate-domains": {"证书管理", "certificate_domain"},
 		"certificate-executors": {"节点管理", "certificate_executor"}, "agents": {"节点管理", "agent"},
 		"chat": {"智能运维", "chat"}, "conversations": {"智能运维", "conversation"},
 	}

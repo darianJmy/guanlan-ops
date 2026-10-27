@@ -44,7 +44,7 @@
           <el-tab-pane label="告警静默" name="silence">
             <section class="rule-section">
               <div class="strategy-toolbar">
-                <div><el-input v-model="silenceKeyword" clearable aria-label="搜索告警静默" placeholder="搜索静默策略名称" @keyup.enter="searchSilences" @clear="searchSilences"><template #append><el-button aria-label="搜索" @click="searchSilences"><el-icon><Search /></el-icon></el-button></template></el-input></div>
+                <div><el-input v-model="silenceKeyword" clearable aria-label="搜索告警静默" placeholder="搜索策略名称" @keyup.enter="searchSilences" @clear="searchSilences"><template #append><el-button aria-label="搜索" @click="searchSilences"><el-icon><Search /></el-icon></el-button></template></el-input></div>
                 <div><el-button :icon="Refresh" @click="searchSilences">刷新</el-button><el-button type="primary" :icon="Plus" @click="openSilenceDrawer()">创建</el-button></div>
               </div>
               <el-table :data="pagedSilenceRules" v-loading="silenceLoading">
@@ -69,7 +69,7 @@
           <el-tab-pane label="告警抑制" name="inhibition">
             <section class="rule-section">
               <div class="strategy-toolbar">
-                <div><el-input v-model="inhibitionKeyword" clearable aria-label="搜索告警抑制" placeholder="搜索规则名称或标签" @keyup.enter="searchInhibitions" @clear="searchInhibitions"><template #append><el-button aria-label="搜索" @click="searchInhibitions"><el-icon><Search /></el-icon></el-button></template></el-input></div>
+                <div><el-input v-model="inhibitionKeyword" clearable aria-label="搜索告警抑制" placeholder="搜索策略名称" @keyup.enter="searchInhibitions" @clear="searchInhibitions"><template #append><el-button aria-label="搜索" @click="searchInhibitions"><el-icon><Search /></el-icon></el-button></template></el-input></div>
                 <div><el-button :icon="Refresh" @click="reloadRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openRuleDrawer()">创建</el-button></div>
               </div>
               <el-table :data="pagedRules">
@@ -95,7 +95,7 @@
           <el-tab-pane label="分组收敛" name="grouping">
             <section class="rule-section grouping-section">
               <div class="strategy-toolbar">
-                <div><el-input v-model="groupingKeyword" clearable aria-label="搜索分组收敛" placeholder="搜索策略名称、条件或分组标签" @keyup.enter="searchGroupings" @clear="searchGroupings"><template #append><el-button aria-label="搜索" @click="searchGroupings"><el-icon><Search /></el-icon></el-button></template></el-input></div>
+                <div><el-input v-model="groupingKeyword" clearable aria-label="搜索分组收敛" placeholder="搜索策略名称" @keyup.enter="searchGroupings" @clear="searchGroupings"><template #append><el-button aria-label="搜索" @click="searchGroupings"><el-icon><Search /></el-icon></el-button></template></el-input></div>
                 <div><el-button :icon="Refresh" @click="loadGroupingRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openGroupingDrawer()">创建</el-button></div>
               </div>
               <el-table v-loading="groupingLoading" :data="pagedGroupingRows" table-layout="fixed">
@@ -393,7 +393,7 @@ const AlertTable = defineComponent({
   emits: ['search', 'page-change', 'page-size-change', 'show-detail', 'silence'],
   setup(props, { emit }) {
     const keyword = ref('')
-    const source = ref(''), severity = ref(''), dateRange = ref([])
+    const severity = ref(''), dateRange = ref([])
     const clock = ref(Date.now())
     const durationTicker = window.setInterval(() => { clock.value = Date.now() }, 1000)
     let keywordSearchTimer
@@ -401,7 +401,7 @@ const AlertTable = defineComponent({
       window.clearInterval(durationTicker)
       window.clearTimeout(keywordSearchTimer)
     })
-    const submit = () => emit('search', props.advancedFilters ? { keyword: keyword.value, source: props.historyFilters ? source.value : '', severity: severity.value, start_date: dateRange.value?.[0] || '', end_date: dateRange.value?.[1] || '' } : keyword.value)
+    const submit = () => emit('search', props.advancedFilters ? { keyword: keyword.value, severity: severity.value, start_date: dateRange.value?.[0] || '', end_date: dateRange.value?.[1] || '' } : keyword.value)
     const submitImmediately = () => {
       window.clearTimeout(keywordSearchTimer)
       submit()
@@ -414,18 +414,16 @@ const AlertTable = defineComponent({
     const clearFilters = () => {
       window.clearTimeout(keywordSearchTimer)
       keyword.value = ''
-      source.value = ''
       severity.value = ''
       dateRange.value = []
       submit()
     }
-    const hasFilters = () => Boolean(keyword.value || source.value || severity.value || dateRange.value?.length)
+    const hasFilters = () => Boolean(keyword.value || severity.value || dateRange.value?.length)
     const select = (model, placeholder, options) => h(ElSelect, { modelValue: model.value, clearable: true, placeholder, style: 'width:150px', 'onUpdate:modelValue': value => { model.value = value || ''; submit() } }, { default: () => options.map(item => h(ElOption, { key: item.value, label: item.label, value: item.value })) })
     return () => h('section', { class: 'alert-section' }, [
       h('div', { class: ['alert-filter', props.advancedFilters && 'is-advanced'] }, [
-        h(ElInput, { modelValue: keyword.value, clearable: true, placeholder: props.historyFilters ? '搜索告警名称、标签或目标' : '搜索告警名称', prefixIcon: Search, 'onUpdate:modelValue': updateKeyword, onKeyup: event => { if (event.key === 'Enter') submitImmediately() }, onClear: submitImmediately }),
-        props.advancedFilters && props.historyFilters ? select(source, '选择类型', [{ label: '指标规则', value: 'prometheus-rule' }, { label: '拨测告警', value: 'probe-task' }, ...(props.historyFilters ? [{ label: '历史定时任务', value: 'scheduled-task' }] : [])]) : null,
-        props.advancedFilters ? select(severity, '告警等级', [{ label: 'P0', value: 'P0' }, { label: 'P1', value: 'P1' }, { label: 'P2', value: 'P2' }, ...(props.historyFilters ? [{ label: '警告（拨测）', value: 'warning' }] : [])]) : null,
+        h(ElInput, { modelValue: keyword.value, clearable: true, placeholder: '搜索告警名称', prefixIcon: Search, 'onUpdate:modelValue': updateKeyword, onKeyup: event => { if (event.key === 'Enter') submitImmediately() }, onClear: submitImmediately }),
+        props.advancedFilters ? select(severity, '告警等级', [{ label: 'P0', value: 'P0' }, { label: 'P1', value: 'P1' }, { label: 'P2', value: 'P2' }]) : null,
         props.historyFilters ? h(ElDatePicker, { class: 'alert-date-filter', modelValue: dateRange.value, type: 'daterange', format: 'MM-DD', valueFormat: 'YYYY-MM-DD', startPlaceholder: '开始日期', endPlaceholder: '结束日期', rangeSeparator: '至', clearable: true, 'onUpdate:modelValue': value => { dateRange.value = value || []; submit() } }) : null,
         h(ElButton, { disabled: !hasFilters(), onClick: clearFilters }, () => '清空'),
         props.advancedFilters ? h(ElButton, { class: 'filter-refresh', icon: Refresh, onClick: submit }, () => '刷新') : null,
@@ -466,7 +464,7 @@ const activeTab = ref('active'), keyword = ref(''), page = ref(1), pageSize = re
 const silencePage = ref(1), silencePageSize = ref(10)
 const inhibitionPage = ref(1), inhibitionPageSize = ref(10)
 const groupingPage = ref(1), groupingPageSize = ref(10)
-const alertFilters = reactive({ source: '', severity: '', alert_status: '', start_date: '', end_date: '' })
+const alertFilters = reactive({ severity: '', alert_status: '', start_date: '', end_date: '' })
 const groupingKeyword = ref(''), inhibitionKeyword = ref(''), silenceKeyword = ref('')
 const detailVisible = ref(false), currentAlert = ref(null), alertEvents = ref([]), eventLoading = ref(false), eventLoaded = ref(false), lifecycleExpanded = ref(false), groupingDrawerVisible = ref(false), ruleDrawerVisible = ref(false), silenceDrawerVisible = ref(false)
 const notificationEditing = ref(false), notificationSnapshot = ref(null)
@@ -533,9 +531,9 @@ async function loadPage() {
   } catch { center.value = null } finally { pageLoading.value = false }
 }
 
-function handleTabChange(name) { page.value = 1; keyword.value = ''; Object.assign(alertFilters, { source: '', severity: '', alert_status: '', start_date: '', end_date: '' }); if (['active', 'history'].includes(name)) loadAlerts(); if (name === 'grouping') loadGroupingRules(); if (name === 'silence') loadSilenceRules(); if (name === 'notification') reloadNotificationConfig() }
-async function loadAlerts() { alertLoading.value = true; try { const defaultStatus = activeTab.value === 'history' ? 'history' : activeTab.value === 'silence' ? 'silenced' : 'active'; const res = await getAlerts({ fault_center_id: center.value.id, status: activeTab.value === 'active' && alertFilters.alert_status ? alertFilters.alert_status : defaultStatus, keyword: keyword.value, source: alertFilters.source || undefined, severity: alertFilters.severity || undefined, start_date: alertFilters.start_date || undefined, end_date: alertFilters.end_date || undefined, page: page.value, page_size: pageSize.value }); alerts.value = res.data?.list || []; total.value = Number(res.data?.total || 0) } finally { alertLoading.value = false } }
-function searchAlerts(value) { if (value && typeof value === 'object') { keyword.value = String(value.keyword || '').trim(); Object.assign(alertFilters, { source: value.source || '', severity: value.severity || '', alert_status: value.alert_status || '', start_date: value.start_date || '', end_date: value.end_date || '' }) } else keyword.value = String(value || '').trim(); page.value = 1; loadAlerts() }
+function handleTabChange(name) { page.value = 1; keyword.value = ''; Object.assign(alertFilters, { severity: '', alert_status: '', start_date: '', end_date: '' }); if (['active', 'history'].includes(name)) loadAlerts(); if (name === 'grouping') loadGroupingRules(); if (name === 'silence') loadSilenceRules(); if (name === 'notification') reloadNotificationConfig() }
+async function loadAlerts() { alertLoading.value = true; try { const defaultStatus = activeTab.value === 'history' ? 'history' : activeTab.value === 'silence' ? 'silenced' : 'active'; const res = await getAlerts({ fault_center_id: center.value.id, status: activeTab.value === 'active' && alertFilters.alert_status ? alertFilters.alert_status : defaultStatus, keyword: keyword.value, severity: alertFilters.severity || undefined, start_date: alertFilters.start_date || undefined, end_date: alertFilters.end_date || undefined, page: page.value, page_size: pageSize.value }); alerts.value = res.data?.list || []; total.value = Number(res.data?.total || 0) } finally { alertLoading.value = false } }
+function searchAlerts(value) { if (value && typeof value === 'object') { keyword.value = String(value.keyword || '').trim(); Object.assign(alertFilters, { severity: value.severity || '', alert_status: value.alert_status || '', start_date: value.start_date || '', end_date: value.end_date || '' }) } else keyword.value = String(value || '').trim(); page.value = 1; loadAlerts() }
 function changePage(value) { page.value = value; loadAlerts() }
 function changePageSize(value) { pageSize.value = value; page.value = 1; loadAlerts() }
 function showAlertDetail(row) { currentAlert.value = row; alertEvents.value = []; eventLoaded.value = false; eventLoading.value = false; lifecycleExpanded.value = false; detailVisible.value = true }
