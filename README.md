@@ -6,7 +6,9 @@
 
 Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 
-[快速开始](#快速开始) · [功能概览](#功能概览) · [配置说明](#配置说明) · [本地开发](#本地开发) · [路线图](#路线图)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+
+[在线预览](http://106.15.67.32:8080/) · [功能概览](#功能概览) · [快速开始](#快速开始) · [本地开发](#本地开发) · [文档导航](#文档导航)
 
 </div>
 
@@ -17,6 +19,12 @@ Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 前端资源和默认配置直接嵌入 Go 程序，业务数据使用 SQLite。构建后，复制一个 `guanlan` 二进制即可启动 Web 页面和 API，无需额外部署 MySQL、Redis 或前端服务器。
 
 项目正在持续迭代。下面的功能概览描述当前实现，尚未完成的能力单独列在路线图中。
+
+## 在线预览
+
+**[打开观澜在线预览 →](http://106.15.67.32:8080/)**
+
+可通过预览环境了解平台界面与操作流程。自行部署的启动方式和初始账号见 [快速开始](#快速开始)。
 
 ## 为什么做观澜
 
@@ -42,6 +50,18 @@ Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 | AI 助手与 MCP | 页面模型管理、聊天与历史会话、指标查询、平台操作工具目录、权限校验及运行追踪 |
 | 系统管理 | 用户、角色、菜单、权限、审计日志、本地登录、LDAP / OIDC、API Token |
 
+### 从接入到处理
+
+可以按下面的顺序建立第一条监控与告警链路：
+
+1. **接入数据源**：添加 Prometheus 或 VictoriaMetrics，测试连接并设置分组。
+2. **验证查询**：在即时查询页面执行 PromQL，确认指标和标签符合预期。
+3. **配置通知**：创建通知渠道与模板，发送测试通知确认可达。
+4. **建立告警规则**：配置表达式、阈值、评估周期与故障中心，设置通知策略。
+5. **跟踪处理结果**：查看告警状态、通知记录和恢复情况；需要主动检测时，再添加 HTTP、TCP 或证书到期等拨测任务。
+
+AI 助手和远程 Agent 可按需配置，不影响上述基础功能的使用。
+
 ### AI 助手与 MCP
 
 点击页面右上角的机器人打开聊天侧栏，支持多轮对话、历史会话搜索、模型切换和执行追踪。在「系统设置 → AI 模型」配置 NewAPI、OpenAI 兼容或 Anthropic 连接，模型需支持原生工具调用。配置保存后立即生效，API Key 加密存入数据库，不通过 YAML 或 `APP_AI_*` 配置。
@@ -55,6 +75,8 @@ Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 实现与模型配置详见 [AI 助手架构](docs/architecture/ai-assistant-integration.md)。
 
 ## 快速开始
+
+本节用于构建和部署可独立运行的版本。修改源码、调试页面请直接查看 [本地开发](#本地开发)。
 
 ### 1. 从源码构建
 
@@ -183,6 +205,13 @@ smtp:
 
 ## 本地开发
 
+日常开发使用 **Vite 前端热更新 + Air 后端热重载**，无需每次修改都执行 `make build` 或 `npm run build`。Air 会在后端代码变化后重新编译并启动后端。
+
+| 进程 | 默认地址 | 用途 |
+| --- | --- | --- |
+| Vite | `http://127.0.0.1:8080` | 浏览器访问入口，提供前端热更新 |
+| Go / Air | `http://127.0.0.1:8081` | 处理 Vite 转发的 API 和 WebSocket 请求 |
+
 ### 后端：Air 热重载
 
 ```bash
@@ -223,11 +252,29 @@ make wire
 
 # 运行 Go 测试
 make test
+
+# 运行前端测试（无需启动浏览器或执行前端构建）
+npm --prefix web test
+
+# 只验证主题切换与颜色对比度
+npm --prefix web run test:theme
 ```
 
 `wire.go` 和 `wire_gen.go` 位于 `internal/app`，生成文件应随源码提交，不要手工修改。普通构建及日常 Air 热重载不需要重新运行 Wire。
 
-全新检出仓库时，测试前先执行 `make web`，因为 Go 的静态资源嵌入需要 `web/dist` 存在。
+全新检出仓库且缺少 `web/dist` 时，运行 `make test` 前需要先执行 `make web`，因为 Go 的静态资源嵌入需要该目录存在。前端测试不需要这一步。
+
+前端测试统一放在 `web/tests/`；AI 调用链路的冒烟脚本位于 `test/smoke/`。可复用的测试源码随仓库提交，本地截图、验证产物与 Python 缓存已加入忽略规则。
+
+### AI 操作目录生成
+
+`cmd/generate-operation-catalog` 是维护 AI / MCP 操作目录的开发工具。只有增减已登记操作、修改相关接口参数时，才需要在仓库根目录执行：
+
+```bash
+go run ./cmd/generate-operation-catalog
+```
+
+它读取 `manifest.json` 清单与后端请求结构，更新 `internal/handlers/mcp_operations_generated.go`。生成文件随源码提交，后端重新编译启动后生效；服务运行时不会执行生成器，也不会读取该 JSON 清单。根目录 `main.go` 始终是服务端入口。
 
 ## 项目结构
 
@@ -247,10 +294,16 @@ guanlan/
 │   ├── models/             数据模型
 │   └── routes/             HTTP 路由
 ├── pkg/                    公共日志、SQLite 和 HTTP 中间件
-├── web/                    Vue 前端，构建产物位于 dist
+├── web/
+│   ├── src/                Vue 页面、组件、样式与图片资源
+│   ├── tests/              前端单元与回归测试
+│   └── dist/               前端构建产物，不提交 Git
 ├── configs/                外部配置示例
 ├── docs/                   架构、开发与接入文档
-├── test/                   冒烟验证与测试资源
+├── test/
+│   ├── smoke/              可复用的冒烟测试脚本
+│   └── artifacts/          本地验证产物，不提交 Git
+├── LICENSE                 Apache-2.0 许可证
 ├── Dockerfile.agent        Agent 容器构建定义
 ├── .air.toml               后端热重载配置
 └── Makefile                构建、开发和测试命令
@@ -268,6 +321,24 @@ flowchart LR
 ```
 
 目录职责详见 [项目目录说明](docs/project-layout.md)。
+
+## 常见问题
+
+**不配置 AI 模型能使用吗？**
+
+可以。监控接入、告警、通知、拨测和自动化独立于模型运行。需要助手时，再到「系统设置 → AI 模型」添加支持工具调用的模型连接。
+
+**必须安装 Agent 吗？**
+
+不需要。平台服务端可以独立启动；需要在远程机器执行任务时，再根据场景配置 SSH 或 Agent 节点。
+
+**改了前端代码，为什么独立二进制里的页面没有变化？**
+
+独立二进制使用编译时嵌入的 `web/dist`。开发时通过 Vite 的 8080 端口查看实时修改；发布版本需要重新构建前端并编译后端。
+
+**为什么首次运行 `make dev` 可能构建前端？**
+
+Go 主程序使用 `go:embed web/dist`，编译时要求这个目录存在。当前 Makefile 会在缺少 `web/dist/index.html` 时自动生成前端资源；已有资源时直接启动 Air。日常页面修改由 Vite 提供，无需重复构建。
 
 ## 使用边界
 
@@ -293,7 +364,9 @@ AI 阶段规划见 [实施方案](docs/architecture/guanlan-ai-roadmap.md)，已
 
 - [日志查询接入](docs/log-query.md)：Loki、Elasticsearch、ClickHouse 的连接和字段映射。
 - [Agent 接入](docs/agent-connection.md)：远程节点部署与连接。
+- [脚本拨测](docs/architecture/script-probes.md)：Shell / Python 检测与执行策略。
 - [告警生命周期](docs/alert-lifecycle-management.md)：告警状态、通知及恢复处理。
+- [AI 助手架构](docs/architecture/ai-assistant-integration.md) 与 [平台操作工具目录](docs/architecture/platform-operation-tools.md)。
 - [自动化任务执行](docs/architecture/automation-task-execution.md) 与 [工作流执行](docs/architecture/workflow-dag-execution.md)。
 - [数据库说明](docs/database.md) 与 [项目目录](docs/project-layout.md)。
 
@@ -301,8 +374,10 @@ AI 阶段规划见 [实施方案](docs/architecture/guanlan-ai-roadmap.md)，已
 
 欢迎通过 Issue 提交问题、使用反馈和功能建议，也欢迎通过 Pull Request 参与开发。
 
-提交问题时，请提供复现步骤、运行环境和脱敏后的错误信息。提交代码时，请说明改动目的与验证方式；涉及前端资源时执行构建验证，涉及后端逻辑时运行相关 Go 测试。
+提交问题时，请提供复现步骤、预期与实际行为、运行环境和脱敏后的错误信息。
+
+提交代码时，请说明改动目的与验证方式，优先运行与改动相关的前端或 Go 测试。日常开发通过 Vite / Air 验证，涉及发布打包或静态资源嵌入时再执行完整构建。请勿提交本地数据库、凭据、缓存和临时截图。
 
 ## 许可证
 
-当前仓库尚未包含 `LICENSE` 文件，许可证待项目维护者确定并补充。
+本项目采用 **Apache License 2.0**，完整条款见 [LICENSE](LICENSE)。

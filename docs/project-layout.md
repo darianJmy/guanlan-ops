@@ -28,9 +28,10 @@
 - `configs`：外部配置示例，默认运行无需复制该目录。
 - `Dockerfile.agent`：Agent 容器构建定义；Docker 构建上下文为仓库根目录。
 - `docs/database.md`：SQLite 数据库初始化与开发环境结构调整说明。
-- `assets`：项目图片和图标。
+- `web/src/assets`：前端图片和图标。
 - `docs`：设计与使用文档。
-- `test/artifacts`：浏览器验证截图与辅助测试产物。
+- `test/smoke`：可复用的冒烟测试脚本。
+- `test/artifacts`：本地浏览器验证截图与辅助测试产物，不提交 Git。
 
 包测试保留在对应包中。公共包不引用 `internal`；配置与业务模型由应用层提供。没有脚本或部署清单的目录不创建空占位文件夹。
 

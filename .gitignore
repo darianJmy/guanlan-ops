@@ -7,6 +7,11 @@ guanlan
 /web/dist/
 .playwright-cli/
 
+# Local browser test artifacts and Python caches
+/test/artifacts/
+__pycache__/
+*.py[cod]
+
 # Local SQLite databases and WAL sidecars
 *.db
 *.db-wal
