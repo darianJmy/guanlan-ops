@@ -33,7 +33,7 @@ func ListUsers(c *gin.Context) {
 	tx := database.DB.Model(&models.User{})
 	if query.Keyword != "" {
 		kw := "%" + query.Keyword + "%"
-		tx = tx.Where("username LIKE ? OR nickname LIKE ? OR email LIKE ?", kw, kw, kw)
+		tx = tx.Where("username LIKE ?", kw)
 	}
 	if query.Status != nil {
 		tx = tx.Where("status = ?", *query.Status)

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"guanlan/pkg/mailclient"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"net/mail"
@@ -135,9 +137,39 @@ func TestSMTPDelivery(t *testing.T) {
 							done <- err
 							return
 						}
-						content, err := io.ReadAll(base64.NewDecoder(base64.StdEncoding, message.Body))
-						if err != nil || string(content) != "中文邮件正文" {
-							done <- fmt.Errorf("incorrect MIME content %q: %v", content, err)
+						kind, params, err := mime.ParseMediaType(message.Header.Get("Content-Type"))
+						if err != nil || kind != "multipart/alternative" {
+							done <- fmt.Errorf("expected multipart email: %s, %v", kind, err)
+							return
+						}
+						parts := multipart.NewReader(message.Body, params["boundary"])
+						for _, expected := range []string{"text/plain", "text/html"} {
+							part, err := parts.NextPart()
+							if err != nil {
+								done <- err
+								return
+							}
+							partKind, _, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
+							if err != nil || partKind != expected {
+								done <- fmt.Errorf("unexpected part: %s", partKind)
+								return
+							}
+							content, err := io.ReadAll(base64.NewDecoder(base64.StdEncoding, part))
+							if err != nil || !strings.Contains(string(content), "中文邮件正文") {
+								done <- fmt.Errorf("incorrect MIME content %q: %v", content, err)
+								return
+							}
+							if expected == "text/plain" && string(content) != "中文邮件正文" {
+								done <- fmt.Errorf("plain text changed: %s", content)
+								return
+							}
+							if expected == "text/html" && (!strings.Contains(string(content), "background:#d54941") || !strings.Contains(string(content), "P0")) {
+								done <- fmt.Errorf("missing severity color: %s", content)
+								return
+							}
+						}
+						if _, err := parts.NextPart(); err != io.EOF {
+							done <- fmt.Errorf("unexpected extra MIME part: %v", err)
 							return
 						}
 						if message.Header.Get("To") != "ops@example.com" {
@@ -162,7 +194,7 @@ func TestSMTPDelivery(t *testing.T) {
 				t.Fatal(err)
 			}
 			channel.Type = "email"
-			err = sendWebhook(channel, []byte(`{"title":"中文标题","content":"中文邮件正文"}`))
+			err = sendWebhook(channel, []byte(`{"title":"中文标题","content":"中文邮件正文","status":"firing","severity":"P0"}`))
 			if (err != nil) != reject {
 				t.Fatalf("unexpected send result: %v", err)
 			}
@@ -199,12 +231,12 @@ func TestDingTalkSigningAndPayload(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Error(err)
 		}
-		if payload.MsgType != "markdown" || payload.Markdown.Title != "告警" || !strings.Contains(payload.Markdown.Text, "正文") {
+		if payload.MsgType != "markdown" || payload.Markdown.Title != "告警" || !strings.Contains(payload.Markdown.Text, "正文") || !strings.Contains(payload.Markdown.Text, `<font color="#d54941">P0`) {
 			t.Errorf("invalid payload: %+v", payload)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"errcode":0,"errmsg":"ok"}`)), Header: make(http.Header)}, nil
 	})
-	if err := sendWebhook(models.NotificationChannel{Type: "dingding", WebhookURLCipher: hook, SignSecretCipher: secret}, []byte(`{"title":"告警","content":"正文"}`)); err != nil {
+	if err := sendWebhook(models.NotificationChannel{Type: "dingding", WebhookURLCipher: hook, SignSecretCipher: secret}, []byte(`{"title":"告警","content":"正文","status":"firing","severity":"P0"}`)); err != nil {
 		t.Fatal(err)
 	}
 }

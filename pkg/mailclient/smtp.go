@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"mime/multipart"
 	"net"
 	"net/mail"
 	"net/smtp"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -81,7 +83,40 @@ func Message(config Config, title, content string) []byte {
 	msg.WriteString(encoded + "\r\n")
 	return msg.Bytes()
 }
+
+// AlternativeMessage keeps a plain-text fallback for clients without HTML support.
+func AlternativeMessage(config Config, title, content, htmlContent string) []byte {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for _, part := range []struct{ kind, content string }{{"text/plain", content}, {"text/html", htmlContent}} {
+		header := textproto.MIMEHeader{}
+		header.Set("Content-Type", part.kind+"; charset=UTF-8")
+		header.Set("Content-Transfer-Encoding", "base64")
+		dst, _ := writer.CreatePart(header)
+		encoded := base64.StdEncoding.EncodeToString([]byte(part.content))
+		for len(encoded) > 76 {
+			fmt.Fprint(dst, encoded[:76]+"\r\n")
+			encoded = encoded[76:]
+		}
+		fmt.Fprint(dst, encoded+"\r\n")
+	}
+	writer.Close()
+	title = strings.NewReplacer("\r", " ", "\n", " ").Replace(title)
+	var msg bytes.Buffer
+	fmt.Fprintf(&msg, "From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=%q\r\n\r\n", config.From, strings.Join(config.To, ", "), mime.BEncoding.Encode("UTF-8", title), time.Now().Format(time.RFC1123Z), writer.Boundary())
+	msg.Write(body.Bytes())
+	return msg.Bytes()
+}
+
 func Send(config Config, title, content string) error {
+	return send(config, title, content, "")
+}
+
+func SendAlternative(config Config, title, content, htmlContent string) error {
+	return send(config, title, content, htmlContent)
+}
+
+func send(config Config, title, content, htmlContent string) error {
 	if err := ValidateConfig(&config); err != nil {
 		return err
 	}
@@ -130,7 +165,11 @@ func Send(config Config, title, content string) error {
 	if err != nil {
 		return err
 	}
-	if _, err = writer.Write(Message(config, title, content)); err != nil {
+	message := Message(config, title, content)
+	if htmlContent != "" {
+		message = AlternativeMessage(config, title, content, htmlContent)
+	}
+	if _, err = writer.Write(message); err != nil {
 		return err
 	}
 	if err = writer.Close(); err != nil {

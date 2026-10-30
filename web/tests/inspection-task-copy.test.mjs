@@ -14,7 +14,7 @@ const code = parse(source, { sourceType: 'module' }).program.body.filter(node =>
 ).map(node => source.slice(node.start, node.end)).join('\n')
 function editor() {
   const context = vm.createContext({ parseCertificateTarget, formatCertificateTarget, taskTypes: probeTypes, computed: ({get,set}) => ({ get value() { return get() }, set value(value) { set(value) } }) })
-  vm.runInContext('const legacyNodeValues = {value: []}; const scripts = {value: []}; const formRef = {value: null};', context)
+  vm.runInContext('const legacyNodeValues = {value: []}; const automationTasks = {value: []}; const formRef = {value: null};', context)
   vm.runInContext(code + '\nconst form = defaultForm();', context)
   return expression => vm.runInContext(expression, context)
 }
@@ -85,4 +85,14 @@ test('existing multi-node tasks are preserved, but their copies require a single
   assert.equal(JSON.parse(run('buildPayload().config')).port, 443)
   assert.deepEqual(parseCertificateTarget('[::1]:8443'), {host:'::1',port:8443})
   for (const value of ['example.com:0','example.com:65536','example.com:abc','example.com/path','']) assert.throws(() => parseCertificateTarget(value))
+})
+
+test('script probes only serialize the automation task reference', () => {
+  const run = editor()
+  run("automationTasks.value = [{id: 12, name: '健康检查', status: 1}]; changeType('script'); Object.assign(form, {automation_task_id: 12, node_values: ['ssh:7'], timeout_ms: 100, script_id: 99})")
+  const payload = JSON.parse(run('JSON.stringify(buildPayload())'))
+  assert.equal(payload.target, '健康检查')
+  const config = JSON.parse(payload.config)
+  assert.equal(config.automation_task_id, 12)
+  for (const field of ['script_id', 'execution_nodes', 'timeout_ms', 'node_type', 'node_id']) assert.equal(Object.hasOwn(config, field), false)
 })

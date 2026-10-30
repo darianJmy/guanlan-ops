@@ -242,7 +242,7 @@ func enqueueAlertActions(tx *gorm.DB, alert models.AlertInstance, eventType, toS
 		execution := models.AlertActionExecution{
 			FaultCenterID: rule.FaultCenterID, RuleID: rule.ID, RuleName: rule.Name, AlertID: alert.ID, AlertTitle: alert.Title,
 			TriggerStatus: toStatus, ActionType: rule.ActionType, ScopeKey: alertActionScopeKey(alert),
-			Status: actionStatusQueued, MaxAttempts: rule.MaxRetries + 1, NextRunAt: nextRunAt,
+			Status: actionStatusQueued, MaxAttempts: 1, NextRunAt: nextRunAt,
 		}
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&execution).Error; err != nil {
 			return err
@@ -313,7 +313,7 @@ func runAlertActionExecution(execution *models.AlertActionExecution, now time.Ti
 		notifyAlertActionResult(rule, alert, execution, true, output, "")
 		return
 	}
-	if execution.Attempt < execution.MaxAttempts {
+	if rule.ActionType != "automation_task" && execution.Attempt < execution.MaxAttempts {
 		due := time.Now().Add(alertActionRetryDelay(execution.Attempt))
 		database.DB.Model(execution).Updates(map[string]interface{}{"status": actionStatusQueued, "output": textutil.Ellipsis(output, 8000), "error": err.Error(), "next_run_at": due, "lease_until": nil})
 		return
@@ -346,31 +346,8 @@ func executeAlertAction(rule models.AlertActionRule, alert models.AlertInstance,
 			return record.Output, fmt.Errorf("%s", record.Error)
 		}
 		return record.Output, nil
-	case "script":
-		var script models.Script
-		if database.DB.First(&script, rule.TargetID).Error != nil || script.Status != 1 {
-			return "", fmt.Errorf("脚本不存在或已停用")
-		}
-		status, output, durationMS := executeAlertActionScript(script, rule.NodeType, rule.NodeID, time.Duration(rule.TimeoutSeconds)*time.Second)
-		database.DB.Create(&models.ScriptExecution{ScriptID: script.ID, Status: status, Output: output, DurationMs: durationMS})
-		if status != "success" {
-			return output, fmt.Errorf("脚本执行失败")
-		}
-		return output, nil
-	case "workflow":
-		var workflow models.Workflow
-		if database.DB.First(&workflow, rule.TargetID).Error != nil || workflow.Status != 1 {
-			return "", fmt.Errorf("工作流不存在或已停用")
-		}
-		record := runWorkflow(&workflow, buildAlertWorkflowInput(alert, triggerStatus, now))
-		if record.Status != "success" {
-			return record.Result, fmt.Errorf("工作流执行失败")
-		}
-		return record.Result, nil
-	case "webhook":
-		return executeAlertActionWebhook(rule, alert, triggerStatus, now)
 	default:
-		return "", fmt.Errorf("不支持的动作类型")
+		return "", fmt.Errorf("旧处置方式已停用，请重新选择自动化任务")
 	}
 }
 

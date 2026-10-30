@@ -1,9 +1,5 @@
 <template>
   <div class="editor-page" v-loading="loading">
-    <div class="preview-header">
-      <el-button link type="primary" :icon="ArrowLeft" @click="cancel">返回</el-button>
-    </div>
-
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="editor-layout">
       <div class="editor-main">
         <div class="section-title"><strong>基本信息</strong></div>
@@ -38,12 +34,13 @@
           </el-form-item>
         </div>
         <div v-else-if="form.type === 'script'" class="form-grid">
-          <el-form-item class="full-row" label="执行脚本" prop="script_id">
-            <el-select v-model="form.script_id" filterable placeholder="选择脚本库中的脚本" aria-label="执行脚本">
-              <el-option v-for="script in scripts" :key="script.id" :label="`${script.name} · ${script.type === 'python' ? 'Python' : 'Shell'}${script.status !== 1 ? '（已停用）' : ''}`" :value="script.id" :disabled="script.status !== 1" />
+          <el-form-item class="full-row" label="自动化任务" prop="automation_task_id">
+            <el-select v-model="form.automation_task_id" filterable placeholder="选择自动化任务" aria-label="自动化任务">
+              <el-option v-for="task in automationTasks" :key="task.id" :label="`${task.name}${task.status !== 1 ? '（已停用）' : ''}`" :value="task.id" :disabled="task.status !== 1" />
             </el-select>
           </el-form-item>
-          <div class="script-hint full-row" role="note"><el-icon aria-hidden="true"><InfoFilled /></el-icon><span>每次执行使用脚本库的最新内容。退出码 0 表示成功，非 0、超时或执行异常表示失败；执行输出保存在拨测记录中。</span></div>
+          <el-alert v-if="isEdit && !form.automation_task_id" class="full-row" title="请为此拨测重新选择自动化任务，节点和脚本配置将由该任务管理。" type="info" :closable="false" />
+          <div class="script-hint full-row" role="note"><el-icon aria-hidden="true"><InfoFilled /></el-icon><span>执行配置由自动化任务统一管理。拨测按任务执行结果判断成功或失败，输出保存在执行记录和拨测记录中。</span></div>
         </div>
         <div v-else class="form-grid">
           <el-form-item :label="form.type === 'certificate_expiry' ? '网站域名' : '目标 Host'" prop="host"><el-input v-model="form.host" /></el-form-item>
@@ -51,7 +48,7 @@
           <el-form-item v-if="form.type === 'certificate_expiry'" label="提前多少天告警"><div class="interval-control"><el-input-number v-model="form.expiry_alert_days" :min="1" :max="365" :precision="0" controls-position="right" aria-label="提前告警天数" /><span>天</span></div></el-form-item>
           <el-form-item v-if="form.type === 'icmp'" label="发包数量"><el-input-number v-model="form.count" :min="1" :max="10" /></el-form-item>
         </div>
-        <el-collapse class="advanced-collapse full-row">
+        <el-collapse v-if="form.type !== 'script'" class="advanced-collapse full-row">
           <el-collapse-item name="advanced">
             <template #title>
               <span class="advanced-title">高级设置</span>
@@ -88,10 +85,10 @@
         </el-collapse>
 
         <div class="form-grid condition-node-grid">
-          <el-form-item label="告警条件">
+          <el-form-item :class="{ 'full-row': form.type === 'script' }" label="告警条件">
           <el-select v-model="form.severity" aria-label="告警条件"><el-option label="P0" value="P0" /><el-option label="P1" value="P1" /><el-option label="P2" value="P2" /></el-select>
         </el-form-item>
-          <el-form-item label="执行节点">
+          <el-form-item v-if="form.type !== 'script'" label="执行节点">
             <el-select v-model="selectedNode" aria-label="执行节点" placeholder="请选择执行节点"><el-option v-if="legacyNodeValues.length > 1" :label="`保留原有 ${legacyNodeValues.length} 个节点`" value="__legacy__" /><el-option label="服务端直连" value="direct" /><el-option-group v-if="sshNodes.length" label="SSH 节点"><el-option v-for="node in sshNodes" :key="`ssh:${node.id}`" :label="node.name" :value="`ssh:${node.id}`" :disabled="node.status !== 1" /></el-option-group><el-option-group v-if="hostAgentNodes.length" label="Agent 节点"><el-option v-for="node in hostAgentNodes" :key="`agent:${node.id}`" :label="node.name" :value="`agent:${node.id}`" :disabled="node.status !== 'online'" /></el-option-group><el-option-group v-if="dockerAgentNodes.length" label="Docker 节点"><el-option v-for="node in dockerAgentNodes" :key="`agent:${node.id}`" :label="node.name" :value="`agent:${node.id}`" :disabled="node.status !== 'online'" /></el-option-group></el-select>
             <p v-if="legacyNodeValues.length > 1" class="legacy-node-note">原任务包含多个执行节点；选择单个节点并保存后，将替换原配置。</p>
           </el-form-item>
@@ -154,10 +151,10 @@
 import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElButton, ElInput, ElMessage } from 'element-plus'
-import { ArrowLeft, Delete, InfoFilled, Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
+import { Delete, InfoFilled, Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
 import { getAllInspectionRuleGroups, createInspectionItem, getInspectionItems, updateInspectionItem } from '../../api/inspection'
 import { getAgents, getCertificateExecutors } from '../../api/certificate'
-import { getScripts } from '../../api/script'
+import { getAutomationTaskOptions } from '../../api/automationTask'
 import ScriptProbeResult from '../../components/ScriptProbeResult.vue'
 import { getFaultCenters } from '../../api/alert'
 import { isDockerAgent } from '../../utils/agentNode'
@@ -171,10 +168,10 @@ import EditorActionBar from '../../components/EditorActionBar.vue'
 const KeyValueEditor = defineComponent({ name: 'KeyValueEditor', props: { modelValue: { type: Array, required: true }, keyPlaceholder: { type: String, default: '键' }, valuePlaceholder: { type: String, default: '值' } }, emits: ['update:modelValue'], setup(props, { emit }) { const update = (index, field, value) => emit('update:modelValue', props.modelValue.map((row, i) => i === index ? { ...row, [field]: value } : row)); const add = () => emit('update:modelValue', [...props.modelValue, { key: '', value: '' }]); const remove = index => { const rows = props.modelValue.filter((_, i) => i !== index); emit('update:modelValue', rows.length ? rows : [{ key: '', value: '' }]) }; return () => h('div', { class: 'kv-editor' }, props.modelValue.map((row, index) => h('div', { class: 'kv-row', key: index }, [h(ElInput, { modelValue: row.key, placeholder: props.keyPlaceholder, 'onUpdate:modelValue': value => update(index, 'key', value) }), h(ElInput, { modelValue: row.value, placeholder: props.valuePlaceholder, 'onUpdate:modelValue': value => update(index, 'value', value) }), h(ElButton, { icon: index === props.modelValue.length - 1 ? Plus : Delete, circle: true, onClick: index === props.modelValue.length - 1 ? add : () => remove(index) })]))) } })
 const taskTypes = probeTypes
 
-const defaultForm = (type = 'http') => ({ id: null, group_id: null, name: '', description: '', type, script_id: null, target: '', host: '', port: taskTypes.find(item => item.value === type)?.defaultPort || 80, method: 'GET', headers: [{ key: '', value: '' }], params: [{ key: '', value: '' }], body: '', timeout_ms: type === 'script' ? 30000 : 10000, content_type: 'application/json', auth_type: 'none', username: '', password: '', success_codes: '200-399', response_keyword: '', count: 4, server_name: '', node_values: ['direct'], expiry_alert_days: 30, interval_seconds: type === 'certificate_expiry' ? 21600 : 300, failure_threshold: type === 'certificate_expiry' ? 1 : 3, recovery_threshold: type === 'certificate_expiry' ? 1 : 3, alert_detail: '', severity: 'P2', fault_center_id: null, external_labels: [], status: 1 })
+const defaultForm = (type = 'http') => ({ id: null, group_id: null, name: '', description: '', type, automation_task_id: null, target: '', host: '', port: taskTypes.find(item => item.value === type)?.defaultPort || 80, method: 'GET', headers: [{ key: '', value: '' }], params: [{ key: '', value: '' }], body: '', timeout_ms: type === 'script' ? 30000 : 10000, content_type: 'application/json', auth_type: 'none', username: '', password: '', success_codes: '200-399', response_keyword: '', count: 4, server_name: '', node_values: ['direct'], expiry_alert_days: 30, interval_seconds: type === 'certificate_expiry' ? 21600 : 300, failure_threshold: type === 'certificate_expiry' ? 1 : 3, recovery_threshold: type === 'certificate_expiry' ? 1 : 3, alert_detail: '', severity: 'P2', fault_center_id: null, external_labels: [], status: 1 })
 const route = useRoute(), router = useRouter(), formRef = ref(), form = reactive(defaultForm())
 const loading = ref(true), saving = ref(false), testing = ref(false), testVisible = ref(false), testResult = ref(null)
-const ruleGroups = ref([]), scripts = ref([])
+const ruleGroups = ref([]), automationTasks = ref([])
 const legacyNodeValues = ref([])
 const selectedNode = computed({
   get: () => form.node_values.length > 1 ? '__legacy__' : form.node_values[0] || '',
@@ -185,7 +182,7 @@ const hostAgentNodes = computed(() => agentNodes.value.filter(item => !isDockerA
 const dockerAgentNodes = computed(() => agentNodes.value.filter(isDockerAgent))
 const isEdit = computed(() => Boolean(route.params.id)), currentType = computed(() => taskTypes.find(item => item.value === form.type) || taskTypes[0]), requestBodyVisible = computed(() => ['POST', 'PUT'].includes(form.method))
 const activeCenters = computed(() => faultCenters.value.filter(item => item.status === 1))
-const targetSummary = computed(() => form.type === 'script' ? scripts.value.find(script => script.id === form.script_id)?.name || '尚未选择脚本' : form.type === 'http' ? form.target.trim() || '尚未配置' : `${form.host.trim() || '尚未配置'}${form.type !== 'icmp' && form.host.trim() ? `:${form.port}` : ''}`)
+const targetSummary = computed(() => form.type === 'script' ? automationTasks.value.find(script => script.id === form.automation_task_id)?.name || '尚未选择自动化任务' : form.type === 'http' ? form.target.trim() || '尚未配置' : `${form.host.trim() || '尚未配置'}${form.type !== 'icmp' && form.host.trim() ? `:${form.port}` : ''}`)
 const nodeSummary = computed(() => form.node_values.map(nodeDisplayName).join('、') || '尚未选择')
 const intervalHours = computed({ get: () => form.interval_seconds / 3600, set: value => { form.interval_seconds = value * 3600 } })
 const intervalSummary = computed(() => form.type === 'certificate_expiry' ? `每 ${form.interval_seconds / 3600} 小时` : `每 ${form.interval_seconds} 秒`)
@@ -193,12 +190,12 @@ const faultCenterSummary = computed(() => activeCenters.value.find(item => item.
 const recoverySummary = computed(() => `连续 ${form.recovery_threshold} 次成功后恢复`)
 const labelPreview = computed(() => form.external_labels.filter(item => String(item.key || '').trim()))
 const httpMethods = ['GET', 'POST', 'PUT', 'DELETE']
-const rules = { script_id: [{ validator: (_r, value, done) => form.type !== 'script' || scripts.value.some(script => script.id === value && script.status === 1) ? done() : done(new Error('请选择启用的脚本')), trigger: 'change' }], name: [{ required: true, message: '请输入任务名称', trigger: 'blur' }], target: [{ validator: (_r, value, done) => form.type !== 'http' || /^https?:\/\/[^\s]+$/i.test(String(value || '').trim()) ? done() : done(new Error('请输入完整 URL')), trigger: 'blur' }], host: [{ validator: (_r, value, done) => !['icmp', 'tcp', 'certificate_expiry'].includes(form.type) || String(value || '').trim() ? done() : done(new Error('请输入目标 Host')), trigger: 'blur' }], fault_center_id: [{ required: true, message: '请选择故障中心', trigger: 'change' }], username: [{ validator: (_r, value, done) => form.auth_type === 'none' || String(value || '').trim() ? done() : done(new Error('请输入认证用户名')), trigger: 'blur' }] }
+const rules = { automation_task_id: [{ validator: (_r, value, done) => form.type !== 'script' || automationTasks.value.some(script => script.id === value && script.status === 1) ? done() : done(new Error('请选择启用的自动化任务')), trigger: 'change' }], name: [{ required: true, message: '请输入任务名称', trigger: 'blur' }], target: [{ validator: (_r, value, done) => form.type !== 'http' || /^https?:\/\/[^\s]+$/i.test(String(value || '').trim()) ? done() : done(new Error('请输入完整 URL')), trigger: 'blur' }], host: [{ validator: (_r, value, done) => !['icmp', 'tcp', 'certificate_expiry'].includes(form.type) || String(value || '').trim() ? done() : done(new Error('请输入目标 Host')), trigger: 'blur' }], fault_center_id: [{ required: true, message: '请选择故障中心', trigger: 'change' }], username: [{ validator: (_r, value, done) => form.auth_type === 'none' || String(value || '').trim() ? done() : done(new Error('请输入认证用户名')), trigger: 'blur' }] }
 onMounted(loadData)
 async function loadData() {
   try {
-    const results = await Promise.allSettled([getInspectionItems(), getCertificateExecutors(), getAgents(), getFaultCenters(), getAllInspectionRuleGroups(), getScripts()])
-    if (results[5].status === 'fulfilled') scripts.value = results[5].value.data || []
+    const results = await Promise.allSettled([getInspectionItems(), getCertificateExecutors(), getAgents(), getFaultCenters(), getAllInspectionRuleGroups(), getAutomationTaskOptions()])
+    if (results[5].status === 'fulfilled') automationTasks.value = results[5].value.data || []
     if (results[4].status === 'fulfilled') ruleGroups.value = results[4].value
     if (!isEdit.value) form.group_id = ruleGroups.value.find(group => group.id === Number(route.query.group_id))?.id || null
     const items = results[0].status === 'fulfilled' ? results[0].value.data || [] : []
@@ -233,11 +230,11 @@ function fillForm(row) { let config = {}; try { config = JSON.parse(row.config |
 function addExternalLabel() { form.external_labels.push({ key: '', value: '' }) }
 function changeType(type) { if (form.type === type) return; const nodes = form.node_values; Object.assign(form, { ...defaultForm(type), id: form.id, group_id: form.group_id, name: form.name, description: form.description, node_values: nodes, interval_seconds: type === 'certificate_expiry' ? 21600 : form.interval_seconds, failure_threshold: type === 'certificate_expiry' ? 1 : form.failure_threshold, recovery_threshold: type === 'certificate_expiry' ? 1 : form.recovery_threshold, alert_detail: form.alert_detail, severity: form.severity, fault_center_id: form.fault_center_id, external_labels: form.external_labels, status: form.status }); formRef.value?.clearValidate?.() }
 function selectedExecutionNodes() { return form.node_values.map(value => { const [nodeType, rawNodeID] = value.includes(':') ? value.split(':') : ['direct', '0']; return { node_type: nodeType, node_id: Number(rawNodeID) || 0 } }) }
-function buildPayload() { const common = { description: form.description.trim(), execution_nodes: selectedExecutionNodes(), timeout_ms: form.timeout_ms, alert_detail: form.alert_detail.trim() }; let config; if (form.type === 'http') config = { ...common, target: form.target.trim(), method: form.method, headers: rowsToObject(form.headers), params: rowsToObject(form.params), body: form.body, content_type: form.content_type, auth_type: form.auth_type, username: form.username, password: form.password, success_codes: form.success_codes, response_keyword: form.response_keyword.trim() }; else if (form.type === 'script') config = { ...common, script_id: form.script_id }; else config = { ...common, ...(form.type === 'certificate_expiry' ? parseCertificateTarget(form.host) : { host: form.host.trim(), port: form.port }), count: form.count, server_name: form.server_name.trim(), ...(form.type === 'certificate_expiry' ? { expiry_alert_days: form.expiry_alert_days } : {}) }; const target = form.type === 'script' ? scripts.value.find(script => script.id === form.script_id)?.name || '' : form.type === 'http' ? form.target.trim() : form.host.trim(); return { group_id: form.group_id, name: form.name.trim(), type: form.type, target, config: JSON.stringify(config), external_labels: JSON.stringify(rowsToObject(form.external_labels)), expected_result: '拨测成功', interval_seconds: form.interval_seconds, failure_threshold: form.failure_threshold, recovery_threshold: form.recovery_threshold, severity: form.severity, fault_center_id: form.fault_center_id || 0, status: form.status } }
-function testConfigError() { if (form.type === 'certificate_expiry') { try { parseCertificateTarget(form.host) } catch { return '请输入有效的网站域名和端口（1 至 65535）' } } if (form.type === 'script' && !scripts.value.some(script => script.id === form.script_id && script.status === 1)) return '请选择启用的脚本'; if (form.type === 'certificate_expiry' && (!Number.isInteger(form.expiry_alert_days) || form.expiry_alert_days < 1 || form.expiry_alert_days > 365)) return '提前告警天数应为 1-365 天'; if (!form.node_values.length) return '请选择一个执行节点'; if (form.type === 'http' && !/^https?:\/\/[^\s]+$/i.test(form.target.trim())) return '请先填写完整的请求 URL'; if (['icmp', 'tcp', 'certificate_expiry'].includes(form.type) && !form.host.trim()) return '请先填写目标 Host'; return '' }
-async function handleTest() { const error = testConfigError(); if (error) return ElMessage.warning(error); testing.value = true; try { const config = JSON.parse(buildPayload().config); const responses = await Promise.all(selectedExecutionNodes().map(async node => { const response = await instantProbe({ type: form.type, ...config, ...node }); return { node: nodeDisplayName(node.node_type === 'direct' ? 'direct' : `${node.node_type}:${node.node_id}`), ...response.data } })); testResult.value = { status: responses.every(item => item.status === 'success') ? 'success' : 'fail', duration_ms: Math.max(0, ...responses.map(item => item.duration_ms || 0)), result: responses }; testVisible.value = true } finally { testing.value = false } }
+function buildPayload() { const common = { description: form.description.trim(), alert_detail: form.alert_detail.trim(), ...(form.type === 'script' ? {} : { execution_nodes: selectedExecutionNodes(), timeout_ms: form.timeout_ms }) }; let config; if (form.type === 'http') config = { ...common, target: form.target.trim(), method: form.method, headers: rowsToObject(form.headers), params: rowsToObject(form.params), body: form.body, content_type: form.content_type, auth_type: form.auth_type, username: form.username, password: form.password, success_codes: form.success_codes, response_keyword: form.response_keyword.trim() }; else if (form.type === 'script') config = { ...common, automation_task_id: form.automation_task_id }; else config = { ...common, ...(form.type === 'certificate_expiry' ? parseCertificateTarget(form.host) : { host: form.host.trim(), port: form.port }), count: form.count, server_name: form.server_name.trim(), ...(form.type === 'certificate_expiry' ? { expiry_alert_days: form.expiry_alert_days } : {}) }; const target = form.type === 'script' ? automationTasks.value.find(script => script.id === form.automation_task_id)?.name || '' : form.type === 'http' ? form.target.trim() : form.host.trim(); return { group_id: form.group_id, name: form.name.trim(), type: form.type, target, config: JSON.stringify(config), external_labels: JSON.stringify(rowsToObject(form.external_labels)), expected_result: '拨测成功', interval_seconds: form.interval_seconds, failure_threshold: form.failure_threshold, recovery_threshold: form.recovery_threshold, severity: form.severity, fault_center_id: form.fault_center_id || 0, status: form.status } }
+function testConfigError() { if (form.type === 'certificate_expiry') { try { parseCertificateTarget(form.host) } catch { return '请输入有效的网站域名和端口（1 至 65535）' } } if (form.type === 'script' && !automationTasks.value.some(script => script.id === form.automation_task_id && script.status === 1)) return '请选择启用的自动化任务'; if (form.type === 'certificate_expiry' && (!Number.isInteger(form.expiry_alert_days) || form.expiry_alert_days < 1 || form.expiry_alert_days > 365)) return '提前告警天数应为 1-365 天'; if (form.type !== 'script' && !form.node_values.length) return '请选择一个执行节点'; if (form.type === 'http' && !/^https?:\/\/[^\s]+$/i.test(form.target.trim())) return '请先填写完整的请求 URL'; if (['icmp', 'tcp', 'certificate_expiry'].includes(form.type) && !form.host.trim()) return '请先填写目标 Host'; return '' }
+async function handleTest() { const error = testConfigError(); if (error) return ElMessage.warning(error); testing.value = true; try { const config = JSON.parse(buildPayload().config); const responses = form.type === 'script' ? [{ node: '自动化任务', ...(await instantProbe({ type: form.type, ...config })).data }] : await Promise.all(selectedExecutionNodes().map(async node => { const response = await instantProbe({ type: form.type, ...config, ...node }); return { node: nodeDisplayName(node.node_type === 'direct' ? 'direct' : `${node.node_type}:${node.node_id}`), ...response.data } })); testResult.value = { status: responses.every(item => item.status === 'success') ? 'success' : 'fail', duration_ms: Math.max(0, ...responses.map(item => item.duration_ms || 0)), result: responses }; testVisible.value = true } finally { testing.value = false } }
 function formatTestResult(value) { const raw = value?.result ?? value; try { return JSON.stringify(typeof raw === 'string' ? JSON.parse(raw) : raw, null, 2) } catch { return String(raw || '(无输出)') } }
-async function handleSubmit() { if (!form.group_id) return ElMessage.warning('请从拨测规则组进入后创建任务'); if (testConfigError()) return ElMessage.warning(testConfigError()); const labelError = validateLabels(form.external_labels); if (labelError) return ElMessage.warning(labelError); if (!form.node_values.length) return ElMessage.warning('请选择一个执行节点'); if (form.interval_seconds < 10 || form.interval_seconds > 86400) return ElMessage.warning('拨测周期应为 10 至 86400 秒'); if (!await formRef.value.validate().catch(() => false)) return; saving.value = true; try { const payload = buildPayload(); form.id ? await updateInspectionItem(form.id, payload) : await createInspectionItem(payload); ElMessage.success(form.id ? '任务已更新' : '任务已创建'); router.push(form.group_id ? `/inspection/items/groups/${form.group_id}` : '/inspection/items') } finally { saving.value = false } }
+async function handleSubmit() { if (!form.group_id) return ElMessage.warning('请从拨测规则组进入后创建任务'); if (testConfigError()) return ElMessage.warning(testConfigError()); const labelError = validateLabels(form.external_labels); if (labelError) return ElMessage.warning(labelError); if (form.type !== 'script' && !form.node_values.length) return ElMessage.warning('请选择一个执行节点'); if (form.interval_seconds < 10 || form.interval_seconds > 86400) return ElMessage.warning('拨测周期应为 10 至 86400 秒'); if (!await formRef.value.validate().catch(() => false)) return; saving.value = true; try { const payload = buildPayload(); form.id ? await updateInspectionItem(form.id, payload) : await createInspectionItem(payload); ElMessage.success(form.id ? '任务已更新' : '任务已创建'); router.push(form.group_id ? `/inspection/items/groups/${form.group_id}` : '/inspection/items') } finally { saving.value = false } }
 function rowsToObject(rows) { return rows.reduce((result, row) => { const key = String(row.key || '').trim(); if (key) result[key] = row.value || ''; return result }, {}) }
 function objectToRows(value) { const rows = Object.entries(value || {}).map(([key, entry]) => ({ key, value: entry })); return rows.length ? rows : [{ key: '', value: '' }] }
 function objectToLabelRows(value) { return Object.entries(value || {}).map(([key, entry]) => ({ key, value: entry })) }
@@ -267,7 +264,6 @@ function cancel() { router.push(form.group_id ? `/inspection/items/groups/${form
   --blue: var(--ops-primary);
   gap: 16px;
 }
-.preview-header { display: flex; align-items: center; justify-content: space-between; }
 
 
 .execution-panel {
@@ -318,7 +314,7 @@ function cancel() { router.push(form.group_id ? `/inspection/items/groups/${form
 .legacy-node-note{margin:8px 0 0;color:var(--ops-muted);font-size:12px;line-height:1.6}
 .editor-main>.section-title:not(:first-child){margin-top:24px}
 @media(max-width:700px){.editor-main{padding:18px 16px}}
-.condition-node-grid{margin-top:20px}
+.advanced-collapse + .condition-node-grid{margin-top:20px}
 .script-hint{display:flex;align-items:flex-start;gap:8px;margin:-4px 0 18px;padding:9px 11px;color:var(--ops-muted);background:color-mix(in srgb,var(--ops-primary) 6%,transparent);font-size:11px;line-height:1.55}
 .script-hint .el-icon{margin-top:2px;flex:none;color:var(--ops-primary)}
 </style>

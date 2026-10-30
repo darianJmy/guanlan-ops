@@ -140,7 +140,7 @@ function openAlerts(center) {
 .fault-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .fault-filters, .toolbar-actions { display: flex; align-items: center; gap: 8px; }
 .fault-filters { min-width: 0; flex: 1; }
-.keyword-filter { width: 240px; }
+.keyword-filter { width: 200px; }
 .toolbar-actions { flex: 0 0 auto; }
 .dashboard-grid { display: grid; min-height: 150px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .dash-card { display: flex; min-width: 0; min-height: 178px; overflow: hidden; flex-direction: column; background: var(--ops-surface); border: 1px solid var(--ops-border-soft); border-radius: 10px; cursor: pointer; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }

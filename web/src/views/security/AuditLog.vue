@@ -101,7 +101,7 @@ function formatSummary(value) { if (!value) return '该操作没有请求参数'
 <style scoped>
 .audit-page { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .audit-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 220px 110px 100px 100px 250px auto; gap: 8px; }
+.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 180px 110px 100px 100px 250px auto; gap: 8px; }
 .filter-bar > * { min-width: 0; width: 100%; }
 .page-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .audit-card { min-width: 0; border-color: var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(31, 50, 81, .045); }

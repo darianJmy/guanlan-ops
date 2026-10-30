@@ -23,7 +23,7 @@
       </div>
     </div>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
-    <el-empty v-if="!loading && !sources.length && !error" description="暂无可查询的数据源，请先配置接入，并确认拥有对应查询权限。" />
+    <QueryDatasourceEmpty v-if="!loading && !sources.length && !error" />
     <template v-if="selected">
       <div v-if="mode === 'metrics'" class="metrics-view">
         <InstantQuery ref="metricsView" :key="`metrics-${selected.id}`" :source="selected" />
@@ -45,6 +45,7 @@
   </div>
 </template>
 <script setup>
+import QueryDatasourceEmpty from '../../components/QueryDatasourceEmpty.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import request from '../../api/request'
@@ -89,7 +90,7 @@ onMounted(fetchSources)
 </script>
 <style scoped>
 .explore { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.explore-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 0 12px; border-bottom: 1px solid var(--ops-border); }
+.explore-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 0 12px; }
 .source-logo { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
 .source-option { display: flex; align-items: center; gap: 9px; min-width: 0; height: 100%; }
 .source-option > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -1,9 +1,5 @@
 <template>
   <div class="rule-editor-page" v-loading="loading">
-    <div class="preview-header">
-      <el-button link type="primary" :icon="ArrowLeft" @click="cancel">返回</el-button>
-    </div>
-
     <el-form ref="formRef" :model="form" :rules="formRules" label-position="top" class="editor-form">
       <div class="rule-config-card">
         <div class="section-heading"><div><strong>基础配置</strong></div><small>{{ group.name || '当前规则组' }}</small></div>
@@ -123,7 +119,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
+import { Minus, Plus, QuestionFilled } from '@element-plus/icons-vue'
 import { getFaultCenters } from '../../api/alert'
 import { createAlertRule, getAlertRule, getAlertRuleGroup, updateAlertRule } from '../../api/alertRule'
 import { getDatasourceGroups } from '../../api/datasourceGroup'
@@ -334,7 +330,6 @@ async function saveRule() {
 .vm-logo { filter: invert(1); }
 :global(html.dark) .vm-logo { filter: none; }
 .rule-editor-page { --line: #e5e9f0; --muted:var(--ops-muted); display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 16px; padding-bottom: 72px; }
-.preview-header { display: flex; align-items: center; justify-content: space-between; }
 .editor-form { display: flex; flex-direction: column; gap: 16px; }.rule-config-card { padding: 22px 24px; border: 1px solid var(--ops-border); border-radius: 8px; background: var(--ops-surface); }.section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--ops-border-soft); }.section-heading > div { display: flex; align-items: baseline; gap: 12px; }.section-heading strong { color: #344054; font-size: 14px; font-weight: 600; }.section-heading span, .section-heading small { color: var(--muted); font-size: 12px; }.two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }.full-row { grid-column: 1 / -1; }
 .label-editor { display: flex; width: 100%; flex-direction: column; gap: 8px; }.add-label-button { width: 100%; border-style: dashed; }.label-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px; align-items: center; gap: 8px; }.label-icon-button { width: 26px; height: 26px; color: #8a94a3; background: var(--ops-surface); border-color: var(--ops-border); }.label-icon-button :deep(.el-icon) { font-size: 14px; }.label-icon-button:hover, .label-icon-button:focus-visible { color: #606b7b; background: var(--ops-surface-soft); border-color: #c8cdd5; }.field-label { margin-bottom: 10px; color: #606b7b; font-size: 13px; }.source-cards { display: flex; flex-wrap: wrap; gap: 12px; }.source-card { position: relative; display: grid; width: 132px; height: 108px; place-items: center; padding: 10px; border: 1px solid var(--ops-border); border-radius: 8px; background: var(--ops-surface); cursor: pointer; font: inherit; }.source-card img { width: 64px; height: 42px; object-fit: contain; }.source-card span { color: var(--ops-text); font-size: 12px; font-weight: 600; }.source-card small { color: var(--muted); font-size: 10px; }.source-card > .el-icon { position: absolute; top: 7px; right: 7px; color: var(--ops-primary); }.inherited-datasources { display: flex; width: 100%; min-height: 76px; flex-direction: column; gap: 10px; margin-top: 10px; padding: 14px 16px; border: 1px solid #dbe7f5; border-radius: 8px; background: var(--ops-primary-soft); }.inherited-datasources > div:first-child { display: flex; align-items: baseline; gap: 10px; }.inherited-datasources strong { color: #344054; font-size: 13px; }.inherited-datasources span { color: #8a96a8; font-size: 11px; }.inherited-members { display: flex; flex-wrap: wrap; gap: 6px; }.datasource-field { margin-top: 20px; }.datasource-field :deep(.el-select), .annotation-grid :deep(.el-select) { width: 100%; }.field-help { margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .promql-action-row { display: flex; align-items: flex-start; gap: 10px; }.promql-form-item { min-width: 0; flex: 1; }.promql-input :deep(.el-textarea__inner) { min-height: 32px !important; overflow-y: hidden !important; resize: none !important; color: #344054; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; line-height: 1.5; }.preview-button { flex: none; margin-top: 30px; }

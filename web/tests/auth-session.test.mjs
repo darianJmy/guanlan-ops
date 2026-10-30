@@ -110,10 +110,37 @@ test('failed profile loading returns to login with no stale authorization', asyn
   assert.equal(router.hasRoute('Users'), false)
 })
 
-test('retired MCP page bookmarks redirect to the dashboard', async () => {
+test('removed pages show the not-found page after loading the profile', async () => {
   const { store, router } = session()
   await store.loginAction({ username: 'admin' })
   await router.push('/settings/mcp')
-  assert.equal(router.currentRoute.value.path, '/dashboard')
+  assert.equal(router.currentRoute.value.name, 'NotFound')
+  assert.equal(router.currentRoute.value.path, '/settings/mcp')
   assert.equal(store.hasPermission('dashboard:list'), true)
+})
+
+test('unknown URLs show 404 and can return to the dashboard', async () => {
+  const { store, router, calls } = session()
+  await store.loginAction({ username: 'admin' })
+  await router.push('/alert-rulessss3?source=bookmark#details')
+  assert.equal(router.currentRoute.value.name, 'NotFound')
+  assert.equal(router.currentRoute.value.fullPath, '/alert-rulessss3?source=bookmark#details')
+  assert.equal(calls(), 1)
+  assert.equal(router.currentRoute.value.matched[0].name, 'Layout')
+  await router.push('/dashboard')
+  assert.equal(router.currentRoute.value.name, 'Dashboard')
+})
+
+test('direct entry to a dynamic page resolves after profile loading', async () => {
+  const { store, router } = session()
+  await store.loginAction({ username: 'admin' })
+  await router.push('/system/users')
+  assert.equal(router.currentRoute.value.name, 'Users')
+  assert.notEqual(router.currentRoute.value.name, 'NotFound')
+})
+
+test('unknown URLs still require authentication', async () => {
+  const { router } = session()
+  await router.push('/alert-rulessss3')
+  assert.equal(router.currentRoute.value.name, 'Login')
 })

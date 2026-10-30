@@ -2,7 +2,7 @@
   <div class="task-page">
     <header class="task-toolbar">
       <div class="filter-bar" role="search" aria-label="通知模板筛选">
-        <el-input v-model="keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索通知模板" placeholder="搜索名称或描述" @input="handleFilterChange" @clear="applyFilters" />
+        <el-input v-model="keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索通知模板名称" placeholder="搜索通知模板名称" @input="handleFilterChange" @clear="applyFilters" />
         <el-select v-model="typeFilter" clearable aria-label="按模板类型筛选" placeholder="模板类型" @change="applyFilters"><el-option v-for="item in templateTypes" :key="item.value" :label="item.label" :value="item.value" /></el-select>
         <el-button :disabled="!hasFilters" @click="clearFilters">清空</el-button>
       </div>
@@ -42,15 +42,24 @@
       <div v-if="filteredTemplates.length > 0" class="task-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="filteredTemplates.length" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next" /></div>
     </el-card>
 
-    <el-drawer v-model="drawerVisible" class="standard-config-drawer template-drawer" size="min(460px, 94vw)" direction="rtl" :close-on-click-modal="false">
+    <el-drawer v-model="drawerVisible" class="standard-config-drawer template-drawer" :size="choosingType ? 'min(320px, 94vw)' : 'min(460px, 94vw)'" direction="rtl" :close-on-click-modal="choosingType">
       <template #header>
         <div class="drawer-header">
-          <DrawerBackButton @click="drawerVisible = false" />
-          <span class="drawer-title">{{ form.id ? '编辑通知模板' : '创建通知模板' }}</span>
+          <DrawerBackButton v-if="!choosingType" :disabled="saving" @click="handleDrawerBack" />
+          <span v-if="choosingType || form.id" class="drawer-title">{{ choosingType ? '选择模板类型' : '编辑通知模板' }}</span>
         </div>
       </template>
 
-      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="drawer-form">
+      <div v-if="choosingType" class="type-card-list" aria-label="选择模板类型">
+        <button v-for="item in templateTypes" :key="item.value" class="type-card" type="button" :aria-label="`创建${item.label}通知模板`" @click="selectType(item.value)">
+          <span class="type-option"><img :src="item.icon" alt="" /><span>{{ item.label }}</span></span>
+        </button>
+      </div>
+      <el-form v-else ref="formRef" :model="form" :rules="rules" label-position="top" class="drawer-form" :disabled="saving">
+        <div class="drawer-provider">
+          <span v-if="currentTypeMeta.icon" class="drawer-provider-icon"><img :src="currentTypeMeta.icon" alt="" /></span>
+          <span>{{ currentTypeMeta.label }}</span>
+        </div>
         <div class="form-row">
           <el-form-item label="名称" prop="name">
             <el-input v-model="form.name" />
@@ -60,34 +69,8 @@
           </el-form-item>
         </div>
 
-        <el-form-item label="模板类型" prop="type">
-          <div class="type-card-list">
-            <button
-              v-for="item in templateTypes"
-              :key="item.value"
-              class="type-card"
-              :class="{ active: form.type === item.value }"
-              type="button"
-              @click="form.type = item.value"
-            >
-              <span class="type-option">
-                <img :src="item.icon" :alt="item.label" />
-                <span>{{ item.label }}</span>
-              </span>
-            </button>
-          </div>
-        </el-form-item>
-
-        <section v-if="form.type === 'feishu'" class="template-notice" role="note" aria-label="飞书通知模板说明">
-          <el-icon class="intro-icon" aria-hidden="true"><InfoFilled /></el-icon>
-          <span class="intro-message"><strong>只需编辑 Markdown 正文。</strong>标题、标准表情符号、颜色和页脚由系统固定生成。</span>
-          <div class="color-legend" aria-label="告警卡片颜色说明">
-            <span class="p0">P0</span><span class="p1">P1</span><span class="p2">P2</span><span class="recovered">已恢复</span>
-          </div>
-        </section>
-
-        <details class="template-fields" open>
-          <summary>可用字段</summary>
+        <details ref="fieldsRef" class="template-fields">
+          <summary><span>可用字段</span><span class="fields-count">{{ templateFields.length }} 个字段</span><el-icon class="fields-arrow" aria-hidden="true"><ArrowRight /></el-icon></summary>
           <div class="field-grid">
             <div v-for="item in templateFields" :key="item.name" class="field-item">
               <code>{{ item.name }}</code><span>{{ item.description }}</span>
@@ -95,18 +78,23 @@
           </div>
         </details>
 
+        <section class="template-notice" role="note" aria-label="通知模板说明">
+          <el-icon class="intro-icon" aria-hidden="true"><InfoFilled /></el-icon>
+          <span class="intro-message">{{ form.type === 'email' ? '只需编辑邮件正文。' : '只需编辑 Markdown 正文。' }}标题和页脚由系统固定生成。</span>
+        </section>
+
         <el-form-item prop="content">
           <template #label>
-            <span class="template-field-label">Markdown 内容<el-tooltip content="支持 {{ if }}、{{ with }} 和 {{ range .alerts }}；可使用告警 JSON 中的 alertname、severity、value、labels、annotations 等字段。" placement="top"><el-icon class="help-icon" tabindex="0" aria-label="Markdown 变量说明"><QuestionFilled /></el-icon></el-tooltip></span>
+            <span class="template-field-label">{{ contentLabel }}<el-tooltip content="支持 {{ if }}、{{ with }} 和 {{ range .alerts }}；可使用告警 JSON 中的 alertname、severity、value、labels、annotations 等字段。" placement="top"><el-icon class="help-icon" tabindex="0" aria-label="模板变量说明"><QuestionFilled /></el-icon></el-tooltip></span>
           </template>
-          <el-input v-model="form.content" type="textarea" :rows="22" class="template-editor" />
+          <el-input v-model="form.content" type="textarea" :autosize="{ minRows: 30 }" class="template-editor" />
         </el-form-item>
       </el-form>
 
       <template #footer>
         <div class="drawer-footer">
-          <el-button @click="drawerVisible = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+          <el-button :disabled="saving" @click="drawerVisible = false">取消</el-button>
+          <el-button v-if="!choosingType" type="primary" :loading="saving" @click="save">保存</el-button>
         </div>
       </template>
     </el-drawer>
@@ -117,7 +105,7 @@
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Edit, InfoFilled, Plus, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
+import { ArrowRight, Delete, Edit, InfoFilled, Plus, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
 import feishuIcon from '../../assets/feishu.svg'
 import emailIcon from '../../assets/email.svg'
 import dingdingIcon from '../../assets/dingding.svg'
@@ -130,10 +118,10 @@ import {
 } from '../../api/notification'
 
 const templateTypes = [
-  { value: 'qywechat', label: '企业微信', icon: qywechatIcon },
   { value: 'feishu', label: '飞书', icon: feishuIcon },
-  { value: 'email', label: '邮件', icon: emailIcon },
   { value: 'dingding', label: '钉钉', icon: dingdingIcon },
+  { value: 'qywechat', label: '企业微信', icon: qywechatIcon },
+  { value: 'email', label: '邮件', icon: emailIcon },
 ]
 
 const templateFields = [
@@ -188,11 +176,17 @@ const defaultTemplate = `{{- if .alerts }}
 {{- end }}
 {{- end }}`
 
+const defaultEmailTemplate = defaultTemplate.replaceAll('**', '').replace('📋 ', '')
+const defaultContentFor = type => type === 'email' ? defaultEmailTemplate : defaultTemplate
+const contentDrafts = new Map()
+
 const templates = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const drawerVisible = ref(false)
+const choosingType = ref(false)
 const formRef = ref()
+const fieldsRef = ref()
 const keyword = ref('')
 const typeFilter = ref('')
 const page = ref(1)
@@ -202,7 +196,7 @@ let filterTimer
 const hasFilters = computed(() => keyword.value.trim() !== '' || typeFilter.value !== '')
 const filteredTemplates = computed(() => {
   const term = keyword.value.trim().toLowerCase()
-  return templates.value.filter(item => (!term || [item.name, item.description].some(value => String(value || '').toLowerCase().includes(term))) && (!typeFilter.value || item.type === typeFilter.value))
+  return templates.value.filter(item => (!term || String(item.name || '').toLowerCase().includes(term)) && (!typeFilter.value || item.type === typeFilter.value))
 })
 const pagedTemplates = computed(() => filteredTemplates.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
 
@@ -215,10 +209,14 @@ const form = reactive({
   content: defaultTemplate,
 })
 
-const rules = {
+const currentTypeMeta = computed(() => templateTypeMeta(form.type))
+
+const contentLabel = computed(() => form.type === 'email' ? '邮件正文' : 'Markdown 内容')
+
+const rules = computed(() => ({
   name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入 Markdown 内容', trigger: 'blur' }],
-}
+  content: [{ required: true, message: `请输入${contentLabel.value}`, trigger: 'blur' }],
+}))
 
 onMounted(loadTemplates)
 onBeforeUnmount(() => clearTimeout(filterTimer))
@@ -239,13 +237,17 @@ async function loadTemplates() {
 }
 
 function openDrawer(row) {
+  contentDrafts.clear()
+  if (fieldsRef.value) fieldsRef.value.open = false
+  choosingType.value = !row
+  formRef.value?.clearValidate()
   Object.assign(form, row ? {
     id: row.id,
     name: row.name,
     description: row.description || '',
     type: row.type || 'feishu',
     advanced_card: !!row.advanced_card,
-    content: row.content || defaultTemplate,
+    content: row.content || defaultContentFor(row.type),
   } : {
     id: null,
     name: '',
@@ -257,7 +259,23 @@ function openDrawer(row) {
   drawerVisible.value = true
 }
 
+function selectType(type) {
+  if (form.id) return
+  contentDrafts.set(form.type, form.content)
+  form.content = contentDrafts.get(type) ?? defaultContentFor(type)
+  form.type = type
+  choosingType.value = false
+  formRef.value?.clearValidate()
+}
+
+function handleDrawerBack() {
+  if (saving.value) return
+  if (!form.id && !choosingType.value) choosingType.value = true
+  else drawerVisible.value = false
+}
+
 async function save() {
+  if (choosingType.value || saving.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
   saving.value = true
@@ -293,7 +311,7 @@ function formatTime(value) {
 <style scoped>
 .task-page { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 260px 120px auto; gap: 8px; }
+.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 220px 120px auto; gap: 8px; }
 .filter-bar > * { min-width: 0; width: 100%; }
 .page-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .page-header-actions :deep(.el-button + .el-button), .row-actions :deep(.el-button + .el-button) { margin-left: 0; }
@@ -379,6 +397,10 @@ function formatTime(value) {
   font-weight: 600;
 }
 
+.drawer-provider { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; color: var(--ops-text); font-weight: 700; }
+.drawer-provider-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 6px; background: var(--ops-surface-soft); border: 1px solid var(--ops-border); }
+.drawer-provider-icon img { width: 24px; height: 24px; object-fit: contain; }
+
 .drawer-form :deep(.el-form-item) {
   margin-bottom: 16px;
 }
@@ -397,8 +419,8 @@ function formatTime(value) {
 }
 
 .type-card-list {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   width: 100%;
 }
@@ -408,21 +430,22 @@ function formatTime(value) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100px;
+  width: 100%;
+  min-width: 0;
   height: 100px;
   padding: 0;
   cursor: pointer;
   background: var(--ops-surface);
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
+  border: 1px solid var(--ops-border);
+  border-radius: var(--ops-radius);
   outline: 1px solid transparent;
   outline-offset: -1px;
   transition: border-color .16s ease, box-shadow .16s ease;
 }
 
-.type-card.active {
-  border-color: #1890ff;
-  outline-color: #1890ff;
+.type-card:focus-visible {
+  outline: 2px solid var(--ops-primary);
+  outline-offset: 2px;
 }
 
 .type-card:hover {
@@ -449,10 +472,6 @@ function formatTime(value) {
   text-align: center;
 }
 
-.type-card.active .type-option > span {
-  color: #1890ff;
-}
-
 .type-option {
   display: flex;
   flex-direction: column;
@@ -468,89 +487,80 @@ function formatTime(value) {
   align-items: center;
   gap: 9px;
   margin-bottom: 16px;
-  padding: 7px 12px;
+  padding: 8px 12px;
   color: var(--ops-muted);
   background: var(--ops-primary-soft);
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.6;
+  border-radius: 8px;
 }
 
 .intro-icon {
   flex: none;
   color: var(--ops-primary);
-  font-size: 14px;
 }
 
 .intro-message {
   min-width: 0;
   flex: 1;
-  overflow: hidden;
   color: var(--ops-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
-.intro-message strong { color: var(--ops-muted); }
-
 .template-fields {
+  margin-top: 8px;
   margin-bottom: 16px;
-  padding: 12px 14px;
-  background: #fbfcfe;
-  border: 1px solid #e5e9f0;
-  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border);
+  border-radius: var(--ops-radius);
 }
 
 .template-fields summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
   cursor: pointer;
-  color: #303846;
-  font-size: 13px;
-  font-weight: 600;
+  list-style: none;
+  color: var(--ops-text);
+  background: var(--ops-surface-soft);
+  font-size: 12px;
+  line-height: 20px;
 }
+
+.template-fields summary::-webkit-details-marker { display: none; }
+.template-fields summary:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
+.fields-count { margin-left: auto; color: var(--ops-muted); font-size: 11px; }
+.fields-arrow { color: var(--ops-muted); }
+.template-fields[open] .fields-arrow { transform: rotate(90deg); }
+.template-fields[open] summary { border-bottom: 1px solid var(--ops-border); }
 
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 16px;
-  margin-top: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0 12px;
 }
 
 .field-item {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(150px, auto) 1fr;
+  grid-template-columns: minmax(0, 1fr) 112px;
   align-items: center;
   gap: 10px;
+  padding: 6px 0;
   font-size: 12px;
+  line-height: 1.6;
 }
 
+.field-item + .field-item { border-top: 1px solid var(--ops-border-soft); }
 .field-item code {
-  overflow: hidden;
+  max-width: 100%;
   color: var(--ops-primary);
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
-
-.field-item span { color: #7a8595; }
-
-.color-legend {
-  display: flex;
-  flex-shrink: 0;
-  gap: 6px;
-}
-
-.color-legend span {
-  padding: 2px 7px;
-  color: #fff;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 16px;
-}
-
-.color-legend .p0 { background: #d54941; }
-.color-legend .p1 { background: #d97904; }
-.color-legend .p2 { background: #3370ff; }
-.color-legend .recovered { background: #2ea043; }
+.field-item span { color: var(--ops-muted); font-size: 11px; }
 
 .help-icon {
   color: #1890ff;
@@ -563,7 +573,6 @@ function formatTime(value) {
 }
 
 .template-editor :deep(textarea) {
-  height: 500px;
   resize: none;
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
   font-size: 13px;
@@ -585,19 +594,20 @@ function formatTime(value) {
   .form-row {
     grid-template-columns: 1fr;
   }
-  .template-notice {
-    align-items: flex-start;
-    flex-wrap: wrap;
-  }
-  .intro-message { overflow: visible; white-space: normal; }
-  .color-legend { width: 100%; padding-left: 23px; }
   .field-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) { .task-toolbar { flex-direction: column; }.filter-bar { grid-template-columns: 1fr 1fr; }.task-search { grid-column: 1 / -1; }.page-header-actions { justify-content: flex-end; } }
 
 .form-row,.field-grid { grid-template-columns:minmax(0,1fr); }
-.template-notice { align-items:flex-start; flex-wrap:wrap; }
-.intro-message { overflow:visible; white-space:normal; }
-.color-legend { width:100%; padding-left:23px; }
+:global(.template-drawer .el-drawer__header) {
+  box-sizing: border-box;
+  flex: 0 0 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--ops-border-soft);
+}
 </style>

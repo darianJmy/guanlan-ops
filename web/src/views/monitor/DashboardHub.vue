@@ -201,7 +201,7 @@ onMounted(load)
 .hub-toolbar,.hub-filters,.hub-actions { display: flex; align-items: center; gap: 12px; }
 .hub-toolbar { justify-content: space-between; flex-wrap: wrap; }
 .hub-filters { flex: 1; min-width: 0; }
-.hub-filters .el-input { width: 260px; }
+.hub-filters .el-input { width: 220px; }
 .hub-content { min-height: 180px; }
 .hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 260px)); gap: 12px; }
 .hub-card { position: relative; display: flex; min-width: 0; min-height: 170px; flex-direction: column; border: 1px solid var(--ops-border-soft); border-radius: 12px; background: var(--ops-surface); overflow: hidden; cursor: pointer; transition: border-color .18s, box-shadow .18s; }

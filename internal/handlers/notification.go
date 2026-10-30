@@ -270,11 +270,13 @@ func TestNotificationChannel(c *gin.Context) {
 		req.CertExpireTime = "2026-09-30 23:59:59"
 	}
 	payload := map[string]interface{}{
-		"title":            "观澜运维平台通知测试",
+		"title":            "【测试通知】- 观澜运维平台 🔔",
+		"alertname":        "通知发送测试",
+		"annotations":      map[string]string{"description": "这是一条手动发送的测试通知，用于验证通知对象配置和模板效果。"},
 		"content":          "这是一条通知对象测试消息。",
 		"level":            "info",
 		"severity":         "P2",
-		"status":           "firing",
+		"status":           "test",
 		"source":           "aiops",
 		"time":             time.Now().Format("2006-01-02 15:04:05"),
 		"domain":           req.Domain,
@@ -297,7 +299,7 @@ func ListNotificationRecords(c *gin.Context) {
 	tx := database.DB.Model(&models.NotificationRecord{})
 	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
 		like := "%" + keyword + "%"
-		tx = tx.Where("channel_name LIKE ? OR title LIKE ? OR event_key LIKE ?", like, like, like)
+		tx = tx.Where("title LIKE ?", like)
 	}
 	if status := strings.TrimSpace(c.Query("status")); status != "" {
 		tx = tx.Where("status = ?", status)
@@ -374,7 +376,9 @@ const systemNotificationFooter = "🧑‍💻 观澜运维平台 · 运维团队
 func applySystemNotificationEnvelope(payload map[string]interface{}) {
 	status := strings.ToLower(strings.TrimSpace(fmt.Sprint(payload["status"])))
 	recovered := status == "resolved" || status == "recovered" || status == "recovery"
-	if recovered {
+	if status == "test" {
+		payload["title"] = "【测试通知】- 观澜运维平台 🔔"
+	} else if recovered {
 		payload["title"] = "【已恢复】- 观澜运维平台 ✅"
 	} else if status == "firing" {
 		payload["title"] = "【告警中】- 观澜运维平台 🚨"
@@ -382,6 +386,9 @@ func applySystemNotificationEnvelope(payload map[string]interface{}) {
 		payload["title"] = "观澜运维平台通知 🔔"
 	}
 	payload["title_color"] = alertNotificationTitleColor(strings.TrimSpace(fmt.Sprint(payload["severity"])), recovered)
+	if status == "test" {
+		payload["title_color"] = "blue"
+	}
 	content := strings.TrimSpace(notificationStringFromMap(payload, "content"))
 	content = strings.TrimSpace(strings.TrimSuffix(content, systemNotificationFooter))
 	if content == "" {
@@ -430,7 +437,7 @@ func notificationTemplateData(payload map[string]interface{}) map[string]interfa
 	}
 	status := strings.ToLower(strings.TrimSpace(fmt.Sprint(data["status"])))
 	recovered := status == "resolved" || status == "recovered" || status == "recovery"
-	data["is_recovered"], data["is_firing"] = recovered, !recovered
+	data["is_recovered"], data["is_firing"] = recovered, !recovered && status != "test"
 	vars := notificationVars(payload)
 	data["first_trigger_time_format"] = vars["first_trigger_time_format"]
 	data["recover_time_format"] = vars["recover_time_format"]
@@ -462,7 +469,7 @@ func sendWeComWebhook(channel models.NotificationChannel, body []byte) error {
 	title := notificationStringFromMap(data, "title")
 	content := notificationStringFromMap(data, "content")
 	if title != "" {
-		content = "### " + title + "\n\n" + content
+		content = notificationMarkdownHeading("qywechat", title, data) + "\n\n" + content
 	}
 	if len(content) > 4096 {
 		return errors.New("企业微信 Markdown 通知内容不能超过 4096 字节，请精简通知模板或减少分组告警数量")

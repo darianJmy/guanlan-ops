@@ -1,7 +1,7 @@
 <template>
   <div class="script-probe-result">
     <div class="script-result-meta">
-      <strong>{{ detail.script_name || '脚本运行' }}</strong>
+      <strong>{{ detail.automation_task_name || detail.script_name || '自动化任务' }}</strong>
       <el-tag :type="detail.exit_code === 0 && !detail.error ? 'success' : 'danger'" size="small">退出码 {{ detail.exit_code ?? '—' }}</el-tag>
     </div>
     <p v-if="detail.error" class="script-result-error">{{ detail.error }}</p>

@@ -47,12 +47,12 @@ func TestWeComWebhook(t *testing.T) {
 				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 					t.Error(err)
 				}
-				if payload.MsgType != "markdown" || payload.Markdown.Content != "### 告警\n\n正文" {
+				if payload.MsgType != "markdown" || payload.Markdown.Content != "### 🔴 <font color=\"warning\">P0 · 告警</font>\n\n正文" {
 					t.Errorf("unexpected payload: %+v", payload)
 				}
 				return &http.Response{StatusCode: tc.status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(tc.response))}, nil
 			})
-			err := sendWebhook(channel, []byte(`{"title":"告警","content":"正文"}`))
+			err := sendWebhook(channel, []byte(`{"title":"告警","content":"正文","status":"firing","severity":"P0"}`))
 			if (err != nil) != tc.wantError {
 				t.Fatalf("unexpected error: %v", err)
 			}

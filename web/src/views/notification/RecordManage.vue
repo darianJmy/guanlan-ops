@@ -2,10 +2,9 @@
   <div class="task-page">
     <header class="task-toolbar">
       <div class="filter-bar" role="search" aria-label="通知记录筛选">
-        <el-input v-model="query.keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索通知记录" placeholder="搜索通知对象、标题或事件标识" @input="handleKeywordInput" @clear="search" />
+        <el-input v-model="query.keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索通知标题" placeholder="搜索通知标题" @input="handleKeywordInput" @clear="search" />
         <el-select v-model="query.status" clearable aria-label="按发送状态筛选" placeholder="发送状态" @change="search"><el-option label="成功" value="success" /><el-option label="失败" value="failed" /></el-select>
-        <el-select v-model="query.eventType" clearable aria-label="按事件类型筛选" placeholder="事件类型" @change="search"><el-option v-for="item in eventTypes" :key="item.value" :label="item.label" :value="item.value" /></el-select>
-        <el-date-picker v-model="dateRange" type="datetimerange" value-format="YYYY-MM-DD HH:mm:ss" start-placeholder="开始时间" end-placeholder="结束时间" range-separator="至" @change="search" />
+        <RecordTimeRange v-model="dateRange" @change="search" />
         <el-button :disabled="!hasFilters" @click="clearFilters">清空</el-button>
       </div>
       <div class="page-header-actions"><el-button :icon="Refresh" :loading="loading" @click="loadRecords">刷新</el-button></div>
@@ -52,7 +51,7 @@
     <el-drawer v-model="detailVisible" class="record-drawer" size="680px" direction="rtl">
       <template #header>
         <div class="drawer-header">
-          <DrawerBackButton @click="detailVisible = false" /><span class="drawer-title">通知详情</span>
+          <span class="drawer-title">通知详情</span>
         </div>
       </template>
 
@@ -102,7 +101,7 @@
 </template>
 
 <script setup>
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
+import RecordTimeRange from '../../components/RecordTimeRange.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Refresh, Search, View } from '@element-plus/icons-vue'
 import { getNotificationRecords } from '../../api/notification'
@@ -115,8 +114,8 @@ const total = ref(0)
 const detailVisible = ref(false)
 const currentRecord = ref(null)
 const dateRange = ref([])
-const query = reactive({ keyword: '', status: '', eventType: '' })
-const hasFilters = computed(() => query.keyword.trim() !== '' || query.status || query.eventType || dateRange.value?.length)
+const query = reactive({ keyword: '', status: '' })
+const hasFilters = computed(() => query.keyword.trim() !== '' || query.status || dateRange.value?.length)
 const eventTypes = [
   { value: 'alert.rule.firing', label: '告警规则触发' },
   { value: 'alert.rule.recovery', label: '告警规则恢复' },
@@ -145,7 +144,6 @@ async function loadRecords() {
       page_size: pageSize.value,
       keyword: query.keyword.trim(),
       status: query.status,
-      event_type: query.eventType,
       start_time: dateRange.value?.[0],
       end_time: dateRange.value?.[1],
     })
@@ -172,7 +170,7 @@ function search() {
 }
 
 function clearFilters() {
-  Object.assign(query, { keyword: '', status: '', eventType: '' })
+  Object.assign(query, { keyword: '', status: '' })
   dateRange.value = []
   search()
 }
@@ -209,8 +207,9 @@ function formatTime(value) {
 <style scoped>
 .task-page { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 230px 105px 120px 250px auto; gap: 8px; }
+.filter-bar { display: grid; min-width: 0; flex: 0 1 auto; grid-template-columns: minmax(160px, 190px) 105px 250px max-content; gap: 8px; }
 .filter-bar > * { min-width: 0; width: 100%; }
+.filter-bar > .el-button { width: auto; justify-self: start; }
 .page-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .task-card { min-width: 0; border-color: var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(31, 50, 81, .045); }
 .task-card :deep(.el-card__body) { padding: 16px; }
@@ -240,11 +239,7 @@ function formatTime(value) {
   border-radius: 0;
 }
 
-:deep(.record-drawer .el-drawer__header) {
-  margin-bottom: 0;
-  padding: 18px 20px;
-  border-bottom: 1px solid #e5e9f2;
-}
+
 
 :deep(.record-drawer .el-drawer__body) {
   background: var(--ops-surface);
@@ -320,7 +315,7 @@ pre {
 @media (max-width: 760px) {
   .task-toolbar { align-items: stretch; flex-direction: column; }
   .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .task-search, .filter-bar :deep(.el-date-editor) { grid-column: 1 / -1; }
+  .task-search, .filter-bar :deep(.record-time-range-container) { grid-column: 1 / -1; }
   .page-header-actions { justify-content: flex-end; }
   .task-pagination { overflow-x: auto; justify-content: flex-start; }
 
@@ -331,4 +326,14 @@ pre {
 }
 
 @media (min-width: 761px) and (max-width: 1180px) { .task-toolbar { align-items: stretch; flex-wrap: wrap; }.filter-bar { width: 100%; flex: 1 1 100%; }.page-header-actions { margin-left: auto; } }
+:global(.record-drawer .el-drawer__header) {
+  box-sizing: border-box;
+  flex: 0 0 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--ops-border-soft);
+}
 </style>

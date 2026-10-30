@@ -1,67 +1,37 @@
 <template>
   <div class="rule-page">
-    <header class="detail-header">
-      <el-button link type="primary" :icon="ArrowLeft" @click="router.push('/alert-rules')">返回</el-button>
-      <div class="group-summary">
-        <div class="group-name">
-          <template v-if="nameEditing">
-            <el-input
-              ref="nameInputRef"
-              v-model="nameDraft"
-              class="group-name-input"
-              size="small"
-              maxlength="128"
-              aria-label="规则组名称"
-              @keyup.enter="saveGroupName"
-              @keyup.esc="cancelNameEdit"
-            />
-            <el-tooltip content="确认" placement="top">
-              <el-button text circle class="name-action is-confirm" :icon="Check" :loading="nameSaving" aria-label="保存规则组名称" @click="saveGroupName" />
-            </el-tooltip>
-            <el-tooltip content="取消" placement="top">
-              <el-button text circle class="name-action is-cancel" :icon="Close" :disabled="nameSaving" aria-label="取消修改规则组名称" @click="cancelNameEdit" />
-            </el-tooltip>
+
+    <header class="rule-toolbar" role="search" aria-label="告警规则筛选">
+      <div class="filters">
+        <el-input v-model="query.keyword" :prefix-icon="Search" clearable placeholder="搜索规则名称或 PromQL" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
+        <el-select v-model="query.status" clearable placeholder="状态" @change="handleSearch">
+          <el-option label="启用" value="enabled" />
+          <el-option label="禁用" value="disabled" />
+        </el-select>
+        <el-button :disabled="!query.keyword && !query.status" @click="clearFilters">清空</el-button>
+      </div>
+      <div class="toolbar-actions">
+        <el-dropdown trigger="click" :disabled="!!batchAction" @command="handleBatchCommand">
+          <el-button :disabled="!!batchAction" :loading="!!batchAction">
+            批量操作
+            <el-icon class="batch-operation-arrow"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="enable" :disabled="!selectedRows.length" v-permission="['alert:rule:edit']">批量启用</el-dropdown-item>
+              <el-dropdown-item command="disable" :disabled="!selectedRows.length" v-permission="['alert:rule:edit']">批量禁用</el-dropdown-item>
+              <el-dropdown-item command="delete" :disabled="!selectedRows.length" v-permission="['alert:rule:delete']">批量删除</el-dropdown-item>
+              <el-dropdown-item command="import" divided :icon="Upload" v-permission="['alert:rule:create']">导入配置</el-dropdown-item>
+              <el-dropdown-item command="export" :icon="Download">导出配置</el-dropdown-item>
+            </el-dropdown-menu>
           </template>
-          <template v-else>
-            <p>{{ group.name || '规则组' }}</p>
-            <el-tooltip content="编辑名称" placement="top">
-              <el-button text circle :icon="Edit" aria-label="编辑规则组名称" @click="startNameEdit" />
-            </el-tooltip>
-          </template>
-        </div>
+        </el-dropdown>
+        <el-button :icon="Refresh" :loading="loading" @click="loadRules">刷新</el-button>
+        <el-button type="primary" :icon="Plus" @click="router.push(`/alert-rules/${groupId}/create`)" v-permission="['alert:rule:create']">创建</el-button>
       </div>
     </header>
 
     <section class="table-card">
-      <div class="rule-toolbar" role="search" aria-label="告警规则筛选">
-        <div class="filters">
-          <el-input v-model="query.keyword" :prefix-icon="Search" clearable placeholder="搜索规则名称或 PromQL" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
-          <el-select v-model="query.status" clearable placeholder="状态" @change="handleSearch">
-            <el-option label="启用" value="enabled" />
-            <el-option label="禁用" value="disabled" />
-          </el-select>
-          <el-button :disabled="!query.keyword && !query.status" @click="clearFilters">清空</el-button>
-        </div>
-        <div class="toolbar-actions">
-          <el-dropdown trigger="click" :disabled="!!batchAction" @command="handleBatchCommand">
-            <el-button :disabled="!!batchAction" :loading="!!batchAction">
-              批量操作
-              <el-icon class="batch-operation-arrow"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="enable" :disabled="!selectedRows.length" v-permission="['alert:rule:edit']">批量启用</el-dropdown-item>
-                <el-dropdown-item command="disable" :disabled="!selectedRows.length" v-permission="['alert:rule:edit']">批量禁用</el-dropdown-item>
-                <el-dropdown-item command="delete" :disabled="!selectedRows.length" v-permission="['alert:rule:delete']">批量删除</el-dropdown-item>
-                <el-dropdown-item command="import" divided :icon="Upload" v-permission="['alert:rule:create']">导入配置</el-dropdown-item>
-                <el-dropdown-item command="export" :icon="Download">导出配置</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-button :icon="Refresh" :loading="loading" @click="loadRules">刷新</el-button>
-          <el-button type="primary" :icon="Plus" @click="router.push(`/alert-rules/${groupId}/create`)" v-permission="['alert:rule:create']">创建</el-button>
-        </div>
-      </div>
       <el-table v-loading="loading" :data="rules" row-key="id" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="48" />
         <el-table-column label="规则名称" min-width="190">
@@ -142,18 +112,19 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { usePageBreadcrumb } from '../../composables/usePageBreadcrumb'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowLeft, Check, Close, Delete, Download, Edit, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
-import { batchDeleteAlertRules, batchUpdateAlertRuleStatus, deleteAlertRule, exportAlertRules, getAlertRuleGroup, getAlertRules, importAlertRules, updateAlertRuleGroup, updateAlertRuleStatus } from '../../api/alertRule'
+import { ArrowDown, Delete, Download, Edit, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
+import { batchDeleteAlertRules, batchUpdateAlertRuleStatus, deleteAlertRule, exportAlertRules, getAlertRuleGroup, getAlertRules, importAlertRules, updateAlertRuleStatus } from '../../api/alertRule'
 
 const rules = ref([])
 const route = useRoute(), router = useRouter(), groupId = Number(route.params.groupId), group = reactive({ name: '', description: '' })
+usePageBreadcrumb(() => group.name)
 const loading = ref(false), togglingId = ref(null)
 const selectedRows = ref([]), batchAction = ref('')
 const importVisible = ref(false), importContent = ref(''), importOverwrite = ref(false), importPreview = ref(null), validatingImport = ref(false), importing = ref(false)
-const nameEditing = ref(false), nameDraft = ref(''), nameSaving = ref(false), nameInputRef = ref()
 const page = ref(1), pageSize = ref(10), total = ref(0)
 const query = reactive({ keyword: '', status: '' })
 const severityOrder = { P0: 0, P1: 1, P2: 2 }
@@ -307,34 +278,6 @@ function ruleSeverities(row) {
 }
 function severityTagType(severity) { return severity === 'P0' ? 'danger' : severity === 'P1' ? 'warning' : severity === 'P2' ? 'primary' : 'info' }
 
-function startNameEdit() {
-  nameDraft.value = group.name || ''
-  nameEditing.value = true
-  nextTick(() => nameInputRef.value?.focus())
-}
-
-function cancelNameEdit() {
-  if (nameSaving.value) return
-  nameDraft.value = group.name || ''
-  nameEditing.value = false
-}
-
-async function saveGroupName() {
-  if (nameSaving.value) return
-  const name = nameDraft.value.trim()
-  if (!name) return ElMessage.warning('规则组名称不能为空')
-  if (name === group.name) return cancelNameEdit()
-  nameSaving.value = true
-  try {
-    await updateAlertRuleGroup(groupId, { name, description: group.description || '' })
-    group.name = name
-    nameEditing.value = false
-    ElMessage.success('规则组名称已更新')
-  } finally {
-    nameSaving.value = false
-  }
-}
-
 async function toggleRuleStatus(row) {
   const status = row.status === 1 ? 0 : 1
   togglingId.value = row.id
@@ -360,21 +303,12 @@ async function removeRule(row) {
 </script>
 
 <style scoped>
-.rule-page { display: flex; flex-direction: column; gap: 16px; }
-.detail-header { display: flex; min-height: 32px; align-items: center; gap: 14px; }
-.group-summary { min-width: 0; flex: 1; }
-.group-name { display: flex; min-width: 0; align-items: center; gap: 4px; }
-.group-name p { margin: 0; overflow: hidden; color: var(--ops-muted); font-size: 12px; font-weight: 400; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
-.group-name-input { width: 140px; max-width: min(140px, calc(100vw - 210px)); }
-.group-name-input :deep(.el-input__wrapper) { box-shadow: 0 0 0 1px var(--ops-primary, var(--ops-primary)) inset; }
-.group-name .el-button { width: 28px; height: 28px; flex: 0 0 auto; color: var(--ops-muted); }
-.group-name .el-button:hover { color: var(--ops-primary); background: var(--ops-primary-soft); }
-.group-name .name-action.is-confirm { color: #1a8f68; }
-.group-name .name-action.is-confirm:hover { color: #137555; background: #ebf8f3; }
-.group-name .name-action.is-cancel { color: #c55252; }
-.group-name .name-action.is-cancel:hover { color: #a83f3f; background: #fff0f0; }
+.rule-page { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
+
 .rule-toolbar, .filters, .toolbar-actions { display: flex; align-items: center; gap: 8px; }
-.rule-toolbar { justify-content: space-between; margin-bottom: 16px; }
+.rule-toolbar { justify-content: space-between; gap: 16px; }
+.filters { min-width: 0; }
+.toolbar-actions { flex: 0 0 auto; }
 .toolbar-actions :deep(.el-button + .el-button) { margin-left: 0; }
 .batch-operation-arrow { margin-left: 6px; }
 .rule-import-dialog { display: flex; max-height: 90vh; flex-direction: column; }
@@ -392,12 +326,12 @@ async function removeRule(row) {
 .import-preview .created { color: #2f855a; }
 .import-preview .updated { color: #b7791f; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 8px; }
-.table-card { padding: 16px; border: 1px solid #e5e9f0; border-radius: 8px; background: var(--ops-surface); }
+.table-card { padding: 16px; border: 1px solid var(--ops-border); border-radius: 8px; background: var(--ops-surface); }
 .pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
-.filters .el-input { width: 280px; }.filters .el-select { width: 130px; }
+.filters .el-input { width: 240px; }.filters .el-select { width: 130px; }
 .rule-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.tag-list { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .tag-list :deep(.el-tag) { border-radius: 0; }
 .severity-list { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .severity-list :deep(.el-tag) { min-width: 36px; justify-content: center; border-radius: 0; font-weight: 600; }
-@media (max-width: 900px) { .rule-toolbar { align-items: stretch; flex-direction: column; }.filters { flex-wrap: wrap; }.filters .el-input { width: min(100%, 300px); }.toolbar-actions { justify-content: flex-end; }.pagination-wrap { overflow-x: auto; justify-content:flex-start; } }
+@media (max-width: 900px) { .rule-toolbar { align-items: stretch; flex-direction: column; }.filters { flex-wrap: wrap; }.filters .el-input { width: min(100%, 260px); }.toolbar-actions { justify-content: flex-end; }.pagination-wrap { overflow-x: auto; justify-content:flex-start; } }
 </style>

@@ -33,7 +33,6 @@
     <el-drawer v-model="pickerVisible" class="standard-config-drawer datasource-drawer" direction="rtl" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
-          <DrawerBackButton @click="pickerVisible = false" />
           <span :id="titleId" :class="[titleClass, 'drawer-title']">选择数据源类型</span>
         </div>
       </template>
@@ -62,7 +61,7 @@
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
           <DrawerBackButton :disabled="saving || testing" @click="handleDrawerBack" />
-          <span :id="titleId" :class="[titleClass, 'drawer-title']">{{ form.id ? '编辑接入' : '新增接入' }}</span>
+          <span v-if="form.id" :id="titleId" :class="[titleClass, 'drawer-title']">编辑接入</span>
         </div>
       </template>
       <div class="step2-wrapper">
@@ -307,7 +306,7 @@ async function handleBatchCommand(command) {
 </script>
 
 <style scoped>
-.datasource-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.datasource-filters,.datasource-actions{display:flex;align-items:center;gap:8px}.datasource-filters{flex:1;min-width:0}.filter-keyword{width:280px;min-width:180px}.filter-status{width:120px}.filter-type{width:180px}.batch-arrow{margin-left:6px}.instance-name{display:inline-flex;align-items:center;gap:9px}.instance-name img{width:20px;height:20px}.scope-tags{display:flex;gap:6px;flex-wrap:wrap}.status{display:inline-flex;align-items:center;gap:7px}.status i{width:7px;height:7px;border-radius:50%;background:var(--el-color-info)}.status i.enabled{background:var(--el-color-success)}.pagination{display:flex;justify-content:flex-end;margin-top:16px}.source-banner{display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:22px;border:1px solid var(--ops-border);border-radius:8px;background:var(--ops-surface-soft)}.source-banner img{width:34px;height:34px}.source-banner strong{font-size:16px}.source-banner p{margin:5px 0 0;color:var(--ops-muted);font-size:12px}.kv-editor{display:flex;width:100%;flex-direction:column;gap:8px}.kv-editor>.el-button{border-style:dashed}.kv-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px;gap:8px}.advanced-config{margin-bottom:20px}.field-help{font-size:12px;color:var(--ops-muted)}.form-footer{display:flex;align-items:center;gap:8px}.test-button{margin-right:auto}@media(max-width:900px){.datasource-filters{flex-basis:100%}.datasource-actions{margin-left:auto}}@media(max-width:600px){.datasource-filters{flex-wrap:wrap}.filter-keyword{width:100%}.pagination{overflow-x:auto;justify-content:flex-start}}
+.datasource-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.datasource-filters,.datasource-actions{display:flex;align-items:center;gap:8px}.datasource-filters{flex:1;min-width:0}.filter-keyword{width:240px;min-width:180px}.filter-status{width:120px}.filter-type{width:180px}.batch-arrow{margin-left:6px}.instance-name{display:inline-flex;align-items:center;gap:9px}.instance-name img{width:20px;height:20px}.scope-tags{display:flex;gap:6px;flex-wrap:wrap}.status{display:inline-flex;align-items:center;gap:7px}.status i{width:7px;height:7px;border-radius:50%;background:var(--el-color-info)}.status i.enabled{background:var(--el-color-success)}.pagination{display:flex;justify-content:flex-end;margin-top:16px}.source-banner{display:flex;align-items:center;gap:14px;padding:16px;margin-bottom:22px;border:1px solid var(--ops-border);border-radius:8px;background:var(--ops-surface-soft)}.source-banner img{width:34px;height:34px}.source-banner strong{font-size:16px}.source-banner p{margin:5px 0 0;color:var(--ops-muted);font-size:12px}.kv-editor{display:flex;width:100%;flex-direction:column;gap:8px}.kv-editor>.el-button{border-style:dashed}.kv-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px;gap:8px}.advanced-config{margin-bottom:20px}.field-help{font-size:12px;color:var(--ops-muted)}.form-footer{display:flex;align-items:center;gap:8px}.test-button{margin-right:auto}@media(max-width:900px){.datasource-filters{flex-basis:100%}.datasource-actions{margin-left:auto}}@media(max-width:600px){.datasource-filters{flex-wrap:wrap}.filter-keyword{width:100%}.pagination{overflow-x:auto;justify-content:flex-start}}
 /* ── 步骤 1：类型选择卡片 ── */
 .type-groups {
   display: flex;
@@ -563,4 +562,12 @@ async function handleBatchCommand(command) {
 .loki-logo { object-fit: contain; }
 .vm-logo { object-fit:contain; filter:invert(1); }
 html.dark .vm-logo { filter:none; }
+:global(.datasource-drawer .el-drawer__header) {
+  box-sizing: border-box;
+  flex: 0 0 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+}
 </style>

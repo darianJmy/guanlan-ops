@@ -61,8 +61,8 @@ onMounted(load)
 
 <style scoped>
 .model-settings{max-width:980px;margin:0 auto}.model-list{min-height:160px}
-.add-model-row{display:flex;width:100%;min-height:58px;align-items:center;gap:12px;margin:0 0 12px;padding:0 18px;color:var(--ops-primary);background:var(--ops-surface);border:1px dashed color-mix(in srgb,var(--ops-primary) 55%,var(--ops-border));cursor:pointer;font:inherit;font-size:13px;font-weight:600;text-align:left;transition:border-color .18s ease,background-color .18s ease}
-.add-model-row .el-icon{font-size:21px}.add-model-row:hover{background:color-mix(in srgb,var(--ops-primary) 4%,var(--ops-surface));border-color:var(--ops-primary)}
+.add-model-row{display:flex;width:100%;min-height:58px;align-items:center;gap:12px;margin:0 0 12px;padding:0 18px;color:var(--ops-primary);background:var(--ops-surface);border:1px dashed var(--ops-border);cursor:pointer;font:inherit;font-size:13px;font-weight:600;text-align:left;transition:border-color .18s ease,background-color .18s ease}
+.add-model-row .el-icon{font-size:21px}.add-model-row:hover{background:color-mix(in srgb,var(--ops-primary) 4%,var(--ops-surface));border-color:var(--ops-border)}
 .add-model-row:focus-visible,.model-summary:focus-visible{outline:2px solid color-mix(in srgb,var(--ops-primary) 45%,transparent);outline-offset:2px}
 .model-row{position:relative;display:grid;min-height:70px;grid-template-columns:minmax(0,1fr) 44px 16px;align-items:center;gap:14px;margin-bottom:8px;padding:10px 16px;background:var(--ops-surface);border:1px solid var(--ops-border);transition:border-color .18s ease,box-shadow .18s ease}
 .model-row:hover,.model-row.is-active{border-color:color-mix(in srgb,var(--ops-primary) 55%,var(--ops-border));box-shadow:0 2px 9px color-mix(in srgb,var(--ops-text) 7%,transparent)}
@@ -73,4 +73,6 @@ onMounted(load)
 .row-arrow{color:var(--ops-muted);transition:transform .18s ease;pointer-events:none}.model-row.is-active .row-arrow{transform:rotate(180deg)}
 @media(max-width:760px){.model-row{gap:10px;padding:10px 12px}.model-summary{gap:12px}}
 @media(max-width:760px){.model-main{gap:10px}.model-main strong{flex-basis:40%}}
+.add-model-row,.model-row{border-radius:var(--ops-radius)}
+.model-row.is-active{border-radius:var(--ops-radius) var(--ops-radius) 0 0}
 </style>

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 
 	"net/url"
 	"strconv"
@@ -84,7 +85,7 @@ func sendDingTalkWebhook(channel models.NotificationChannel, body []byte) error 
 	if title == "" {
 		title = "观澜运维平台通知"
 	}
-	payload, err := json.Marshal(map[string]interface{}{"msgtype": "markdown", "markdown": map[string]string{"title": title, "text": "### " + title + "\n\n" + notificationStringFromMap(data, "content")}})
+	payload, err := json.Marshal(map[string]interface{}{"msgtype": "markdown", "markdown": map[string]string{"title": title, "text": notificationMarkdownHeading("dingding", title, data) + "\n\n" + notificationStringFromMap(data, "content")}})
 	if err != nil {
 		return err
 	}
@@ -164,5 +165,65 @@ func sendSMTPNotification(channel models.NotificationChannel, body []byte) error
 	if err := json.Unmarshal(body, &data); err != nil {
 		return err
 	}
-	return mailclient.Send(cfg, notificationStringFromMap(data, "title"), notificationStringFromMap(data, "content"))
+	return mailclient.SendAlternative(cfg, notificationStringFromMap(data, "title"), notificationStringFromMap(data, "content"), notificationEmailHTML(data))
+}
+
+// Channel renderers share severity semantics but use channel-specific color formats.
+func notificationAppearance(data map[string]interface{}) (color, label, marker string) {
+	status := strings.ToLower(notificationStringFromMap(data, "status"))
+	switch status {
+	case "test":
+		return "blue", "测试通知", "🔵"
+	case "resolved", "recovered", "recovery":
+		return "green", "已恢复", "🟢"
+	}
+	switch strings.ToUpper(notificationStringFromMap(data, "severity")) {
+	case "P0":
+		return "red", "P0", "🔴"
+	case "P1":
+		return "orange", "P1", "🟠"
+	case "P2":
+		return "blue", "P2", "🔵"
+	default:
+		return "blue", "通知", "🔵"
+	}
+}
+
+func notificationHexColor(color string) string {
+	switch color {
+	case "red":
+		return "#d54941"
+	case "orange":
+		return "#d97904"
+	case "green":
+		return "#23855a"
+	default:
+		return "#3370ff"
+	}
+}
+
+func notificationMarkdownHeading(kind, title string, data map[string]interface{}) string {
+	if notificationStringFromMap(data, "status") == "" && notificationStringFromMap(data, "severity") == "" {
+		return "### " + title
+	}
+	color, label, marker := notificationAppearance(data)
+	fontColor := notificationHexColor(color)
+	if kind == "qywechat" {
+		fontColor = "comment"
+		if color == "red" || color == "orange" {
+			fontColor = "warning"
+		}
+		if color == "green" {
+			fontColor = "info"
+		}
+	}
+	return fmt.Sprintf("### %s <font color=\"%s\">%s · %s</font>", marker, fontColor, html.EscapeString(label), html.EscapeString(title))
+}
+
+func notificationEmailHTML(data map[string]interface{}) string {
+	color, label, marker := notificationAppearance(data)
+	title := html.EscapeString(notificationStringFromMap(data, "title"))
+	content := html.EscapeString(notificationStringFromMap(data, "content"))
+	content = strings.ReplaceAll(strings.ReplaceAll(content, "\r\n", "\n"), "\n", "<br>")
+	return fmt.Sprintf(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"></head><body style="margin:0;padding:24px;background:#f5f7fa;font-family:Arial,sans-serif"><table role="presentation" style="width:100%%;max-width:680px;margin:auto;border-collapse:collapse;background:#fff"><tr><td style="padding:18px 24px;background:%s;color:#fff;font-size:18px;font-weight:bold">%s %s · %s</td></tr><tr><td style="padding:24px;color:#303846;font-size:14px;line-height:1.7;overflow-wrap:anywhere">%s</td></tr></table></body></html>`, notificationHexColor(color), marker, html.EscapeString(label), title, content)
 }

@@ -2,7 +2,7 @@
   <div class="task-page">
     <header class="task-toolbar">
       <div class="filter-bar" role="search" aria-label="通知对象筛选">
-        <el-input v-model="keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索通知对象" placeholder="搜索名称、模板或备注" @input="handleFilterChange" @clear="applyFilters" />
+        <el-input v-model="keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索通知对象名称" placeholder="搜索通知对象名称" @input="handleFilterChange" @clear="applyFilters" />
         <el-select v-model="typeFilter" clearable aria-label="按通知类型筛选" placeholder="通知类型" @change="applyFilters">
           <el-option v-for="item in notificationTypes" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
@@ -56,35 +56,26 @@
       <div v-if="filteredChannels.length > 0" class="task-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="filteredChannels.length" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next" /></div>
     </el-card>
 
-    <el-drawer v-model="drawerVisible" class="standard-config-drawer channel-drawer" size="min(460px, 94vw)" direction="rtl" :close-on-click-modal="false">
+    <el-drawer v-model="drawerVisible" class="standard-config-drawer channel-drawer" :size="choosingType ? 'min(320px, 94vw)' : 'min(460px, 94vw)'" direction="rtl" :close-on-click-modal="choosingType">
       <template #header>
         <div class="drawer-header">
-          <DrawerBackButton @click="drawerVisible = false" />
-          <span class="drawer-title">{{ form.id ? '编辑通知对象' : '创建通知对象' }}</span>
+          <DrawerBackButton v-if="!choosingType" :disabled="saving" @click="handleDrawerBack" />
+          <span v-if="choosingType || form.id" class="drawer-title">{{ choosingType ? '选择通知类型' : '编辑通知对象' }}</span>
         </div>
       </template>
 
-      <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="drawer-form">
+      <div v-if="choosingType" class="type-card-list" aria-label="选择通知类型">
+        <button v-for="item in notificationTypes" :key="item.value" class="type-card" type="button" :aria-label="`创建${item.label}通知对象`" @click="selectType(item.value)">
+          <span class="type-option"><img :src="item.icon" alt="" /><span>{{ item.label }}</span></span>
+        </button>
+      </div>
+      <el-form v-else ref="formRef" :model="form" :rules="rules" label-position="top" class="drawer-form" :disabled="saving">
+        <div class="drawer-provider">
+          <span v-if="currentTypeMeta.icon" class="drawer-provider-icon"><img :src="currentTypeMeta.icon" alt="" /></span>
+          <span>{{ currentTypeMeta.label }}</span>
+        </div>
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="证书过期通知" />
-        </el-form-item>
-        <el-form-item label="通知类型" prop="type">
-          <div class="type-card-list">
-            <button
-              v-for="item in notificationTypes"
-              :key="item.value"
-              class="type-card"
-              :class="{ active: form.type === item.value, disabled: form.id && form.type !== item.value }"
-              type="button"
-              :disabled="!!form.id"
-              @click="selectType(item.value)"
-            >
-              <span class="type-option">
-                <img :src="item.icon" :alt="item.label" />
-                <span>{{ item.label }}</span>
-              </span>
-            </button>
-          </div>
         </el-form-item>
         <el-form-item v-if="form.type !== 'email'" prop="webhook_url">
           <template #label>
@@ -142,8 +133,8 @@
 
       <template #footer>
         <div class="drawer-footer">
-          <el-button @click="drawerVisible = false">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+          <el-button :disabled="saving" @click="drawerVisible = false">取消</el-button>
+          <el-button v-if="!choosingType" type="primary" :loading="saving" @click="save">保存</el-button>
         </div>
       </template>
     </el-drawer>
@@ -154,7 +145,7 @@
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Edit, Plus, Promotion, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
+import { Delete, Edit, Plus, Promotion, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
 import feishuIcon from '../../assets/feishu.svg'
 import emailIcon from '../../assets/email.svg'
 import dingdingIcon from '../../assets/dingding.svg'
@@ -175,6 +166,7 @@ const loading = ref(false)
 const saving = ref(false)
 const testingId = ref(null)
 const drawerVisible = ref(false)
+const choosingType = ref(false)
 const formRef = ref()
 const keyword = ref('')
 const typeFilter = ref('')
@@ -241,7 +233,7 @@ const hasFilters = computed(() => keyword.value.trim() !== '' || typeFilter.valu
 const filteredChannels = computed(() => {
   const term = keyword.value.trim().toLowerCase()
   return channels.value.filter(item => {
-    const matchesKeyword = !term || [item.name, item.description, templateName(item.template_id)].some(value => String(value || '').toLowerCase().includes(term))
+    const matchesKeyword = !term || String(item.name || '').toLowerCase().includes(term)
     return matchesKeyword && (!typeFilter.value || item.type === typeFilter.value) && (statusFilter.value === '' || item.status === statusFilter.value)
   })
 })
@@ -314,6 +306,8 @@ async function loadTemplates() {
 }
 
 function openDrawer(row) {
+  choosingType.value = !row
+  formRef.value?.clearValidate()
   Object.assign(form, row ? {
     email_recipients: [...(row.email_recipients || [])],
     id: row.id,
@@ -338,13 +332,25 @@ function openDrawer(row) {
 
 function selectType(type) {
   if (form.id) return
-  if (form.type === type) return
-  form.type = type
-  form.template_id = null
+  if (form.type !== type) {
+    form.type = type
+    form.template_id = null
+    form.webhook_url = ''
+    form.sign_secret = ''
+    form.email_recipients = []
+  }
+  choosingType.value = false
   formRef.value?.clearValidate()
 }
 
+function handleDrawerBack() {
+  if (saving.value) return
+  if (!form.id && !choosingType.value) choosingType.value = true
+  else drawerVisible.value = false
+}
+
 async function save() {
+  if (choosingType.value || saving.value) return
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
   saving.value = true
@@ -432,7 +438,7 @@ function formatTime(value) {
 <style scoped>
 .task-page { --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 260px 120px 100px auto; gap: 8px; }
+.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 220px 120px 100px auto; gap: 8px; }
 .filter-bar > * { min-width: 0; width: 100%; }
 .page-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .page-header-actions :deep(.el-button + .el-button), .row-actions :deep(.el-button + .el-button) { margin-left: 0; }
@@ -561,7 +567,7 @@ function formatTime(value) {
 
 .type-card-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   width: 100%;
 }
@@ -577,16 +583,16 @@ function formatTime(value) {
   padding: 0;
   cursor: pointer;
   background: var(--ops-surface);
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
+  border: 1px solid var(--ops-border);
+  border-radius: var(--ops-radius);
   outline: 1px solid transparent;
   outline-offset: -1px;
   transition: border-color .16s ease, box-shadow .16s ease;
 }
 
-.type-card.active {
-  border-color: #1890ff;
-  outline-color: #1890ff;
+.type-card:focus-visible {
+  outline: 2px solid var(--ops-primary);
+  outline-offset: 2px;
 }
 
 .type-card.disabled {
@@ -657,4 +663,14 @@ function formatTime(value) {
 @media (max-width: 980px) { .task-toolbar { align-items: stretch; flex-wrap: wrap; }.filter-bar { width: 100%; flex: 1 1 100%; }.page-header-actions { margin-left: auto; }.task-pagination { overflow-x: auto; justify-content: flex-start; } }
 @media (max-width: 620px) { .task-toolbar { flex-direction: column; }.filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }.task-search { grid-column: 1 / -1; }.page-header-actions { justify-content: flex-end; } }
 @media (max-width: 400px) { .type-card-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+:global(.channel-drawer .el-drawer__header) {
+  box-sizing: border-box;
+  flex: 0 0 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--ops-border-soft);
+}
 </style>

@@ -472,7 +472,7 @@ function formatRelativeTime(value) {
 
 <style scoped>
 .node-settings{max-width:980px;margin:0 auto}.node-list{min-height:160px}
-.add-node-row{display:flex;width:100%;min-height:58px;align-items:center;gap:12px;margin:0 0 12px;padding:0 18px;color:var(--ops-primary);background:var(--ops-surface);border:1px dashed color-mix(in srgb,var(--ops-primary) 55%,var(--ops-border));cursor:pointer;font:inherit;font-size:13px;font-weight:600;text-align:left}.add-node-row .el-icon{font-size:21px}.add-node-row:hover{background:color-mix(in srgb,var(--ops-primary) 4%,var(--ops-surface));border-color:var(--ops-primary)}
+.add-node-row{display:flex;width:100%;min-height:58px;align-items:center;gap:12px;margin:0 0 12px;padding:0 18px;color:var(--ops-primary);background:var(--ops-surface);border:1px dashed var(--ops-border);cursor:pointer;font:inherit;font-size:13px;font-weight:600;text-align:left}.add-node-row .el-icon{font-size:21px}.add-node-row:hover{background:color-mix(in srgb,var(--ops-primary) 4%,var(--ops-surface));border-color:var(--ops-border)}
 .node-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto 16px;align-items:center;gap:14px;min-height:70px;margin-bottom:8px;padding:10px 16px;border:1px solid var(--ops-border);background:var(--ops-surface)}.node-row:hover,.node-row.is-active{border-color:color-mix(in srgb,var(--ops-primary) 55%,var(--ops-border));box-shadow:0 2px 9px color-mix(in srgb,var(--ops-text) 7%,transparent)}
 .node-summary{display:flex;align-items:center;gap:16px;min-width:0;padding:0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}.node-summary::after{position:absolute;inset:0;content:''}.node-summary:disabled{cursor:wait}.node-summary:focus-visible,.add-node-row:focus-visible{outline:2px solid var(--ops-primary);outline-offset:2px}
 .node-mark{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;color:var(--ops-text);background:var(--ops-surface-soft);border:1px solid var(--ops-border-soft);border-radius:6px;font-size:20px}.node-main{display:flex;flex:1;min-width:0;align-items:center;gap:20px}.node-main strong{font-weight:400;flex:0 1 180px;min-width:0;overflow:hidden;color:var(--ops-text);font-size:13px;text-overflow:ellipsis;white-space:nowrap}.node-main>span{flex:1;min-width:0;overflow:hidden;color:var(--ops-muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
@@ -491,4 +491,6 @@ function formatRelativeTime(value) {
 .node-main>.node-description{flex:0 1 160px}
 @media(max-width:760px){.node-main>.node-description{display:none}}
 @media(max-width:760px){.node-main{gap:10px}.node-main strong{flex-basis:40%}}
+.add-node-row,.node-row{border-radius:var(--ops-radius)}
+.node-row.is-active{border-radius:var(--ops-radius) var(--ops-radius) 0 0}
 </style>

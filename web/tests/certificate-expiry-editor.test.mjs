@@ -48,29 +48,17 @@ test('TCP remains a connectivity task without an expiry policy', () => {
 
  test('retired probe types are not offered in the task editor', () => {
  const run = editor()
- assert.deepEqual(JSON.parse(run('JSON.stringify(taskTypes.map(item => item.value))')), ['http', 'icmp', 'tcp', 'certificate_expiry'])
+ assert.deepEqual(JSON.parse(run('JSON.stringify(taskTypes.map(item => item.value))')), ['http', 'icmp', 'tcp', 'certificate_expiry', 'script'])
  })
 
-function instantEditor() {
-  const script = parseVue(readFileSync(new URL('../src/views/inspection/InstantProbe.vue', import.meta.url), 'utf8')).descriptor.scriptSetup.content
-  const selected = new Set(['defaultForm', 'buildProbePayload', 'rowsToObject', 'changeProbeType'])
-  const declarations = parse(script, { sourceType: 'module' }).program.body.filter(node =>
-    node.type === 'FunctionDeclaration' ? selected.has(node.id.name) : node.type === 'VariableDeclaration' && node.declarations.some(d => selected.has(d.id.name))
-  ).map(node => script.slice(node.start, node.end)).join('\n')
-  const context = vm.createContext({ probeTypes, parseCertificateTarget })
-  vm.runInContext(declarations + '\nconst form = defaultForm(); const formRef = { value: null }; const result = { value: null };', context)
-  return expression => vm.runInContext(expression, context)
-}
-
-test('instant certificate probe uses the shared type defaults and selected node', () => {
-  const run = instantEditor()
-  run("changeProbeType('certificate_expiry'); form.host = 'example.com'; form.node_value = 'agent:7'; form.expiry_alert_days = 14")
-  assert.equal(run('form.port'), 443)
-  const payload = JSON.parse(run('JSON.stringify(buildProbePayload())'))
+test('certificate probe serialization keeps its selected execution node', () => {
+  const run = editor()
+  run("changeType('certificate_expiry'); form.host = 'example.com'; form.node_values = ['agent:7']; form.expiry_alert_days = 14")
+  const payload = JSON.parse(run('JSON.stringify(buildPayload())'))
+  const config = JSON.parse(payload.config)
   assert.equal(payload.type, 'certificate_expiry')
-  assert.equal(payload.expiry_alert_days, 14)
-  assert.equal(payload.node_type, 'agent')
-  assert.equal(payload.node_id, 7)
-  run("changeProbeType('tcp')")
-  assert.equal(run("Object.hasOwn(buildProbePayload(), 'expiry_alert_days')"), false)
+  assert.equal(config.expiry_alert_days, 14)
+  assert.deepEqual(config.execution_nodes, [{node_type: 'agent', node_id: 7}])
+  run("changeType('tcp')")
+  assert.equal(run("Object.hasOwn(JSON.parse(buildPayload().config), 'expiry_alert_days')"), false)
 })

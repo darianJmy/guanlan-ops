@@ -15,6 +15,9 @@ const staticRoutes = [
     component: () => import('../views/Layout.vue'),
     redirect: '/dashboard',
     children: [
+      { path: 'system/permissions', redirect: '/dashboard' },
+      { path: 'system/menus', redirect: '/dashboard' },
+      { path: 'settings/api-tokens', redirect: '/dashboard' },
       { path: 'explore', redirect: '/monitor/query' },
       { path: 'observability/logs', redirect: '/monitor/query?kind=logs' },
       { path: 'observability/traces', redirect: '/monitor/query?kind=traces' },
@@ -29,7 +32,7 @@ const staticRoutes = [
         path: 'inspection/items/groups/:groupId',
         name: 'InspectionRuleGroupTasks',
         component: () => import('../views/inspection/InspectionManage.vue'),
-        meta: { title: '拨测规则组', activeMenu: '/inspection/items' },
+        meta: { title: '拨测规则组', activeMenu: '/inspection/items', breadcrumbParent: { title: '拨测任务', path: '/inspection/items' } },
       },
       {
         path: 'inspection/items/create',
@@ -77,7 +80,7 @@ const staticRoutes = [
         path: 'alerts/:id',
         name: 'FaultCenterDetail',
         component: () => import('../views/alert/FaultCenterDetail.vue'),
-        meta: { title: '故障中心', activeMenu: '/alerts' },
+        meta: { title: '故障中心详情', activeMenu: '/alerts', breadcrumbParent: { title: '故障中心', path: '/alerts' } },
       },
       {
         path: 'alert-rules/:groupId/create',
@@ -95,7 +98,13 @@ const staticRoutes = [
         path: 'alert-rules/:groupId',
         name: 'AlertRuleGroupDetail',
         component: () => import('../views/alert/RuleManage.vue'),
-        meta: { title: '规则组详情', activeMenu: '/alert-rules' },
+        meta: { title: '规则组详情', activeMenu: '/alert-rules', breadcrumbParent: { title: '告警管理', path: '/alert-rules' } },
+      },
+      {
+        path: ':pathMatch(.*)*',
+        name: 'NotFound',
+        component: () => import('../views/common/NotFound.vue'),
+        meta: { title: '页面不存在' },
       },
     ],
   },
@@ -110,13 +119,10 @@ const router = createRouter({
 const componentMap = {
   'system/UserManage': () => import('../views/system/UserManage.vue'),
   'system/RoleManage': () => import('../views/system/RoleManage.vue'),
-  'system/PermissionManage': () => import('../views/system/PermissionManage.vue'),
-  'system/MenuManage': () => import('../views/system/MenuManage.vue'),
   'system/GitCredentialManage': () => import('../views/system/GitCredentialManage.vue'),
   'system/BasicSetting': () => import('../views/system/BasicSetting.vue'),
   'system/AIModelManage': () => import('../views/system/AIModelManage.vue'),
   'system/AuthSetting': () => import('../views/system/AuthSetting.vue'),
-  'system/APITokenManage': () => import('../views/system/APITokenManage.vue'),
   'monitor/IntegrationManage': () => import('../views/monitor/IntegrationManage.vue'),
   'monitor/DashboardManage': () => import('../views/monitor/DashboardManage.vue'),
   'monitor/DashboardHub': () => import('../views/monitor/DashboardHub.vue'),
@@ -150,7 +156,7 @@ function resetDynamicRoutes() {
 function addDynamicRoutes(menus) {
   const addRouteFromMenu = (items, parentPath = '') => {
     items.forEach((menu) => {
-      if (menu.type === 2 && menu.component) {
+      if (menu.type === 2 && componentMap[menu.component]) {
         const routePath = menu.path.replace(/^\//, '')
         const removeRoute = router.addRoute('Layout', {
           path: routePath,

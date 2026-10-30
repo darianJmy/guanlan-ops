@@ -18,17 +18,9 @@
         </el-select>
         <el-select v-model="query.trigger_type" clearable placeholder="触发方式" @change="handleSearch">
           <el-option label="手动执行" value="manual" />
-          <el-option label="故障触发" value="fault" />
+          <el-option label="故障触发" value="fault" /><el-option label="拨测调用" value="probe" />
         </el-select>
-        <el-date-picker
-          v-model="dateRange"
-          type="datetimerange"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          range-separator="至"
-          @change="handleSearch"
-        />
+        <RecordTimeRange v-model="dateRange" @change="handleSearch" />
         <el-button :disabled="!hasFilters" @click="clearFilters">清空</el-button>
       </div>
       <div class="toolbar-actions">
@@ -85,6 +77,7 @@
 </template>
 
 <script setup>
+import RecordTimeRange from '../../components/RecordTimeRange.vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { getAutomationExecutions } from '../../api/automationTask'
@@ -152,6 +145,7 @@ function statusMeta(status) {
 }
 
 function triggerText(row) {
+  if (row.trigger_type === 'probe') return row.trigger_id ? `拨测调用 #${row.trigger_id}` : '拨测测试'
   if (row.trigger_type === 'manual') return '手动执行'
   if (row.trigger_type === 'fault') return row.trigger_id ? `故障触发 #${row.trigger_id}` : '故障触发'
   return row.trigger_type || '—'
@@ -178,9 +172,8 @@ function formatTime(value) {
 .filters { min-width: 0; flex: 1; flex-wrap: wrap; }
 .toolbar-actions { flex: 0 0 auto; }
 .toolbar-actions :deep(.el-button + .el-button) { margin-left: 0; }
-.filters .el-input { width: 220px; }
+.filters .el-input { width: 180px; }
 .filters .el-select { width: 120px; }
-.filters :deep(.el-date-editor) { width: 250px; max-width: 100%; flex: 0 0 250px; }
 .record-card { min-width: 0; border-color: var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(31, 50, 81, .045); }
 .record-card :deep(.el-card__body) { padding: 16px; }
 .execution-output { display: block; overflow: hidden; color: var(--el-text-color-regular); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 20px; text-overflow: ellipsis; white-space: nowrap; }

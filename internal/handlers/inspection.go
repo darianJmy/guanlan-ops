@@ -689,7 +689,7 @@ func validateInspectionItemReq(req CreateInspectionItemReq) error {
 		if err := json.Unmarshal([]byte(req.Config), &config); err != nil {
 			return fmt.Errorf("脚本拨测配置格式不正确")
 		}
-		if _, err := loadProbeScript(config); err != nil {
+		if _, err := loadProbeAutomationTask(config); err != nil {
 			return err
 		}
 	}
@@ -705,8 +705,10 @@ func validateInspectionItemReq(req CreateInspectionItemReq) error {
 			return err
 		}
 	}
-	if err := validateInspectionExecutionNodes(req.Config); err != nil {
-		return err
+	if taskType != "script" {
+		if err := validateInspectionExecutionNodes(req.Config); err != nil {
+			return err
+		}
 	}
 	if req.GroupID > 0 {
 		if err := validateInspectionRuleGroup(req.GroupID); err != nil {
@@ -736,9 +738,17 @@ func normalizeInspectionSeverity(value string) string {
 
 func inspectionExecutionNodes(config string) []inspectionExecutionNode {
 	var payload struct {
-		ExecutionNodes []inspectionExecutionNode `json:"execution_nodes"`
+		ExecutionNodes   []inspectionExecutionNode `json:"execution_nodes"`
+		AutomationTaskID uint                      `json:"automation_task_id"`
 	}
 	if json.Unmarshal([]byte(config), &payload) != nil {
+		return nil
+	}
+	if payload.AutomationTaskID > 0 {
+		var task models.AutomationTask
+		if database.DB.First(&task, payload.AutomationTaskID).Error == nil {
+			return []inspectionExecutionNode{{NodeType: certificateDefaultString(task.NodeType, "direct"), NodeID: task.NodeID}}
+		}
 		return nil
 	}
 	nodes := payload.ExecutionNodes
@@ -885,6 +895,13 @@ func executeAndRecordInspection(item *models.InspectionItem) models.InspectionRe
 	defer runningInspections.Delete(item.ID)
 	now := time.Now()
 	nodes := resolveInspectionExecutionNodes(item.Config)
+	if item.Type == "script" {
+		var req ProbeReq
+		_ = json.Unmarshal([]byte(item.Config), &req)
+		if req.AutomationTaskID == 0 {
+			nodes = nil
+		}
+	}
 	if len(nodes) == 0 {
 		nodes = []inspectionExecutionNode{{NodeType: "direct", NodeName: "服务端直连"}}
 	}
@@ -999,6 +1016,9 @@ func inspectionResultValue(result string) interface{} {
 }
 
 func executeInspectionOnNode(item models.InspectionItem, node inspectionExecutionNode) (string, string, int64) {
+	if item.Type == "script" {
+		return executeInspection(item)
+	}
 	var config map[string]interface{}
 	if json.Unmarshal([]byte(item.Config), &config) != nil {
 		return "error", `{"error":"拨测配置解析失败"}`, 0
@@ -1303,7 +1323,7 @@ func executeProbeTask(item models.InspectionItem) (string, string, int64) {
 	}
 	req.Type = item.Type
 	if req.Type == "script" {
-		return executeScriptProbe(req)
+		return executeAutomationProbe(req, item.ID)
 	}
 	if req.Type == "http" {
 		if strings.TrimSpace(req.Target) == "" {

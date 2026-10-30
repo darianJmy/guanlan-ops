@@ -300,7 +300,7 @@ function backFromForm() {
 .page-intro { display: flex; min-height: 36px; align-items: center; gap: 9px; padding: 7px 12px; color: var(--ops-muted); background: var(--ops-primary-soft); font-size: 11px; }
 .intro-icon { flex: none; color: var(--ops-primary); font-size: 14px; }
 .page-toolbar, .preview-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.workspace-search { width: 240px; }
+.workspace-search { width: 200px; }
 .toolbar-actions, .preview-actions { display: flex; align-items: center; gap: 10px; }
 .project-grid { display: grid; min-height: 120px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .project-card { display: flex; min-width: 0; overflow: hidden; flex-direction: column; background: var(--ops-surface); border: 1px solid var(--ops-border-soft); border-radius: 10px; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }

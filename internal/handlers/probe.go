@@ -26,31 +26,33 @@ import (
 const probeMetaMarker = "\n__AIOPS_PROBE_META__:"
 
 type ProbeReq struct {
-	ScriptID        uint              `json:"script_id"`
-	ExpiryAlertDays *int              `json:"expiry_alert_days"`
-	Type            string            `json:"type" binding:"required"`
-	Target          string            `json:"target"`
-	Config          string            `json:"config"`
-	Name            string            `json:"name"`
-	Host            string            `json:"host"`
-	Port            int               `json:"port"`
-	Method          string            `json:"method"`
-	Path            string            `json:"path"`
-	HTTPS           bool              `json:"https"`
-	Headers         map[string]string `json:"headers"`
-	Params          map[string]string `json:"params"`
-	TimeoutMS       int               `json:"timeout_ms"`
-	ContentType     string            `json:"content_type"`
-	AuthType        string            `json:"auth_type"`
-	Username        string            `json:"username"`
-	Password        string            `json:"password"`
-	SuccessCodes    string            `json:"success_codes"`
-	ResponseKeyword string            `json:"response_keyword"`
-	Body            string            `json:"body"`
-	NodeType        string            `json:"node_type"`
-	NodeID          uint              `json:"node_id"`
-	Count           int               `json:"count"`
-	ServerName      string            `json:"server_name"`
+	AutomationTaskID uint                      `json:"automation_task_id"`
+	ExecutionNodes   []inspectionExecutionNode `json:"execution_nodes"`
+	ScriptID         uint                      `json:"script_id"`
+	ExpiryAlertDays  *int                      `json:"expiry_alert_days"`
+	Type             string                    `json:"type" binding:"required"`
+	Target           string                    `json:"target"`
+	Config           string                    `json:"config"`
+	Name             string                    `json:"name"`
+	Host             string                    `json:"host"`
+	Port             int                       `json:"port"`
+	Method           string                    `json:"method"`
+	Path             string                    `json:"path"`
+	HTTPS            bool                      `json:"https"`
+	Headers          map[string]string         `json:"headers"`
+	Params           map[string]string         `json:"params"`
+	TimeoutMS        int                       `json:"timeout_ms"`
+	ContentType      string                    `json:"content_type"`
+	AuthType         string                    `json:"auth_type"`
+	Username         string                    `json:"username"`
+	Password         string                    `json:"password"`
+	SuccessCodes     string                    `json:"success_codes"`
+	ResponseKeyword  string                    `json:"response_keyword"`
+	Body             string                    `json:"body"`
+	NodeType         string                    `json:"node_type"`
+	NodeID           uint                      `json:"node_id"`
+	Count            int                       `json:"count"`
+	ServerName       string                    `json:"server_name"`
 }
 
 type probeExecutionResult struct {
@@ -96,7 +98,7 @@ func InstantProbe(c *gin.Context) {
 		return
 	}
 	if req.Type == "script" {
-		if _, err := loadProbeScript(req); err != nil {
+		if _, err := loadProbeAutomationTask(req); err != nil {
 			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
 			return
 		}

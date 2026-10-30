@@ -1,21 +1,6 @@
 <template>
   <div class="task-page">
-    <header class="detail-header">
-      <el-button link type="primary" :icon="ArrowLeft" @click="router.push('/inspection/items')">返回</el-button>
-      <div class="group-summary">
-        <div class="group-name">
-          <template v-if="nameEditing">
-            <el-input ref="nameInputRef" v-model="nameDraft" class="group-name-input" size="small" maxlength="128" aria-label="拨测规则组名称" :disabled="nameSaving" @keyup.enter="saveGroupName" @keyup.esc="cancelNameEdit" />
-            <el-tooltip content="确认" placement="top"><el-button text circle class="name-action is-confirm" :icon="Check" :loading="nameSaving" aria-label="保存拨测规则组名称" @click="saveGroupName" /></el-tooltip>
-            <el-tooltip content="取消" placement="top"><el-button text circle class="name-action is-cancel" :icon="Close" :disabled="nameSaving" aria-label="取消修改拨测规则组名称" @click="cancelNameEdit" /></el-tooltip>
-          </template>
-          <template v-else>
-            <p :title="group?.name">{{ group?.name || '拨测规则组' }}</p>
-            <el-tooltip v-if="group" content="编辑名称" placement="top"><el-button text circle :icon="Edit" aria-label="编辑拨测规则组名称" @click="startNameEdit" v-permission="['inspection:edit']" /></el-tooltip>
-          </template>
-        </div>
-      </div>
-    </header>
+
     <header class="task-toolbar">
       <div class="filter-bar" role="search" aria-label="拨测任务搜索">
         <el-input v-model="filters.keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索拨测任务" placeholder="搜索任务名称" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
@@ -193,12 +178,13 @@
 </template>
 
 <script setup>
+import { usePageBreadcrumb } from '../../composables/usePageBreadcrumb'
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElButton, ElInput, ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, ArrowLeft, Check, Close, CopyDocument, Delete, Download, Edit, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
-import { updateInspectionRuleGroup, getInspectionRuleGroup, getInspectionItems, createInspectionItem, updateInspectionItem, deleteInspectionItem, batchDeleteInspectionItems, batchUpdateInspectionItemStatus, exportInspectionItems, importInspectionItems } from '../../api/inspection'
+import { ArrowDown, CopyDocument, Delete, Download, Edit, Plus, Refresh, Search, Upload } from '@element-plus/icons-vue'
+import { getInspectionRuleGroup, getInspectionItems, createInspectionItem, updateInspectionItem, deleteInspectionItem, batchDeleteInspectionItems, batchUpdateInspectionItemStatus, exportInspectionItems, importInspectionItems } from '../../api/inspection'
 import { probeTypes } from '../../utils/probeTypes'
 import { getAgents, getCertificateExecutors } from '../../api/certificate'
 import { getFaultCenters } from '../../api/alert'
@@ -221,31 +207,8 @@ const defaultForm = (type = 'http') => ({ id: null, name: '', type, target: '', 
 
 const loading = ref(false), saving = ref(false), drawerVisible = ref(false), isEdit = ref(false), formRef = ref()
 const router = useRouter(), route = useRoute(), group = ref(null)
+usePageBreadcrumb(() => group.value?.name)
 const groupId = computed(() => Number(route.params.groupId))
-const nameEditing = ref(false), nameSaving = ref(false), nameDraft = ref(''), nameInputRef = ref()
-async function startNameEdit() {
-  if (!group.value) return
-  nameDraft.value = group.value.name
-  nameEditing.value = true
-  await nextTick()
-  nameInputRef.value?.focus()
-  nameInputRef.value?.select()
-}
-function cancelNameEdit() { if (!nameSaving.value) nameEditing.value = false }
-async function saveGroupName() {
-  if (nameSaving.value || !group.value) return
-  const name = nameDraft.value.trim()
-  if (!name) { ElMessage.warning('请输入拨测规则组名称'); return }
-  if (name === group.value.name) { nameEditing.value = false; return }
-  nameSaving.value = true
-  try {
-    await updateInspectionRuleGroup(groupId.value, { name, description: group.value.description || '' })
-    group.value = { ...group.value, name }
-    nameEditing.value = false
-    ElMessage.success('名称已更新')
-  } finally { nameSaving.value = false }
-}
-
 const tableData = ref([]), selectedRows = ref([]), batchAction = ref(''), togglingId = ref(null), total = ref(0), page = ref(1), pageSize = ref(20), sshNodes = ref([]), agentNodes = ref([]), faultCenters = ref([]), form = reactive(defaultForm())
 const hostAgentNodes = computed(() => agentNodes.value.filter(item => !isDockerAgent(item)))
 const dockerAgentNodes = computed(() => agentNodes.value.filter(isDockerAgent))
@@ -459,24 +422,15 @@ function formatShortTime(value) { const date = new Date(value); return Number.is
 </script>
 
 <style scoped>
-.detail-header { display:flex; min-height:32px; align-items:center; gap:14px; }
-.group-summary { min-width:0; flex:1; }
-.group-name { display:flex; min-width:0; align-items:center; gap:4px; }
-.group-name p { margin:0; overflow:hidden; color:var(--ops-muted,var(--ops-muted)); font-size:12px; font-weight:400; line-height:1.5; text-overflow:ellipsis; white-space:nowrap; }
-.group-name-input { width:140px; max-width:calc(100vw - 210px); }
-.group-summary .el-button { width:26px; height:26px; margin:0; padding:4px; color:#8c9aad; }
-.group-summary .el-button:hover { color:var(--ops-primary); background:var(--ops-primary-soft); }
-.group-summary .name-action.is-confirm { color:#1a8f68; }
-.group-summary .name-action.is-cancel { color:#c55252; }
 
 .task-page { --ink: var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); display: flex; flex-direction: column; gap: 16px; }
 .task-hero { display: flex; align-items: center; gap: 16px; min-height: 92px; padding: 20px 24px; background: linear-gradient(115deg, #fff 0%, #f6f9fe 60%, #edf5ff 100%); border: 1px solid #dce7f6; border-radius: 10px; box-shadow: 0 8px 28px rgba(35, 78, 134, .06); }
 .hero-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; flex: 0 0 48px; color: #fff; background: linear-gradient(145deg, #2478e8, #0f5bc6); border-radius: 12px; box-shadow: 0 8px 18px rgba(23, 105, 224, .22); font-size: 24px; }
 .hero-copy { margin-right: auto; }.hero-copy h1 { margin: 0; color: var(--ink); font-size: 22px; font-weight: 750; }.hero-copy p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }.hero-actions { display: flex; gap: 10px; }
-.task-card { border-color: var(--border); border-radius: 7px; box-shadow: none; }.task-card :deep(.el-card__body) { padding: 16px; }
+.task-card { border-color: var(--border); border-radius: 8px; box-shadow: none; }.task-card :deep(.el-card__body) { padding: 16px; }
 .task-pagination { display: flex; justify-content: flex-end; margin-top: 16px; }
 .filter-bar { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; }
-.task-search { width: 220px; }
+.task-search { width: 180px; }
 .filter-select { flex: 0 0 auto; }
 .filter-type { width: 110px; }
 .filter-status { width: 110px; }
@@ -498,7 +452,7 @@ function formatShortTime(value) { const date = new Date(value); return Number.is
 .task-toolbar .filter-bar {
   display: grid;
   flex: 0 0 auto;
-  grid-template-columns: 260px 110px 110px auto;
+  grid-template-columns: 220px 110px 110px auto;
   gap: 8px;
 }
 .task-toolbar .task-search,

@@ -1,8 +1,14 @@
 <template>
   <div class="page-container">
     <section class="script-workbench">
-      <el-tabs v-model="assetTab" class="asset-tabs" @tab-change="handleSearch"><el-tab-pane label="在线脚本" name="scripts" /><el-tab-pane label="Git 仓库" name="repositories" /></el-tabs>
-      <div class="asset-content">
+      <aside class="asset-sidebar" aria-label="脚本库分组">
+        <div class="sidebar-heading"><el-icon aria-hidden="true"><Grid /></el-icon><strong>资产分组</strong></div>
+        <nav class="asset-menu" aria-label="选择资产分组">
+          <button type="button" class="asset-group" :class="{ active: assetTab === 'scripts' }" :aria-current="assetTab === 'scripts' ? 'true' : undefined" @click="selectAssetGroup('scripts')"><span class="asset-icon"><el-icon><Document /></el-icon></span><span class="asset-copy"><strong>在线脚本</strong><small>Shell · Python</small></span></button>
+          <button type="button" class="asset-group" :class="{ active: assetTab === 'repositories' }" :aria-current="assetTab === 'repositories' ? 'true' : undefined" @click="selectAssetGroup('repositories')"><span class="asset-icon repository-icon"><el-icon><FolderOpened /></el-icon></span><span class="asset-copy"><strong>Git 仓库</strong><small>代码与版本管理</small></span></button>
+        </nav>
+      </aside>
+      <section class="asset-content" :aria-label="assetTab === 'repositories' ? 'Git 仓库列表' : '在线脚本列表'">
         <header class="script-toolbar">
           <el-input v-model="keyword" clearable class="script-search" :aria-label="assetTab === 'repositories' ? '搜索 Git 仓库' : '搜索脚本'" :placeholder="assetTab === 'repositories' ? '搜索名称、地址或分支' : '搜索名称或描述'" @keyup.enter="handleSearch" @clear="handleSearch">
             <template #append>
@@ -14,6 +20,7 @@
             <el-button type="primary" :icon="Plus" @click="openCreate" v-permission="createPermissions">创建</el-button>
           </div>
         </header>
+      <div class="asset-list">
       <el-table v-if="assetTab !== 'repositories'" :data="pagedScripts" :row-key="rowKey" v-loading="loading">
         <el-table-column prop="name" label="脚本名称" min-width="190" show-overflow-tooltip />
         <el-table-column label="运行方式" width="110"><template #default="{ row }"><span class="runtime-label">{{ row.type === 'python' ? 'Python' : 'Shell' }}</span></template></el-table-column>
@@ -50,6 +57,7 @@
         />
       </div>
       </div>
+      </section>
     </section>
 
     <el-drawer v-model="repositoryVisible" class="repository-drawer" size="min(460px, 94vw)" :close-on-click-modal="false">
@@ -73,7 +81,7 @@ import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue'
+import { Delete, Document, Edit, FolderOpened, Grid, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { deleteScript, getScripts } from '../../api/script'
 import { createGitRepository, deleteGitRepository, getGitRepositories, syncGitRepository, updateGitRepository } from '../../api/gitRepository'
 import { getGitCredentials } from '../../api/gitCredential'
@@ -93,6 +101,13 @@ const pagedScripts = computed(() => {
 const filteredRepositories = computed(() => { const term=keyword.value.trim().toLowerCase(); return term ? repositories.value.filter(item => `${item.name} ${item.repository_url} ${item.default_ref} ${item.description}`.toLowerCase().includes(term)) : repositories.value })
 const availableCredentials = computed(() => credentials.value.filter(item => item.status === 1 || item.id === repositoryForm.credential_id))
 onMounted(loadScripts)
+
+function selectAssetGroup(group) {
+  if (assetTab.value === group) return
+  assetTab.value = group
+  keyword.value = ''
+  handleSearch()
+}
 
 function handleSearch() { page.value = 1; loadScripts() }
 
@@ -128,18 +143,28 @@ function formatTime(value) { return value ? new Date(value).toLocaleString('zh-C
 </script>
 
 <style scoped>
-.page-container { --ink: var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); display: flex; flex-direction: column; }
-.script-workbench { overflow: hidden; background: var(--ops-surface); border: 1px solid var(--border); border-radius: 7px; }
-.asset-tabs :deep(.el-tabs__header) { margin: 0; padding: 0 22px; border-bottom: 1px solid var(--ops-border-soft); }
-.asset-tabs :deep(.el-tabs__nav-wrap::after) { display: none; }
-.asset-tabs :deep(.el-tabs__item) { height: 52px; padding: 0 21px; color: var(--ops-muted); font-size: 13px; }
-.asset-tabs :deep(.el-tabs__item.is-active) { color: var(--ops-primary); font-weight: 600; }
-.asset-tabs :deep(.el-tabs__active-bar) { height: 2px; background: var(--ops-primary); }
-.asset-tabs :deep(.el-tabs__content) { display: none; }
-.asset-content { padding: 20px 22px 24px; }
-.script-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.page-container { --ink:var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); height:100%; min-height:0; }
+.script-workbench { display:flex; align-items:stretch; gap:16px; height:100%; min-height:0; }
+.asset-sidebar { display:flex; flex-direction:column; width:220px; flex-shrink:0; min-height:0; align-self:stretch; box-sizing:border-box; padding:6px; border:1px solid var(--ops-border-soft); border-radius:12px; background:var(--ops-surface); }
+.sidebar-heading { display:flex; align-items:center; gap:6px; box-sizing:border-box; height:52px; flex:0 0 52px; padding:0 12px; color:var(--ops-muted); font-size:14px; line-height:20px; }
+.sidebar-heading strong { font-size:12px; font-weight:600; }
+.asset-menu { display:flex; flex-direction:column; gap:6px; }
+.asset-group { position:relative; display:flex; align-items:center; gap:10px; box-sizing:border-box; width:100%; min-height:60px; padding:8px 12px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--ops-text); cursor:pointer; text-align:left; font:inherit; transition:background .15s,border-color .15s; }
+.asset-icon { display:grid; place-items:center; flex:0 0 34px; height:36px; border:1px solid var(--ops-border-soft); border-radius:8px; background:var(--ops-surface-soft); color:var(--ops-muted); font-size:18px; }
+.repository-icon { color:var(--ops-warning); }
+.asset-copy { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
+.asset-copy strong { font-size:13px; font-weight:500; line-height:18px; }
+.asset-copy small { color:var(--ops-subtle); font-size:10px; line-height:15px; white-space:nowrap; }
+.asset-group:hover { background:var(--ops-surface-soft); }
+.asset-group.active { background:color-mix(in srgb,var(--ops-primary) 6%,var(--ops-surface)); border-color:color-mix(in srgb,var(--ops-primary) 18%,var(--ops-surface)); }
+.asset-group.active .asset-copy strong { color:var(--ops-primary); }
+.asset-group.active .asset-icon { background:var(--ops-surface); color:var(--ops-primary); border-color:color-mix(in srgb,var(--ops-primary) 15%,var(--ops-surface)); }
+.asset-group:focus-visible { outline:2px solid var(--ops-primary); outline-offset:1px; }
+.asset-content { flex:1; min-width:0; min-height:0; overflow:auto; }
+.asset-list { padding:16px; border:1px solid var(--ops-border); border-radius:8px; background:var(--ops-surface); }
+.script-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .script-toolbar-actions, .row-actions, .drawer-footer { display: flex; align-items: center; gap: 8px; }.script-toolbar-actions :deep(.el-button + .el-button), .row-actions :deep(.el-button) { margin-left: 0; }
-.script-search { width: 240px; }
+.script-search { width: 200px; }
 .table-pagination { display: flex; justify-content: flex-end; padding-top: 16px; border-top: 1px solid #edf1f5; }
 .runtime-label { color: #3f526d; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 12px; }
 .sync-state { display:flex; min-width:0; flex-direction:column; align-items:flex-start; gap:4px; }.sync-state small { max-width:100%; overflow:hidden; color:#8793a5; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
@@ -147,5 +172,16 @@ function formatTime(value) { return value ? new Date(value).toLocaleString('zh-C
 :deep(.el-select) { width: 100%; }
 .drawer-footer { justify-content: flex-end; }
 :global(.repository-drawer.el-drawer) { border-radius: 0 !important; }
-@media (max-width: 680px) { .asset-tabs :deep(.el-tabs__header) { padding: 0 8px; }.asset-content { padding: 16px; }.script-toolbar { align-items: stretch; flex-direction: column; }.script-search { width: 100%; }.script-toolbar-actions { justify-content: flex-end; } }
+@media (max-width: 680px) { .script-toolbar { align-items: stretch; flex-direction: column; }.script-search { width: 100%; }.script-toolbar-actions { justify-content: flex-end; } }
+@media (max-width: 720px) {
+  .page-container,.script-workbench { height:auto; }
+  .script-workbench { flex-direction:column; }
+  .asset-sidebar { width:100%; box-sizing:border-box; }
+  .asset-menu { flex-direction:row; }
+  .asset-group { flex:1; min-width:0; }
+  .asset-content { overflow:visible; }
+  .table-pagination { overflow-x:auto; justify-content:flex-start; }
+}
+@media (max-width: 420px) { .asset-group { padding:10px 8px; gap:8px; }.asset-copy small { white-space:normal; } }
+@media (prefers-reduced-motion: reduce) { .asset-group { transition:none; } }
 </style>

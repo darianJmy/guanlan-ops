@@ -2,7 +2,7 @@
   <div class="task-page">
     <header class="task-toolbar">
       <div class="filter-bar" role="search" aria-label="角色列表搜索">
-        <el-input v-model="keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索角色" placeholder="搜索角色名称、编码或描述" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
+        <el-input v-model="keyword" class="task-search" :prefix-icon="Search" clearable aria-label="搜索角色名称" placeholder="搜索角色名称" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
         <el-select v-model="statusFilter" class="filter-select" clearable aria-label="按角色状态筛选" placeholder="状态" @change="handleSearch">
           <el-option label="已启用" :value="1" />
           <el-option label="已停用" :value="0" />
@@ -121,7 +121,7 @@ let keywordSearchTimer
 const filteredRoles = computed(() => {
   const normalizedKeyword = keyword.value.trim().toLowerCase()
   return allRoles.value.filter((role) => {
-    const matchesKeyword = !normalizedKeyword || [role.name, role.code, role.description].some((value) => String(value || '').toLowerCase().includes(normalizedKeyword))
+    const matchesKeyword = !normalizedKeyword || String(role.name || '').toLowerCase().includes(normalizedKeyword)
     const matchesStatus = statusFilter.value === '' || role.status === statusFilter.value
     return matchesKeyword && matchesStatus
   })
@@ -272,7 +272,7 @@ function formatTime(value) { return value ? new Date(value).toLocaleString('zh-C
 <style scoped>
 .task-page { --ink: var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 260px 110px auto; gap: 8px; }
+.filter-bar { display: grid; min-width: 0; flex: 0 0 auto; grid-template-columns: 220px 110px auto; gap: 8px; }
 .task-search, .filter-select { width: 100%; }
 .page-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .page-header-actions :deep(.el-button + .el-button), .row-actions :deep(.el-button + .el-button) { margin-left: 0; }

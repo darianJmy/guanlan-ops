@@ -41,6 +41,17 @@ func ListAutomationTasks(c *gin.Context) {
 	resp.Success(c, http.StatusOK, "成功", rows)
 }
 
+// Task consumers only need an identity and availability, not execution configuration.
+func AutomationTaskOptions(c *gin.Context) {
+	var rows []struct {
+		ID     uint   `json:"id"`
+		Name   string `json:"name"`
+		Status int    `json:"status"`
+	}
+	database.DB.Model(&models.AutomationTask{}).Select("id, name, status").Order("id DESC").Scan(&rows)
+	resp.Success(c, http.StatusOK, "成功", rows)
+}
+
 func CreateAutomationTask(c *gin.Context) {
 	var req saveAutomationTaskReq
 	if c.ShouldBindJSON(&req) != nil {
@@ -100,6 +111,20 @@ func DeleteAutomationTask(c *gin.Context) {
 	if bindings > 0 {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "任务已被故障自动化处置引用，请先解除绑定")
 		return
+	}
+	var probes []models.InspectionItem
+	if err := database.DB.Where("type = ?", "script").Find(&probes).Error; err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.CodeFailure, "检查任务引用失败")
+		return
+	}
+	for _, probe := range probes {
+		var ref struct {
+			AutomationTaskID uint `json:"automation_task_id"`
+		}
+		if json.Unmarshal([]byte(probe.Config), &ref) == nil && ref.AutomationTaskID == item.ID {
+			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "任务已被拨测任务引用，请先解除绑定")
+			return
+		}
 	}
 	database.DB.Delete(&item)
 	resp.Success(c, http.StatusOK, "自动化任务已删除")
@@ -333,15 +358,18 @@ func executeAutomationTaskOnce(task models.AutomationTask, encodedInput []byte, 
 }
 
 func runLocalAutomationCommand(command string, timeout time.Duration) (automationRunResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout+2*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	cmd := exec.CommandContext(ctx, "timeout", "--signal=TERM", "--kill-after=1s", fmt.Sprintf("%.3fs", timeout.Seconds()), "bash", "-c", command)
+	cmd.WaitDelay = time.Second
 	var output syncbuffer.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	err := cmd.Run()
 	result := automationRunResult{Output: output.String(), ExitCode: processExitCode(err)}
-	if ctx.Err() == context.DeadlineExceeded {
-		result.ExitCode = -1
+	if ctx.Err() == context.DeadlineExceeded || result.ExitCode == 124 || result.ExitCode == 137 {
+		if ctx.Err() != nil {
+			result.ExitCode = -1
+		}
 		return result, errors.New("任务执行超时")
 	}
 	return result, err

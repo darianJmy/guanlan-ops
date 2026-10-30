@@ -3,23 +3,20 @@
     <div class="group-layout">
       <aside class="group-sidebar" aria-label="实例分组">
         <div class="sidebar-heading">
-          <el-icon><Grid /></el-icon><strong>实例分组</strong><span class="group-count">{{ groups.length }}</span>
+          <el-icon><Grid /></el-icon><strong>实例分组</strong>
           <el-button v-permission="['datasource:create']" text size="small" :icon="Plus" aria-label="新增实例分组" title="新增分组" @click="openDialog()" />
         </div>
-        <div class="group-search">
-          <el-input v-model="keyword" :prefix-icon="Search" clearable size="small" aria-label="搜索实例分组" placeholder="搜索分组" />
-        </div>
         <nav v-loading="loading" class="group-menu" aria-label="选择实例分组">
-          <div v-for="group in filteredGroups" :key="group.id" class="group-item" :class="{ active: selectedGroupId === group.id }">
+          <div v-for="group in groups" :key="group.id" class="group-item" :class="{ active: selectedGroupId === group.id }">
             <button type="button" class="group-select" :aria-current="selectedGroupId === group.id ? 'true' : undefined" :title="group.path || group.name" @click="selectedGroupId = group.id">
-              <span class="group-name">{{ group.name }}</span><span class="member-count">{{ group.scope_member_count ?? group.member_count }}</span>
+              <span class="group-icon"><el-icon><FolderOpened /></el-icon></span><span class="group-copy"><span class="group-name">{{ group.name }}</span><small>{{ group.scope_member_count ?? group.member_count ?? 0 }} 个实例</small></span>
             </button>
             <span class="group-node-actions">
               <button v-permission="['datasource:edit']" type="button" class="group-node-action" :aria-label="`重命名分组 ${group.name}`" title="重命名分组" @click="openDialog(group)"><el-icon><Edit /></el-icon></button>
               <button v-permission="['datasource:delete']" type="button" class="group-node-action danger" :aria-label="`删除分组 ${group.name}`" title="删除分组" @click="removeGroup(group)"><el-icon><Minus /></el-icon></button>
             </span>
           </div>
-          <p v-if="!loading && !filteredGroups.length" class="sidebar-empty">{{ keyword.trim() ? '未找到匹配分组' : '暂无分组，点击 + 创建' }}</p>
+          <p v-if="!loading && !groups.length" class="sidebar-empty">暂无分组，点击 + 创建</p>
         </nav>
       </aside>
 
@@ -42,11 +39,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, Grid, Minus, Plus, Search } from '@element-plus/icons-vue'
+import { Edit, FolderOpened, Grid, Minus, Plus } from '@element-plus/icons-vue'
 import { createDatasourceGroup, deleteDatasourceGroup, getDatasourceGroups, updateDatasourceGroup } from '../../api/datasourceGroup'
 import DatasourceManage from './DatasourceManage.vue'
 
-const groups = ref([]), keyword = ref(''), selectedGroupId = ref(null)
+const groups = ref([]), selectedGroupId = ref(null)
 const loading = ref(false), saving = ref(false), dialogVisible = ref(false), formRef = ref(), groupNameInput = ref()
 const refreshKey = ref(0)
 const emptyForm = () => ({ id: null, parent_id: 0, name: '', description: '', datasource_ids: [] })
@@ -54,10 +51,6 @@ const form = reactive(emptyForm())
 const formRules = {
   name: [{ required: true, whitespace: true, message: '请输入数据源分组名称', trigger: 'blur' }],
 }
-const filteredGroups = computed(() => {
-  const query = keyword.value.trim().toLowerCase()
-  return groups.value.filter(group => `${group.name} ${group.description || ''}`.toLowerCase().includes(query))
-})
 const selectedGroup = computed(() => groups.value.find(group => group.id === selectedGroupId.value))
 onMounted(loadGroups)
 
@@ -85,7 +78,6 @@ async function saveGroup() {
     else {
       const response = await createDatasourceGroup(payload)
       selectedGroupId.value = response.data.id
-      keyword.value = ''
     }
     ElMessage.success(form.id ? '数据源分组已更新' : '数据源分组已创建')
     dialogVisible.value = false
@@ -112,21 +104,21 @@ async function removeGroup(row) {
 
 .group-page { height: 100%; min-height: 0; }
 .group-layout { display: flex; align-items: stretch; gap: 16px; height: 100%; min-height: 0; }
-.group-sidebar { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--ops-border-soft); border-radius: 0; background: var(--ops-surface); }
-.sidebar-heading { display: flex; align-items: center; gap: 6px; padding: 10px 12px; color: var(--ops-muted); font-size: 14px; }
-.sidebar-heading strong { color: var(--ops-text); font-size: 13px; }
+.group-sidebar { width: 220px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; box-sizing: border-box; padding: 6px; border: 1px solid var(--ops-border-soft); border-radius: 12px; background: var(--ops-surface); }
+.sidebar-heading { display:flex; align-items:center; gap:6px; box-sizing:border-box; height:52px; flex:0 0 52px; padding:0 12px; color:var(--ops-muted); font-size:14px; line-height:20px; }
+.sidebar-heading strong { font-size: 12px; font-weight: 600; }
 .sidebar-heading .el-button { margin-left: auto; padding: 4px; }
-.group-count, .member-count { flex-shrink: 0; padding: 2px 6px; border-radius: 3px; background: var(--ops-surface-soft); color: var(--ops-subtle); font-size: 11px; font-weight: 400; }
-.group-search { padding: 0 8px 10px; }
-.group-search :deep(.el-input__wrapper) { border-radius: 3px; }
-.group-menu { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px; }
-.group-item { display: flex; align-items: center; gap: 8px; box-sizing: border-box; width: 100%; margin-bottom: 6px; padding: 0 8px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--ops-text); cursor: pointer; text-align: left; font: inherit; font-size: 12px; transition: background .12s, border-color .12s; }
-.group-select { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; padding: 9px 4px; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
-.group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.group-item > .el-icon { flex-shrink: 0; color: var(--ops-muted); }
-.group-item:hover { background: var(--ops-surface-soft); border-color: var(--ops-border); }
-.group-item.active { background: color-mix(in srgb, #a78753 13%, var(--ops-surface)); border-color: color-mix(in srgb, #a78753 45%, var(--ops-surface)); color: var(--ops-warning); font-weight: 500; }
-.group-item.active > .el-icon { color: inherit; }
+.group-menu { flex: 1; min-height: 0; overflow-y: auto; padding: 0; }
+.group-item { display:flex; align-items:center; gap:4px; box-sizing:border-box; width:100%; min-height:60px; margin-bottom:6px; padding:0 8px 0 12px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--ops-text); text-align:left; font:inherit; font-size:12px; transition:background .15s,border-color .15s; }
+.group-select { display:flex; flex:1; min-width:0; align-items:center; gap:10px; padding:8px 0; border:0; background:transparent; color:inherit; text-align:left; font:inherit; cursor:pointer; }
+.group-icon { display:grid; place-items:center; flex:0 0 34px; height:36px; border:1px solid var(--ops-border-soft); border-radius:8px; background:var(--ops-surface-soft); color:var(--ops-muted); font-size:18px; }
+.group-copy { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; }
+.group-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; font-weight:500; line-height:18px; }
+.group-copy small { color:var(--ops-subtle); font-size:10px; line-height:15px; }
+.group-item:hover { background:var(--ops-surface-soft); }
+.group-item.active { background:color-mix(in srgb,var(--ops-primary) 6%,var(--ops-surface)); border-color:color-mix(in srgb,var(--ops-primary) 18%,var(--ops-surface)); }
+.group-item.active .group-name { color:var(--ops-primary); }
+.group-item.active .group-icon { color:var(--ops-primary); background:var(--ops-surface); border-color:color-mix(in srgb,var(--ops-primary) 15%,var(--ops-surface)); }
 .group-select:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: -2px; }
 .sidebar-empty { padding: 12px 4px; text-align: center; color: var(--ops-subtle); font-size: 12px; }
 .group-content { flex: 1; min-width: 0; min-height: 0; overflow: auto; }
@@ -142,4 +134,5 @@ async function removeGroup(row) {
   .group-content { overflow: visible; }
   .pagination-wrap { justify-content: flex-start; }
 }
+@media (prefers-reduced-motion: reduce) { .group-item { transition:none; } }
 </style>

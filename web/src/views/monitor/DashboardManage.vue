@@ -330,7 +330,7 @@ function backFromForm() {
 .intro-icon { flex: none; color: var(--ops-primary); font-size: 14px; }
 .intro-message { min-width: 0; color: var(--ops-muted); line-height: 1.6; }
 .dashboard-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.dashboard-search { width: 240px; }
+.dashboard-search { width: 200px; }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
 .drawer-header { display: flex; width: 100%; align-items: center; gap: 12px; }
 .drawer-back { margin-left: -8px; color: var(--ops-primary); }

@@ -40,7 +40,7 @@
           <el-radio-group v-model="form.trigger_status" class="full-radio-options" aria-label="触发时机"><el-radio-button value="firing">进入告警中</el-radio-button><el-radio-button value="resolved">进入已恢复</el-radio-button></el-radio-group>
         </el-form-item>
         <el-form-item required>
-          <template #label><span class="form-label">自动化任务<el-tooltip content="处置规则只负责匹配故障并触发；脚本、执行节点、超时和重试由自动化任务管理" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <template #label><span class="form-label">自动化任务<el-tooltip content="处置规则只负责匹配故障并触发；脚本、执行节点和超时由自动化任务管理" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
           <el-select v-model="form.target_id" filterable aria-label="自动化任务"><el-option v-for="item in enabledTasks" :key="item.id" :label="item.name" :value="item.id" /></el-select>
         </el-form-item>
 
@@ -67,7 +67,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ArrowLeft, Delete, Plus, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { createAlertActionRule, deleteAlertActionRule, getAlertActionRules, updateAlertActionRule } from '../../../api/alert'
-import { getAutomationTasks } from '../../../api/automationTask'
+import { getAutomationTaskOptions } from '../../../api/automationTask'
 import { getNotificationChannels } from '../../../api/notification'
 
 const props = defineProps({ centerId: { type: Number, required: true } })
@@ -100,9 +100,9 @@ onMounted(async () => {
 
 async function loadRules() { rulesLoading.value = true; try { rules.value = (await getAlertActionRules(props.centerId)).data || []; rulePage.value = Math.min(rulePage.value, Math.max(1, Math.ceil(rules.value.length / rulePageSize.value))) } finally { rulesLoading.value = false } }
 async function searchRules() { rulePage.value = 1; await loadRules() }
-async function loadDependencies() { try { const [taskResponse, channelResponse] = await Promise.all([getAutomationTasks(), getNotificationChannels()]); tasks.value = taskResponse.data || []; channels.value = channelResponse.data || [] } catch { tasks.value = []; channels.value = [] } }
+async function loadDependencies() { try { const [taskResponse, channelResponse] = await Promise.all([getAutomationTaskOptions(), getNotificationChannels()]); tasks.value = taskResponse.data || []; channels.value = channelResponse.data || [] } catch { tasks.value = []; channels.value = [] } }
 function openRule(row) {
-  Object.assign(form, emptyForm(), row ? { id: row.id, name: row.name, matchers: (row.matchers || []).map(item => ({ ...item })), trigger_status: row.trigger_status, target_id: row.target_id, skip_suppressed: row.skip_suppressed, cooldown_seconds: row.cooldown_seconds, notify_on_failure: row.notify_on_failure, notify_on_success: row.notify_on_success, notification_channel_id: row.notification_channel_id || null, enabled: row.status === 1 } : {})
+  Object.assign(form, emptyForm(), row ? { id: row.id, name: row.name, matchers: (row.matchers || []).map(item => ({ ...item })), trigger_status: row.trigger_status, target_id: row.action_type === 'automation_task' ? row.target_id : null, skip_suppressed: row.skip_suppressed, cooldown_seconds: row.cooldown_seconds, notify_on_failure: row.notify_on_failure, notify_on_success: row.notify_on_success, notification_channel_id: row.notification_channel_id || null, enabled: row.status === 1 } : {})
   if (!form.matchers.length) form.matchers = [emptyMatcher()]
   drawerVisible.value = true
 }
@@ -135,7 +135,7 @@ async function removeRule(row) { await ElMessageBox.confirm(`确认删除处置�
 
 function matcherSummary(values) { return (values || []).map(item => `${item.namespace}.${item.key}:${item.value}`).join('，') || '—' }
 function triggerText(value) { return value === 'resolved' ? '进入已恢复' : '进入告警中' }
-function actionText(row) { return tasks.value.find(item => item.id === row.target_id)?.name || `自动化任务 #${row.target_id}` }
+function actionText(row) { if (row.action_type !== 'automation_task') return '旧配置，请重新绑定自动化任务'; return tasks.value.find(item => item.id === row.target_id)?.name || `自动化任务 #${row.target_id}` }
 function safetyText(row) { const values = []; if (row.skip_suppressed) values.push('跳过静默/抑制'); if (row.cooldown_seconds) values.push(`冷却 ${formatDuration(row.cooldown_seconds)}`); if (row.notify_on_failure) values.push('失败通知'); if (row.notify_on_success) values.push('成功通知'); return values.join(' · ') || '直接执行' }
 function formatDuration(seconds) { const value = Number(seconds || 0); if (value >= 3600 && value % 3600 === 0) return `${value / 3600} 小时`; if (value >= 60 && value % 60 === 0) return `${value / 60} 分钟`; return `${value} 秒` }
 </script>
@@ -144,7 +144,7 @@ function formatDuration(seconds) { const value = Number(seconds || 0); if (value
 .action-panel{min-width:0}
 .strategy-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .strategy-toolbar>div{display:flex;align-items:center;gap:8px}
-.strategy-toolbar .el-input{width:240px}
+.strategy-toolbar .el-input{width:200px}
 code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#48566a;font-size:12px}
 .pagination{display:flex;justify-content:flex-end;margin-top:18px}
 .drawer-header{display:flex;width:100%;align-items:center;gap:12px}

@@ -540,7 +540,7 @@ function backFromForm() {
 .project-toolbar { padding: 0; border: 0; background: transparent; }
 .project-search-actions { display: flex; align-items: center; }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }
-.project-search { width: 240px; }
+.project-search { width: 200px; }
 .project-grid { display: grid; min-height: 120px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .project-card { display: flex; min-width: 0; overflow: hidden; flex-direction: column; background: var(--ops-surface); border: 1px solid var(--ops-border-soft); border-radius: 10px; cursor: grab; transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
 .project-card:active { cursor: grabbing; }

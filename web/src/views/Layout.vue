@@ -43,6 +43,7 @@
           <div class="header-left">
             <el-breadcrumb separator="/">
               <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+              <el-breadcrumb-item v-if="breadcrumbParent" :to="{ path: breadcrumbParent.path }">{{ breadcrumbParent.title }}</el-breadcrumb-item>
               <el-breadcrumb-item v-if="currentTitle">{{ currentTitle }}</el-breadcrumb-item>
             </el-breadcrumb>
           </div>
@@ -143,6 +144,7 @@ import { usePlatformStore } from '../stores/platform'
 import { changePassword } from '../api/auth'
 import { ElMessage } from 'element-plus'
 import AIChatAssistant from '../components/AIChatAssistant.vue'
+import { pageBreadcrumb } from '../composables/usePageBreadcrumb'
 
 const route = useRoute()
 const router = useRouter()
@@ -204,7 +206,8 @@ onBeforeUnmount(() => bodyObserver?.disconnect())
 
 const isCollapse = ref(window.innerWidth <= 960)
 const menus = computed(() => store.menus)
-const currentTitle = computed(() => route.meta.title)
+const breadcrumbParent = computed(() => route.meta.breadcrumbParent)
+const currentTitle = computed(() => (pageBreadcrumb.value?.path === route.path && pageBreadcrumb.value.title) || route.meta.title)
 const activeMenu = computed(() => route.meta.activeMenu || route.path)
 const activeTheme = computed(() => platform.themePreference || platform.defaultTheme)
 const userInitial = computed(() => {

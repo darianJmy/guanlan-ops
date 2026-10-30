@@ -1,36 +1,6 @@
 <template>
   <div v-loading="pageLoading" class="detail-page">
-    <header v-if="center" class="detail-header">
-      <el-button link type="primary" :icon="ArrowLeft" @click="router.push('/alerts')">返回</el-button>
-      <div class="center-summary">
-        <div class="center-name">
-          <template v-if="nameEditing">
-            <el-input
-              ref="nameInputRef"
-              v-model="nameDraft"
-              class="center-name-input"
-              size="small"
-              maxlength="128"
-              aria-label="故障中心名称"
-              @keyup.enter="saveCenterName"
-              @keyup.esc="cancelNameEdit"
-            />
-            <el-tooltip content="确认" placement="top">
-              <el-button text circle class="name-action is-confirm" :icon="Check" :loading="nameSaving" aria-label="保存故障中心名称" @click="saveCenterName" />
-            </el-tooltip>
-            <el-tooltip content="取消" placement="top">
-              <el-button text circle class="name-action is-cancel" :icon="Close" :disabled="nameSaving" aria-label="取消修改故障中心名称" @click="cancelNameEdit" />
-            </el-tooltip>
-          </template>
-          <template v-else>
-            <p>{{ center.name }}</p>
-            <el-tooltip content="编辑名称" placement="top">
-              <el-button text circle :icon="Edit" aria-label="编辑故障中心名称" @click="startNameEdit" />
-            </el-tooltip>
-          </template>
-        </div>
-      </div>
-    </header>
+
 
     <template v-if="center">
       <main class="workbench">
@@ -378,13 +348,15 @@
 </template>
 
 <script setup>
+import { usePageBreadcrumb } from '../../composables/usePageBreadcrumb'
+import RecordTimeRange from '../../components/RecordTimeRange.vue'
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TableEmpty from '../../components/TableEmpty.vue'
 import { ElButton, ElDatePicker, ElIcon, ElInput, ElMessage, ElMessageBox, ElOption, ElPagination, ElSelect, ElTable, ElTableColumn, ElTag } from 'element-plus'
-import { ArrowDown, ArrowLeft, Bell, Check, Clock, Close, Delete, Edit, Loading, Plus, PriceTag, QuestionFilled, Refresh, Search, Setting } from '@element-plus/icons-vue'
-import { createGroupingRule, createInhibitionRule, createSilenceRule, deleteGroupingRule, deleteInhibitionRule, deleteSilenceRule, getAlertEvents, getAlerts, getFaultCenterNotificationConfig, getFaultCenters, getGroupingRules, getInhibitionRules, getSilenceRules, updateFaultCenter, updateFaultCenterNotificationConfig, updateGroupingRule, updateInhibitionRule, updateSilenceRule } from '../../api/alert'
+import { ArrowDown, Bell, Clock, Delete, Edit, Loading, Plus, PriceTag, QuestionFilled, Refresh, Search, Setting } from '@element-plus/icons-vue'
+import { createGroupingRule, createInhibitionRule, createSilenceRule, deleteGroupingRule, deleteInhibitionRule, deleteSilenceRule, getAlertEvents, getAlerts, getFaultCenterNotificationConfig, getFaultCenters, getGroupingRules, getInhibitionRules, getSilenceRules, updateFaultCenterNotificationConfig, updateGroupingRule, updateInhibitionRule, updateSilenceRule } from '../../api/alert'
 import { getNotificationChannels } from '../../api/notification'
 import AlertActionPanel from './components/AlertActionPanel.vue'
 
@@ -424,7 +396,7 @@ const AlertTable = defineComponent({
       h('div', { class: ['alert-filter', props.advancedFilters && 'is-advanced'] }, [
         h(ElInput, { modelValue: keyword.value, clearable: true, placeholder: '搜索告警名称', prefixIcon: Search, 'onUpdate:modelValue': updateKeyword, onKeyup: event => { if (event.key === 'Enter') submitImmediately() }, onClear: submitImmediately }),
         props.advancedFilters ? select(severity, '告警等级', [{ label: 'P0', value: 'P0' }, { label: 'P1', value: 'P1' }, { label: 'P2', value: 'P2' }]) : null,
-        props.historyFilters ? h(ElDatePicker, { class: 'alert-date-filter', modelValue: dateRange.value, type: 'daterange', format: 'MM-DD', valueFormat: 'YYYY-MM-DD', startPlaceholder: '开始日期', endPlaceholder: '结束日期', rangeSeparator: '至', clearable: true, 'onUpdate:modelValue': value => { dateRange.value = value || []; submit() } }) : null,
+        props.historyFilters ? h(RecordTimeRange, { class: 'alert-date-filter', modelValue: dateRange.value, dateOnly: true, 'onUpdate:modelValue': value => { dateRange.value = value || []; submit() } }) : null,
         h(ElButton, { disabled: !hasFilters(), onClick: clearFilters }, () => '清空'),
         props.advancedFilters ? h(ElButton, { class: 'filter-refresh', icon: Refresh, onClick: submit }, () => '刷新') : null,
       ]),
@@ -458,11 +430,11 @@ const AlertTable = defineComponent({
 
 const route = useRoute(), router = useRouter()
 const pageLoading = ref(false), alertLoading = ref(false), groupingLoading = ref(false), silenceLoading = ref(false), savingGrouping = ref(false), savingRule = ref(false), savingSilence = ref(false), savingNotification = ref(false)
-const nameEditing = ref(false), nameDraft = ref(''), nameSaving = ref(false), nameInputRef = ref()
 const center = ref(null), alerts = ref([]), groupingPolicies = ref([]), rules = ref([]), silencePolicies = ref([]), notificationChannels = ref([])
 const activeTab = ref('active'), keyword = ref(''), page = ref(1), pageSize = ref(10), total = ref(0)
 const silencePage = ref(1), silencePageSize = ref(10)
 const inhibitionPage = ref(1), inhibitionPageSize = ref(10)
+usePageBreadcrumb(() => center.value?.name)
 const groupingPage = ref(1), groupingPageSize = ref(10)
 const alertFilters = reactive({ severity: '', alert_status: '', start_date: '', end_date: '' })
 const groupingKeyword = ref(''), inhibitionKeyword = ref(''), silenceKeyword = ref('')
@@ -590,38 +562,6 @@ async function saveNotificationConfig() {
     notificationEditing.value = false
     ElMessage.success('通知配置已保存')
   } finally { savingNotification.value = false }
-}
-
-function startNameEdit() {
-  nameDraft.value = center.value?.name || ''
-  nameEditing.value = true
-  nextTick(() => nameInputRef.value?.focus())
-}
-
-function cancelNameEdit() {
-  if (nameSaving.value) return
-  nameDraft.value = center.value?.name || ''
-  nameEditing.value = false
-}
-
-async function saveCenterName() {
-  if (nameSaving.value) return
-  const nextName = nameDraft.value.trim()
-  if (!nextName) return ElMessage.warning('故障中心名称不能为空')
-  if (nextName === center.value.name) return cancelNameEdit()
-  nameSaving.value = true
-  try {
-    await updateFaultCenter(center.value.id, {
-      name: nextName,
-      description: center.value.description || '',
-      status: center.value.status,
-    })
-    center.value = { ...center.value, name: nextName }
-    nameEditing.value = false
-    ElMessage.success('名称已更新')
-  } finally {
-    nameSaving.value = false
-  }
 }
 
 function openGroupingDrawer(row) {
@@ -837,48 +777,19 @@ function paginate(rows, currentPage, currentPageSize) { const start = (validPage
 .detail-page :deep(.el-tag){border-radius:0}
 .detail-page :deep(.severity-tag){min-width:36px;justify-content:center;font-weight:600}
 .detail-monospace{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500!important}
-.detail-page{--ink:var(--ops-text);--muted:var(--ops-muted);--border:var(--ops-border);display:flex;min-height:calc(100vh - 108px);flex-direction:column;gap:15px}.detail-hero{display:flex;align-items:center;gap:14px;padding:2px 0 4px}.hero-main{min-width:0;flex:1}.hero-title{display:flex;align-items:center;gap:12px}.hero-title h1{display:block!important;max-width:680px;margin:0;overflow:hidden;color:var(--ops-text);font-size:21px;font-weight:680;letter-spacing:0;text-overflow:ellipsis;white-space:nowrap}.hero-main p{margin:6px 0 0;overflow:hidden;color:var(--muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}.health-state{display:inline-flex;align-items:center;gap:6px;color:#188864;font-size:11px}.health-state i{width:7px;height:7px;background:#1aa174;border-radius:50%;box-shadow:0 0 0 4px rgba(26,161,116,.1)}.health-state.danger{color:#c74646}.health-state.danger i{background:#dc5555;box-shadow:0 0 0 4px rgba(220,85,85,.1)}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metric-card{display:flex;min-height:108px;flex-direction:column;padding:17px 18px;background:var(--ops-surface);border:1px solid var(--border);border-top:3px solid #aeb9c8;border-radius:7px}.metric-card>span{color:var(--ops-muted);font-size:11px}.metric-card strong{margin-top:8px;color:var(--ops-text);font-size:25px;font-weight:680;line-height:1}.metric-card small{margin-top:auto;color:var(--ops-muted);font-size:10px}.metric-card.firing{border-top-color:#dc5b5b}.metric-card.firing strong{color:#c94d4d}.metric-card.pending{border-top-color:#e7a63c}.metric-card.silenced{border-top-color:#7c8796}.metric-card.resolved{border-top-color:#20a079}.policy-bar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:hidden;background:var(--ops-surface);border:1px solid var(--border);border-radius:7px}.policy-bar>div{display:flex;min-width:0;flex-direction:column;gap:5px;padding:12px 18px;border-right:1px solid var(--ops-border-soft)}.policy-bar>div:last-child{border-right:0}.policy-bar span{color:var(--ops-muted);font-size:10px}.policy-bar strong{overflow:hidden;color:var(--ops-text);font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.workbench{min-height:510px;background:var(--ops-surface);border:1px solid var(--border);border-radius:7px}.center-tabs :deep(.el-tabs__header){margin:0;padding:0 22px;border-bottom:1px solid var(--ops-border-soft)}.center-tabs :deep(.el-tabs__nav-wrap::after){display:none}.center-tabs :deep(.el-tabs__item){height:52px;padding:0 21px;color:var(--ops-muted);font-size:13px}.center-tabs :deep(.el-tabs__item.is-active){color:var(--ops-primary);font-weight:600}.center-tabs :deep(.el-tabs__active-bar){height:2px;background:var(--ops-primary)}.center-tabs :deep(.el-tabs__content){padding:20px 22px 24px}.center-tabs :deep(.alert-section),.rule-section{min-height:400px}.center-tabs :deep(.alert-filter){display:flex;justify-content:flex-start;gap:8px}.center-tabs :deep(.alert-filter .el-input){width:min(340px,100%)}.center-tabs :deep(.alert-filter .filter-refresh){margin-left:auto}.center-tabs :deep(.alert-section .el-table__row){cursor:pointer}.center-tabs :deep(.alert-time-column .cell){white-space:nowrap}.center-tabs :deep(.duration-cell){display:flex;min-width:0;flex-direction:column;gap:6px}.center-tabs :deep(.duration-text){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.center-tabs :deep(.duration-meter){width:100%;height:4px;overflow:hidden;background:#edf1f5;border-radius:999px}.center-tabs :deep(.duration-meter-fill){display:block;height:100%;border-radius:inherit;transition:width .4s linear,background-color .2s}.center-tabs :deep(.duration-meter-fill.is-short){background:var(--ops-primary)}.center-tabs :deep(.duration-meter-fill.is-medium){background:#e6a23c}.center-tabs :deep(.duration-meter-fill.is-long){background:#e67e22}.center-tabs :deep(.duration-meter-fill.is-critical){background:var(--ops-danger)}.center-tabs :deep(.table-wrap){position:relative;min-height:180px}.center-tabs :deep(.table-loading){position:absolute;z-index:4;inset:0;display:grid;place-items:center;color:var(--ops-primary);background:rgba(255,255,255,.72)}.center-tabs :deep(.pagination){display:flex;justify-content:flex-end;margin-top:16px}.strategy-layout{display:grid;min-height:400px;grid-template-columns:minmax(220px,.65fr) minmax(360px,1.35fr);gap:56px;padding:18px 10px}.strategy-copy{padding-top:2px}.strategy-copy strong{color:#293b53;font-size:15px;font-weight:600}.strategy-copy p{max-width:360px;margin:8px 0 0;color:#8491a3;font-size:11px;line-height:1.7}.strategy-form{max-width:560px}.strategy-form :deep(.el-select){width:100%}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.section-heading>div{display:flex;flex-direction:column;gap:4px}.section-heading strong{color:#293b53;font-size:14px}.section-heading span{color:var(--ops-muted);font-size:10px}.rule-section code{color:#4c6078;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}.drawer-header{display:flex;width:100%;align-items:center;gap:12px}.back-button{height:32px;padding:0 8px;color:var(--ops-primary);font-size:14px}.drawer-title{color:var(--ops-text);font-size:16px;font-weight:600}.drawer-footer{display:flex;justify-content:flex-end;gap:8px}:global(.center-drawer.el-drawer){border-radius:0!important}:global(.center-drawer .el-drawer__header){margin-bottom:0;padding:18px 20px;border-bottom:1px solid #e5e9f2}:global(.center-drawer .el-drawer__body){padding:18px 20px;background:var(--ops-surface)}:global(.center-drawer .el-drawer__footer){padding:12px 20px;border-top:1px solid #e5e9f2}.alert-detail dl{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0;padding:1px;background:var(--ops-border)}.alert-detail dl div{padding:12px 14px;background:var(--ops-surface)}.alert-detail dt{color:var(--ops-subtle);font-size:10px}.alert-detail dd{margin:5px 0 0;overflow-wrap:anywhere;color:#475467;font-size:12px;font-weight:600}.alert-detail section{margin-top:20px}.alert-detail section>span{color:#475467;font-size:12px;font-weight:600}.alert-detail pre{max-height:340px;margin:8px 0 0;padding:14px;overflow:auto;color:#d5deeb;background:#172235;border-radius:6px;font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}@media(max-width:900px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.strategy-layout{grid-template-columns:1fr;gap:24px}.center-tabs :deep(.el-tabs__header){overflow-x:auto}}@media(max-width:600px){.detail-hero{flex-wrap:wrap}.hero-main{width:calc(100% - 52px)}.metric-grid,.policy-bar{grid-template-columns:1fr}.policy-bar>div{border-right:0;border-bottom:1px solid var(--ops-border-soft)}.center-tabs :deep(.el-tabs__content){padding:16px}.center-tabs :deep(.alert-filter){flex-direction:column}.center-tabs :deep(.alert-filter .el-input){width:100%}.center-tabs :deep(.alert-filter .filter-refresh){align-self:flex-end;margin-left:0}.alert-detail dl{grid-template-columns:1fr}}
-.detail-header{
-  display:flex;
-  min-height:32px;
-  align-items:center;
-  gap:14px;
-}
-.center-summary{min-width:0;flex:1}
-.center-name{
-  display:flex;
-  min-width:0;
-  align-items:center;
-  gap:4px;
-}
-.center-name p{
-  margin:0;
-  overflow:hidden;
-  color:var(--ops-muted,var(--ops-muted));
-  font-size:12px;
-  font-weight:400;
-  line-height:1.5;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.center-name-input{
-  width:140px;
-  max-width:min(140px,calc(100vw - 210px));
-}
-.center-name-input :deep(.el-input__wrapper){
-  box-shadow:0 0 0 1px var(--ops-primary,var(--ops-primary)) inset;
-}
-.center-summary .el-button{
-  width:28px;
-  height:28px;
-  flex:0 0 auto;
-  color:var(--ops-muted);
-}
-.center-summary .el-button:hover{color:var(--ops-primary);background:var(--ops-primary-soft)}
-.center-summary .name-action.is-confirm{color:#1a8f68}
-.center-summary .name-action.is-confirm:hover{color:#137555;background:#ebf8f3}
-.center-summary .name-action.is-cancel{color:#c55252}
-.center-summary .name-action.is-cancel:hover{color:#a83f3f;background:#fff0f0}
+.detail-page{--ink:var(--ops-text);--muted:var(--ops-muted);--border:var(--ops-border);display:flex;min-height:calc(100vh - 108px);flex-direction:column;gap:15px}.detail-hero{display:flex;align-items:center;gap:14px;padding:2px 0 4px}.hero-main{min-width:0;flex:1}.hero-title{display:flex;align-items:center;gap:12px}.hero-title h1{display:block!important;max-width:680px;margin:0;overflow:hidden;color:var(--ops-text);font-size:21px;font-weight:680;letter-spacing:0;text-overflow:ellipsis;white-space:nowrap}.hero-main p{margin:6px 0 0;overflow:hidden;color:var(--muted);font-size:12px;text-overflow:ellipsis;white-space:nowrap}.health-state{display:inline-flex;align-items:center;gap:6px;color:#188864;font-size:11px}.health-state i{width:7px;height:7px;background:#1aa174;border-radius:50%;box-shadow:0 0 0 4px rgba(26,161,116,.1)}.health-state.danger{color:#c74646}.health-state.danger i{background:#dc5555;box-shadow:0 0 0 4px rgba(220,85,85,.1)}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metric-card{display:flex;min-height:108px;flex-direction:column;padding:17px 18px;background:var(--ops-surface);border:1px solid var(--border);border-top:3px solid #aeb9c8;border-radius:7px}.metric-card>span{color:var(--ops-muted);font-size:11px}.metric-card strong{margin-top:8px;color:var(--ops-text);font-size:25px;font-weight:680;line-height:1}.metric-card small{margin-top:auto;color:var(--ops-muted);font-size:10px}.metric-card.firing{border-top-color:#dc5b5b}.metric-card.firing strong{color:#c94d4d}.metric-card.pending{border-top-color:#e7a63c}.metric-card.silenced{border-top-color:#7c8796}.metric-card.resolved{border-top-color:#20a079}.policy-bar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:hidden;background:var(--ops-surface);border:1px solid var(--border);border-radius:7px}.policy-bar>div{display:flex;min-width:0;flex-direction:column;gap:5px;padding:12px 18px;border-right:1px solid var(--ops-border-soft)}.policy-bar>div:last-child{border-right:0}.policy-bar span{color:var(--ops-muted);font-size:10px}.policy-bar strong{overflow:hidden;color:var(--ops-text);font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.workbench{min-height:510px;background:var(--ops-surface);border:1px solid var(--border);border-radius:7px}.center-tabs :deep(.el-tabs__header){margin:0;padding:0 22px;border-bottom:1px solid var(--ops-border-soft)}.center-tabs :deep(.el-tabs__nav-wrap::after){display:none}.center-tabs :deep(.el-tabs__item){height:52px;padding:0 21px;color:var(--ops-muted);font-size:13px}.center-tabs :deep(.el-tabs__item.is-active){color:var(--ops-primary);font-weight:600}.center-tabs :deep(.el-tabs__active-bar){height:2px;background:var(--ops-primary)}.center-tabs :deep(.el-tabs__content){padding:20px 22px 24px}.center-tabs :deep(.alert-section),.rule-section{min-height:400px}.center-tabs :deep(.alert-filter){display:flex;justify-content:flex-start;gap:8px}.center-tabs :deep(.alert-filter .el-input){width:min(300px,100%)}.center-tabs :deep(.alert-filter .filter-refresh){margin-left:auto}.center-tabs :deep(.alert-section .el-table__row){cursor:pointer}.center-tabs :deep(.alert-time-column .cell){white-space:nowrap}.center-tabs :deep(.duration-cell){display:flex;min-width:0;flex-direction:column;gap:6px}.center-tabs :deep(.duration-text){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.center-tabs :deep(.duration-meter){width:100%;height:4px;overflow:hidden;background:#edf1f5;border-radius:999px}.center-tabs :deep(.duration-meter-fill){display:block;height:100%;border-radius:inherit;transition:width .4s linear,background-color .2s}.center-tabs :deep(.duration-meter-fill.is-short){background:var(--ops-primary)}.center-tabs :deep(.duration-meter-fill.is-medium){background:#e6a23c}.center-tabs :deep(.duration-meter-fill.is-long){background:#e67e22}.center-tabs :deep(.duration-meter-fill.is-critical){background:var(--ops-danger)}.center-tabs :deep(.table-wrap){position:relative;min-height:180px}.center-tabs :deep(.table-loading){position:absolute;z-index:4;inset:0;display:grid;place-items:center;color:var(--ops-primary);background:rgba(255,255,255,.72)}.center-tabs :deep(.pagination){display:flex;justify-content:flex-end;margin-top:16px}.strategy-layout{display:grid;min-height:400px;grid-template-columns:minmax(220px,.65fr) minmax(360px,1.35fr);gap:56px;padding:18px 10px}.strategy-copy{padding-top:2px}.strategy-copy strong{color:#293b53;font-size:15px;font-weight:600}.strategy-copy p{max-width:360px;margin:8px 0 0;color:#8491a3;font-size:11px;line-height:1.7}.strategy-form{max-width:560px}.strategy-form :deep(.el-select){width:100%}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.section-heading>div{display:flex;flex-direction:column;gap:4px}.section-heading strong{color:#293b53;font-size:14px}.section-heading span{color:var(--ops-muted);font-size:10px}.rule-section code{color:#4c6078;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}.drawer-header{display:flex;width:100%;align-items:center;gap:12px}.back-button{height:32px;padding:0 8px;color:var(--ops-primary);font-size:14px}.drawer-title{color:var(--ops-text);font-size:16px;font-weight:600}.drawer-footer{display:flex;justify-content:flex-end;gap:8px}:global(.center-drawer.el-drawer){border-radius:0!important}:global(.center-drawer .el-drawer__header){margin-bottom:0;padding:18px 20px;border-bottom:1px solid #e5e9f2}:global(.center-drawer .el-drawer__body){padding:18px 20px;background:var(--ops-surface)}:global(.center-drawer .el-drawer__footer){padding:12px 20px;border-top:1px solid #e5e9f2}.alert-detail dl{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:0;padding:1px;background:var(--ops-border)}.alert-detail dl div{padding:12px 14px;background:var(--ops-surface)}.alert-detail dt{color:var(--ops-subtle);font-size:10px}.alert-detail dd{margin:5px 0 0;overflow-wrap:anywhere;color:#475467;font-size:12px;font-weight:600}.alert-detail section{margin-top:20px}.alert-detail section>span{color:#475467;font-size:12px;font-weight:600}.alert-detail pre{max-height:340px;margin:8px 0 0;padding:14px;overflow:auto;color:#d5deeb;background:#172235;border-radius:6px;font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap}@media(max-width:900px){.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.strategy-layout{grid-template-columns:1fr;gap:24px}.center-tabs :deep(.el-tabs__header){overflow-x:auto}}@media(max-width:600px){.detail-hero{flex-wrap:wrap}.hero-main{width:calc(100% - 52px)}.metric-grid,.policy-bar{grid-template-columns:1fr}.policy-bar>div{border-right:0;border-bottom:1px solid var(--ops-border-soft)}.center-tabs :deep(.el-tabs__content){padding:16px}.center-tabs :deep(.alert-filter){flex-direction:column}.center-tabs :deep(.alert-filter .el-input){width:100%}.center-tabs :deep(.alert-filter .filter-refresh){align-self:flex-end;margin-left:0}.alert-detail dl{grid-template-columns:1fr}}
+
+
+
+
+
+
+
+
+
+
+
+
 /* 六个列表页签统一搜索区到表格的距离，包括子组件中的工具栏。 */
 .center-tabs :deep(.alert-filter),
 .center-tabs :deep(.strategy-toolbar) {
@@ -890,16 +801,15 @@ function paginate(rows, currentPage, currentPageSize) { const start = (validPage
 .all-in-one-group{color:var(--ops-primary);font-size:12px}
 .grouping-section :deep(td.el-table__cell){padding-block:11px}
 .center-tabs :deep(.alert-filter.is-advanced){justify-content:flex-start;flex-wrap:wrap}
-.center-tabs :deep(.alert-filter.is-advanced .el-input){width:220px}
-.center-tabs :deep(.alert-filter.is-advanced .alert-date-filter){width:220px;flex:0 0 220px}
+.center-tabs :deep(.alert-filter.is-advanced .el-input){width:180px}
 .strategy-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .strategy-toolbar>div{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
-.strategy-toolbar .el-input{width:240px}
+.strategy-toolbar .el-input{width:200px}
 .strategy-toolbar .el-select{width:130px}
 .table-icon-actions{display:flex;align-items:center;justify-content:center;gap:8px}
 .table-icon-actions .el-button+.el-button{margin-left:0}
 @media(max-width:600px){
-  .detail-header{padding-inline:14px}
+
   .center-tabs :deep(.alert-filter.is-advanced .el-input),
   .center-tabs :deep(.alert-filter.is-advanced .el-select),
   .center-tabs :deep(.alert-filter.is-advanced .el-date-editor){width:100%!important;flex-basis:auto}

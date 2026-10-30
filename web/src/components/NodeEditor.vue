@@ -90,7 +90,7 @@ async function submit() { if (await formRef.value.validate().catch(() => false))
 defineExpose({ clearValidate: () => formRef.value?.clearValidate() })
 </script>
 <style scoped>
-.node-editor{margin:0 0 12px;background:var(--ops-surface);border:1px dashed color-mix(in srgb,var(--ops-primary) 45%,var(--ops-border))}
+.node-editor{margin:0 0 12px;background:var(--ops-surface);border:1px dashed var(--ops-border)}
 .node-editor.is-editing{margin:-8px 0 8px;border:1px solid var(--ops-primary);border-top:0}
 .editor-heading{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--ops-border-soft)}.editor-heading strong{font-size:15px;color:var(--ops-text)}
 .editor-form{padding:20px 22px}.type-card-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:100%}
@@ -102,4 +102,6 @@ defineExpose({ clearValidate: () => formRef.value?.clearValidate() })
 @media(max-width:760px){.editor-form{padding:16px}.type-card-list,.form-grid{grid-template-columns:1fr}.editor-footer{align-items:flex-start;flex-direction:column}}
 .editor-form :deep(.el-alert--info){background:color-mix(in srgb,var(--ops-primary) 6%,transparent);color:var(--ops-muted)}
 .editor-form :deep(.el-alert--info .el-alert__icon){color:var(--ops-primary)}
+.node-editor,.type-card{border-radius:var(--ops-radius)}
+.node-editor.is-editing{border-radius:0 0 var(--ops-radius) var(--ops-radius)}
 </style>

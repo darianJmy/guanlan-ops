@@ -34,7 +34,7 @@ const emit = defineEmits(['cancel', 'delete', 'save'])
 </script>
 
 <style scoped>
-.model-editor{margin:0 0 12px;background:var(--ops-surface);border:1px dashed color-mix(in srgb,var(--ops-primary) 45%,var(--ops-border))}
+.model-editor{margin:0 0 12px;background:var(--ops-surface);border:1px dashed var(--ops-border)}
 .model-editor.is-editing{margin:-8px 0 8px;border:1px solid var(--ops-primary);border-top:0}
 .editor-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--ops-border-soft)}
 .editor-heading strong{color:var(--ops-text);font-size:15px}
@@ -44,4 +44,6 @@ const emit = defineEmits(['cancel', 'delete', 'save'])
 .editor-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:16px;border-top:1px solid var(--ops-border-soft)}
 :deep(.el-select){width:100%}@media(max-width:760px){.two-column{grid-template-columns:1fr;gap:0}.model-editor :deep(.el-form){padding:16px}.editor-footer{align-items:flex-end}}
 .auth-note .el-icon,.config-note .el-icon{color:var(--ops-primary)}
+.model-editor{border-radius:var(--ops-radius)}
+.model-editor.is-editing{border-radius:0 0 var(--ops-radius) var(--ops-radius)}
 </style>

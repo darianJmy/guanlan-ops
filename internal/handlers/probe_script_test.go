@@ -42,20 +42,21 @@ func TestScriptProbeExecution(t *testing.T) {
 		{"shell failure", "shell", "printf 'broken' >&2; exit 7", "fail", 7, 2000},
 		{"python success", "python", "print('healthy')", "success", 0, 2000},
 		{"python failure", "python", "import sys; print('broken'); sys.exit(3)", "fail", 3, 2000},
-		{"timeout", "shell", "printf 'started'; sleep 5; printf 'should-not-run'", "fail", 124, 100},
+		{"timeout", "shell", "printf 'started'; sleep 5; printf 'should-not-run'", "fail", 124, 1000},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			script := models.Script{Name: test.name, Type: test.kind, Content: test.content, Status: 1}
 			if err := db.Create(&script).Error; err != nil {
 				t.Fatal(err)
 			}
+			task := createProbeAutomationTask(t, db, script, test.timeout/1000)
 			start := time.Now()
-			status, raw, _ := executeInspection(models.InspectionItem{Type: "script", Config: fmt.Sprintf(`{"script_id":%d,"timeout_ms":%d,"node_type":"direct"}`, script.ID, test.timeout)})
+			status, raw, _ := executeInspection(models.InspectionItem{Type: "script", Config: fmt.Sprintf(`{"automation_task_id":%d}`, task.ID)})
 			var result scriptProbeResult
 			if err := json.Unmarshal([]byte(raw), &result); err != nil {
 				t.Fatal(err)
 			}
-			if status != test.status || result.ExitCode != test.code || result.ScriptID != script.ID || result.Output == "" {
+			if status != test.status || result.ExitCode != test.code || result.AutomationTaskID != task.ID || result.ExecutionID == 0 || result.Output == "" {
 				t.Fatalf("status=%s result=%+v", status, result)
 			}
 			if test.name == "shell success" && (!strings.Contains(result.Output, "healthy") || !strings.Contains(result.Output, "diagnostic")) {
@@ -68,7 +69,8 @@ func TestScriptProbeExecution(t *testing.T) {
 	}
 	script := models.Script{Name: "latest", Type: "shell", Content: "exit 1", Status: 1}
 	db.Create(&script)
-	req := ProbeReq{ScriptID: script.ID, TimeoutMS: 2000}
+	task := createProbeAutomationTask(t, db, script, 2)
+	req := ProbeReq{AutomationTaskID: task.ID}
 	db.Model(&script).Update("content", "printf 'latest'")
 	if status, raw, _ := executeScriptProbe(req); status != "success" || !strings.Contains(raw, "latest") {
 		t.Fatalf("did not use latest library content: %s", raw)
@@ -81,10 +83,10 @@ func TestScriptProbeExecution(t *testing.T) {
 	if status, raw, _ := executeScriptProbe(req); status != "fail" || !strings.Contains(raw, "不存在") {
 		t.Fatalf("deleted script ran: %s", raw)
 	}
-	if _, err := loadProbeScript(ProbeReq{TimeoutMS: 1000}); err == nil {
+	if _, err := loadProbeAutomationTask(ProbeReq{TimeoutMS: 1000}); err == nil {
 		t.Fatal("missing script accepted")
 	}
-	if _, err := loadProbeScript(ProbeReq{ScriptID: 1, TimeoutMS: 300001}); err == nil {
+	if _, err := loadProbeAutomationTask(ProbeReq{ScriptID: 1, TimeoutMS: 300001}); err == nil {
 		t.Fatal("invalid timeout accepted")
 	}
 }
@@ -95,11 +97,12 @@ func TestScriptProbeAPIAndAlertLifecycle(t *testing.T) {
 	if err := db.Create(&script).Error; err != nil {
 		t.Fatal(err)
 	}
+	task := createProbeAutomationTask(t, db, script, 2)
 	center := models.FaultCenter{Name: "script center", Status: 1}
 	if err := db.Create(&center).Error; err != nil {
 		t.Fatal(err)
 	}
-	req := CreateInspectionItemReq{GroupID: 1, Name: "script health", Type: "script", Target: script.Name, Config: fmt.Sprintf(`{"script_id":%d,"timeout_ms":2000,"execution_nodes":[{"node_type":"direct","node_id":0}]}`, script.ID), IntervalSeconds: 10, FailureThreshold: 2, RecoveryThreshold: 2, Severity: "P2", FaultCenterID: center.ID, Status: 1}
+	req := CreateInspectionItemReq{GroupID: 1, Name: "script health", Type: "script", Target: script.Name, Config: fmt.Sprintf(`{"automation_task_id":%d}`, task.ID), IntervalSeconds: 10, FailureThreshold: 2, RecoveryThreshold: 2, Severity: "P2", FaultCenterID: center.ID, Status: 1}
 	if err := validateInspectionItemReq(req); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +120,7 @@ func TestScriptProbeAPIAndAlertLifecycle(t *testing.T) {
 	router.POST("/items", CreateInspectionItem)
 	router.PUT("/items/:id", UpdateInspectionItem)
 	router.POST("/instant", InstantProbe)
-	router.DELETE("/scripts/:id", DeleteScript)
+	router.DELETE("/tasks/:id", DeleteAutomationTask)
 	call := func(method, path string, payload interface{}) *httptest.ResponseRecorder {
 		encoded, _ := json.Marshal(payload)
 		recorder := httptest.NewRecorder()
@@ -142,12 +145,12 @@ func TestScriptProbeAPIAndAlertLifecycle(t *testing.T) {
 	if item.Name != req.Name {
 		t.Fatal("update did not persist")
 	}
-	response = call(http.MethodDelete, fmt.Sprintf("/scripts/%03d", script.ID), nil)
+	response = call(http.MethodDelete, fmt.Sprintf("/tasks/%03d", task.ID), nil)
 	if response.Code != 400 || !strings.Contains(response.Body.String(), "拨测任务引用") {
 		t.Fatalf("referenced script deletion: %s", response.Body.String())
 	}
 	// Trial execution must not create records or alerts.
-	response = call(http.MethodPost, "/instant", ProbeReq{Type: "script", ScriptID: script.ID, TimeoutMS: 2000, NodeType: "direct"})
+	response = call(http.MethodPost, "/instant", ProbeReq{Type: "script", AutomationTaskID: task.ID})
 	if response.Code != 200 || !strings.Contains(response.Body.String(), `"status":"fail"`) {
 		t.Fatalf("instant: %s", response.Body.String())
 	}
@@ -190,8 +193,10 @@ func TestScriptProbeUnavailableNodesAndTruncation(t *testing.T) {
 	db := scriptProbeTestDB(t)
 	script := models.Script{Name: "node test", Type: "shell", Content: "printf 'healthy'", Status: 1}
 	db.Create(&script)
+	task := createProbeAutomationTask(t, db, script, 2)
 	for _, nodeType := range []string{"ssh", "agent", "invalid"} {
-		status, raw, _ := executeScriptProbe(ProbeReq{ScriptID: script.ID, TimeoutMS: 1000, NodeType: nodeType, NodeID: 999})
+		db.Model(&task).Updates(map[string]interface{}{"node_type": nodeType, "node_id": 999})
+		status, raw, _ := executeScriptProbe(ProbeReq{AutomationTaskID: task.ID})
 		var result scriptProbeResult
 		json.Unmarshal([]byte(raw), &result)
 		if status != "fail" || result.Error == "" || result.ExitCode == 0 {
@@ -199,7 +204,8 @@ func TestScriptProbeUnavailableNodesAndTruncation(t *testing.T) {
 		}
 	}
 	db.Model(&script).Updates(map[string]interface{}{"type": "python", "content": "print('x' * 100000)"})
-	status, raw, _ := executeScriptProbe(ProbeReq{ScriptID: script.ID, TimeoutMS: 2000})
+	db.Model(&task).Updates(map[string]interface{}{"node_type": "direct", "node_id": 0})
+	status, raw, _ := executeScriptProbe(ProbeReq{AutomationTaskID: task.ID})
 	var result scriptProbeResult
 	json.Unmarshal([]byte(raw), &result)
 	if status != "success" || !result.Truncated || len(result.Output) > 65540 {
@@ -211,7 +217,8 @@ func TestScriptProbeScheduler(t *testing.T) {
 	db := scriptProbeTestDB(t)
 	script := models.Script{Name: "scheduled probe", Type: "shell", Content: "printf 'scheduled'", Status: 1}
 	db.Create(&script)
-	item := models.InspectionItem{GroupID: 1, Name: "scheduled probe", Type: "script", Target: script.Name, Config: fmt.Sprintf(`{"script_id":%d,"timeout_ms":2000,"execution_nodes":[{"node_type":"direct"}]}`, script.ID), IntervalSeconds: 10, FailureThreshold: 1, RecoveryThreshold: 1, Status: 1}
+	task := createProbeAutomationTask(t, db, script, 2)
+	item := models.InspectionItem{GroupID: 1, Name: "scheduled probe", Type: "script", Target: script.Name, Config: fmt.Sprintf(`{"automation_task_id":%d}`, task.ID), IntervalSeconds: 10, FailureThreshold: 1, RecoveryThreshold: 1, Status: 1}
 	db.Create(&item)
 	now := time.Now()
 	runDueInspectionItems(now)
@@ -241,5 +248,68 @@ func TestScriptProbeScheduler(t *testing.T) {
 	runningInspections.Delete(item.ID)
 	if record.Status != "error" || !strings.Contains(record.Result, "正在执行") {
 		t.Fatalf("duplicate invocation allowed: %+v", record)
+	}
+}
+
+func createProbeAutomationTask(t *testing.T, db *gorm.DB, script models.Script, timeout int) models.AutomationTask {
+	t.Helper()
+	task := models.AutomationTask{Name: script.Name, ScriptID: script.ID, SourceType: "script", NodeType: "direct", TimeoutSeconds: timeout, Status: 1}
+	if err := db.Create(&task).Error; err != nil {
+		t.Fatal(err)
+	}
+	return task
+}
+
+func TestScriptProbeCannotOverrideAutomationTask(t *testing.T) {
+	db := scriptProbeTestDB(t)
+	script := models.Script{Name: "central config", Type: "shell", Content: "printf healthy", Status: 1}
+	db.Create(&script)
+	task := createProbeAutomationTask(t, db, script, 2)
+	for _, req := range []ProbeReq{
+		{ScriptID: script.ID},
+		{AutomationTaskID: task.ID, ScriptID: script.ID},
+		{AutomationTaskID: task.ID, NodeType: "direct"},
+		{AutomationTaskID: task.ID, TimeoutMS: 5000},
+		{AutomationTaskID: task.ID, ExecutionNodes: []inspectionExecutionNode{{NodeType: "direct"}}},
+	} {
+		if _, err := loadProbeAutomationTask(req); err == nil {
+			t.Fatalf("override accepted: %+v", req)
+		}
+	}
+	db.Model(&task).Updates(map[string]interface{}{"node_type": "ssh", "node_id": 999})
+	config := fmt.Sprintf(`{"automation_task_id":%d}`, task.ID)
+	nodes := inspectionExecutionNodes(config)
+	if len(nodes) != 1 || nodes[0].NodeType != "ssh" || nodes[0].NodeID != 999 {
+		t.Fatalf("not using current task node: %+v", nodes)
+	}
+	if status, _, _ := executeInspectionOnNode(models.InspectionItem{ID: 42, Type: "script", Config: config}, inspectionExecutionNode{NodeType: "direct"}); status != "fail" {
+		t.Fatal("caller bypassed configured SSH node")
+	}
+	var record models.AutomationExecution
+	db.Order("id DESC").First(&record)
+	if record.TaskID != task.ID || record.TriggerType != "probe" || record.TriggerID != 42 {
+		t.Fatalf("missing invocation audit: %+v", record)
+	}
+	db.Model(&task).Update("status", 0)
+	if status, _, _ := executeScriptProbe(ProbeReq{AutomationTaskID: task.ID}); status != "fail" {
+		t.Fatal("disabled task executed")
+	}
+}
+
+func TestAlertActionOnlyInvokesAutomationTask(t *testing.T) {
+	db := scriptProbeTestDB(t)
+	script := models.Script{Name: "action task", Type: "shell", Content: "printf centralized", Status: 1}
+	db.Create(&script)
+	task := createProbeAutomationTask(t, db, script, 2)
+	rule := models.AlertActionRule{ActionType: "automation_task", TargetID: task.ID, NodeType: "ssh", NodeID: 999, TimeoutSeconds: 0}
+	out, err := executeAlertAction(rule, models.AlertInstance{ID: 9}, "firing", time.Now())
+	if err != nil || out != "centralized" {
+		t.Fatalf("task settings not used: %s %v", out, err)
+	}
+	for _, kind := range []string{"script", "workflow", "webhook"} {
+		rule.ActionType = kind
+		if _, err := executeAlertAction(rule, models.AlertInstance{}, "firing", time.Now()); err == nil {
+			t.Fatalf("legacy %s action executed", kind)
+		}
 	}
 }
