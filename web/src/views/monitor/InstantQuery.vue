@@ -109,11 +109,6 @@
         </div>
         <div v-if="error" class="error-box"><el-icon color="#F56C6C"><WarningFilled /></el-icon>{{ error }}</div>
         <el-table v-else-if="result" :data="tableRows" class="query-result-table" stripe size="small" max-height="55vh" style="width:100%">
-          <el-table-column label="数据源" width="180" show-overflow-tooltip>
-            <template #default="{ row }">
-              <span class="result-source">{{ row.datasourceName }}</span>
-            </template>
-          </el-table-column>
           <el-table-column label="标签" min-width="360" show-overflow-tooltip>
             <template #default="{ row }"><span class="metric-cell">{{ row.element }}</span></template>
           </el-table-column>
@@ -164,7 +159,6 @@
           <v-chart :option="chartOption" :autoresize="true" style="height:380px" />
           <div class="metric-legend" aria-label="图表指标">
             <div class="metric-legend-header" aria-hidden="true">
-              <span>数据源</span>
               <span>标签</span>
             </div>
             <button
@@ -178,7 +172,6 @@
               @click="toggleMetric(index, $event)"
             >
               <span class="metric-legend-line" :style="{ '--series-color': chartColors[index % chartColors.length] }" aria-hidden="true"></span>
-              <span class="metric-legend-source" :title="series.datasourceName">{{ series.datasourceName }}</span>
               <span class="metric-legend-name">{{ series.metricName }}</span>
             </button>
           </div>
@@ -187,7 +180,7 @@
     </div>
 
     <el-dialog v-model="metricsExplorerVisible" title="Metrics Explorer" width="min(620px, 94vw)" class="metrics-explorer-dialog" append-to-body @closed="closeMetricsExplorer" @opened="metricsSearchRef?.focus()">
-      <el-input ref="metricsSearchRef" v-model="metricsSearch" placeholder="Search" aria-label="搜索指标名称" clearable />
+      <el-input :prefix-icon="Search" ref="metricsSearchRef" v-model="metricsSearch" placeholder="Search" aria-label="搜索指标名称" clearable />
       <div class="metrics-explorer-meta"><span>{{ filteredMetrics.length }} / {{ explorerMetrics.length }} 个指标</span><el-button text size="small" :loading="metricsLoading" @click="loadExplorerMetrics">刷新</el-button></div>
       <el-alert v-if="metricsError" :title="metricsError" type="error" :closable="false" show-icon />
       <div v-loading="metricsLoading" class="metrics-explorer-list" aria-label="指标列表">
@@ -205,10 +198,11 @@
 import { useThemeColors } from '../../theme/useThemeColors'
 const themeColors = useThemeColors()
 import QueryHistoryDrawer from '../../components/explore/QueryHistoryDrawer.vue'
+import { prometheusSeriesPoints } from '../../utils/prometheusSeries.mjs'
 import { ref, reactive, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue'
 import { promInstantQuery, promRangeQuery, getPromDatasources, promMetadata } from '../../api/prometheus'
 import { ElMessage } from 'element-plus'
-import { WarningFilled } from '@element-plus/icons-vue'
+import { Search,  WarningFilled } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -223,6 +217,7 @@ const selectedDS = ref(props.source?.id ?? null)
 const query = ref('')
 const loading = ref(false)
 const result = ref(null)
+const resultStepSeconds = ref(null)
 const error = ref('')
 const activeTab = ref('table')
 const execTime = ref('')
@@ -593,13 +588,15 @@ async function executeRangeQuery() {
     ensureValidGraphStep()
     const end = graphEndTime.value || formatDateTime(new Date())
     const start = calcRangeStart(end, graphRange.value)
+    const stepSeconds = effectiveGraphStep()
     result.value = await querySelectedDatasource(dsId => promRangeQuery({
       datasource_id: dsId,
       query: query.value,
       start: toPromTimestamp(start),
       end: toPromTimestamp(end),
-      step: `${effectiveGraphStep()}s`,
+      step: `${stepSeconds}s`,
     }))
+    resultStepSeconds.value = stepSeconds
     resultMode.value = 'graph'
     selectedSeriesIndexes.value = []
   } catch (e) { error.value = e?.response?.data?.message || e?.message || '请求失败' }
@@ -675,7 +672,7 @@ const tableRows = computed(() => {
     const labelParts = Object.entries(metric).map(([k,v]) => `${k}="${v}"`)
     const element = labelParts.length > 0 ? `${name}{${labelParts.join(',')}}` : name
     const val = r.value?.[1]; const values = r.values
-    return { datasourceName: r.datasource_name, element: values ? `${element}  (${values.length} 个点)` : element, value: val, displayValue: formatValue(val) }
+    return { element: values ? `${element}  (${values.length} 个点)` : element, value: val, displayValue: formatValue(val) }
   })
 })
 
@@ -708,15 +705,16 @@ const chartSeries = computed(() => {
     const metric = { ...r.metric }; const name = metric.__name__ || Object.values(metric).join(',') || 'value'
     const labelStr = Object.entries(metric).filter(([k]) => k !== '__name__').map(([k,v]) => `${k}="${v}"`).join(',')
     const metricName = labelStr ? `${name}{${labelStr}}` : name
-    const data = result.value.data.resultType === 'vector'
-      ? [[Number(r.value[0]) * 1000, Number(r.value[1])]]
-      : (r.values || []).map(([ts, val]) => [Number(ts) * 1000, Number(val)])
+    const data = prometheusSeriesPoints(
+      result.value.data.resultType === 'vector' ? (r.value ? [r.value] : []) : r.values,
+      result.value.data.resultType === 'matrix' ? resultStepSeconds.value : null,
+    )
     const color = chartColors[index % chartColors.length]
     return {
       name: metricName,
-      datasourceName: r.datasource_name,
       metricName,
       type: 'line',
+      connectNulls: false,
       stack: graphStacked.value ? 'total' : undefined,
       areaStyle: graphStacked.value ? { opacity: 0.6 } : undefined,
       symbol: 'none',
@@ -1009,9 +1007,8 @@ const chartOption = computed(() => ({
 }
 
 .query-result-table :deep(.el-table__cell .cell) { white-space: nowrap; }
-.metric-cell, .value-cell, .result-source { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metric-cell, .value-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .metric-cell { font-family: 'SF Mono', monospace; font-size: 13px; color: var(--ops-text); }
-.result-source { max-width: 100%; color: var(--ops-muted); font-size: 13px; line-height: 20px; }
 .value-cell { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 500; color: var(--ops-text); text-align: left; }
 
 .empty-chart { display: flex; align-items: center; justify-content: center; height: 300px; color: var(--ops-muted); font-size: 13px; }
@@ -1046,7 +1043,7 @@ const chartOption = computed(() => ({
 }
 .metric-legend-header {
   display: grid;
-  grid-template-columns: 22px 180px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr);
   gap: 10px;
   min-height: 32px;
   align-items: center;
@@ -1098,15 +1095,6 @@ const chartOption = computed(() => ({
   background: var(--series-color);
   content: '';
   transform: translate(-50%, -50%);
-}
-.metric-legend-source {
-  width: 180px;
-  flex: 0 0 180px;
-  overflow: hidden;
-  color: var(--ops-muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .metric-legend-name {
   flex: 1;

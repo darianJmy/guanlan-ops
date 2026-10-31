@@ -102,8 +102,11 @@
         </el-header>
 
         <div class="workspace-body">
-          <el-main>
-            <router-view />
+          <el-main v-if="store.userInfo">
+            <SettingsWorkspace v-if="isSettingsPage" :items="settingsItems">
+              <router-view />
+            </SettingsWorkspace>
+            <router-view v-else />
           </el-main>
         </div>
       </el-container>
@@ -144,6 +147,7 @@ import { usePlatformStore } from '../stores/platform'
 import { changePassword } from '../api/auth'
 import { ElMessage } from 'element-plus'
 import AIChatAssistant from '../components/AIChatAssistant.vue'
+import SettingsWorkspace from './system/SettingsWorkspace.vue'
 import { pageBreadcrumb } from '../composables/usePageBreadcrumb'
 
 const route = useRoute()
@@ -205,10 +209,12 @@ onMounted(() => {
 onBeforeUnmount(() => bodyObserver?.disconnect())
 
 const isCollapse = ref(window.innerWidth <= 960)
-const menus = computed(() => store.menus)
-const breadcrumbParent = computed(() => route.meta.breadcrumbParent)
+const settingsItems = computed(() => (store.menus.find(menu => menu.path === '/settings')?.children || []).filter(menu => menu.type === 2))
+const isSettingsPage = computed(() => settingsItems.value.some(menu => menu.path === route.path))
+const menus = computed(() => store.menus.map(menu => menu.path === '/settings' ? { ...menu, children: [] } : menu))
+const breadcrumbParent = computed(() => isSettingsPage.value ? { title: '系统设置', path: '/settings' } : route.meta.breadcrumbParent)
 const currentTitle = computed(() => (pageBreadcrumb.value?.path === route.path && pageBreadcrumb.value.title) || route.meta.title)
-const activeMenu = computed(() => route.meta.activeMenu || route.path)
+const activeMenu = computed(() => isSettingsPage.value ? '/settings' : route.meta.activeMenu || route.path)
 const activeTheme = computed(() => platform.themePreference || platform.defaultTheme)
 const userInitial = computed(() => {
   const name = store.userInfo?.nickname || store.userInfo?.username || 'U'
@@ -275,7 +281,6 @@ async function handleChangePassword() {
 @media(max-width:960px){.ai-aside-panel{position:fixed;z-index:1900;top:64px;right:0;bottom:0;width:min(460px,100vw)!important;box-shadow:-8px 0 24px rgba(0,0,0,.12)}.ai-panel-resizer{display:none}}
 
 .layout {
-  --layout-header-height: 64px;
   height: 100vh;
   background: var(--ops-bg);
 }

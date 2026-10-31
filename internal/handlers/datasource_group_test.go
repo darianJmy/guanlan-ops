@@ -27,7 +27,7 @@ func TestDatasourceGroupCreationAndFiltering(t *testing.T) {
 	old := database.DB
 	database.DB = db
 	t.Cleanup(func() { database.DB = old; sqlDB.Close() })
-	if err := db.AutoMigrate(&models.Datasource{}, &models.DatasourceGroup{}, &models.DatasourceGroupMember{}, &models.Tunnel{}, &models.AlertRule{}, &models.AlertRuleDatasourceGroup{}, &models.AlertRuleDatasource{}, &models.AlertRuleBinding{}); err != nil {
+	if err := db.AutoMigrate(&models.Datasource{}, &models.DatasourceGroup{}, &models.DatasourceGroupMember{}, &models.Tunnel{}, &models.AlertRule{}, &models.AlertRuleDatasourceGroup{}, &models.AlertRuleBinding{}); err != nil {
 		t.Fatal(err)
 	}
 	router := gin.New()

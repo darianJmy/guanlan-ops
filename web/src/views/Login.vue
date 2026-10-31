@@ -16,9 +16,7 @@
     <section class="login-panel" aria-labelledby="login-title">
       <div class="login-content">
         <div class="login-heading">
-          <span v-if="authType !== 'local'" class="auth-badge">{{ authType === 'oidc' ? 'OIDC' : 'LDAP' }}</span>
           <h2 id="login-title">{{ loginTitle }}</h2>
-          <p class="login-intro">{{ loginDescription }}</p>
         </div>
 
         <div v-if="authType === 'oidc'" class="external-login">
@@ -29,30 +27,32 @@
             </svg>
           </div>
           <el-button type="primary" size="large" :loading="loading" class="external-login-button" @click="startOIDC">
-            使用 OIDC 单点登录
+            前往认证
             <el-icon class="button-arrow"><Right /></el-icon>
           </el-button>
           <p>将跳转至统一身份认证平台，认证成功后自动返回。</p>
         </div>
 
         <el-form v-else ref="formRef" :model="form" :rules="rules" label-position="top" size="large" class="login-form" @submit.prevent="handleLogin">
-          <el-form-item prop="username">
-            <el-input v-model="form.username" :placeholder="authType === 'ldap' ? '请输入 LDAP 用户名' : '请输入用户名'" aria-label="用户名" name="username" prefix-icon="User" autocomplete="username" />
+          <el-form-item prop="username" label="用户名">
+            <el-input v-model="form.username" placeholder="请输入用户名" aria-label="用户名" name="username" autocomplete="username" />
           </el-form-item>
-          <el-form-item prop="password">
-            <el-input v-model="form.password" type="password" aria-label="密码" name="password" placeholder="请输入密码" prefix-icon="Lock"
+          <el-form-item prop="password" label="密码">
+            <el-input v-model="form.password" type="password" aria-label="密码" name="password" placeholder="请输入密码"
               autocomplete="current-password" show-password />
           </el-form-item>
           <el-form-item class="submit-item">
             <el-button type="primary" :loading="loading" class="login-button" native-type="submit">
-              {{ authType === 'ldap' ? '使用 LDAP 登录' : '登录' }}
+              登录
             </el-button>
           </el-form-item>
         </el-form>
 
-        <button v-if="externalAuthType" type="button" class="auth-switch" @click="toggleAuthType">
+        <div v-if="externalAuthType" class="auth-switch-area">
+        <button type="button" class="auth-switch" :disabled="loading" @click="toggleAuthType">
           {{ authType === 'local' ? externalAuthLabel : '使用系统账号登录' }}
         </button>
+        </div>
       </div>
       <footer class="login-footer">{{ platform.systemName }} · 让运维清晰可控</footer>
     </section>
@@ -91,11 +91,6 @@ const rules = {
 const externalAuthType = computed(() => platform.oidcEnabled ? 'oidc' : platform.ldapEnabled ? 'ldap' : '')
 const externalAuthLabel = computed(() => externalAuthType.value === 'oidc' ? '使用 OIDC 单点登录' : '使用 LDAP 账号登录')
 const loginTitle = computed(() => authType.value === 'oidc' ? '统一身份认证' : authType.value === 'ldap' ? 'LDAP 登录' : '账号登录')
-const loginDescription = computed(() => authType.value === 'oidc'
-  ? `通过统一身份认证进入 ${platform.systemName}`
-  : authType.value === 'ldap'
-    ? `使用企业目录账号进入 ${platform.systemName}`
-    : '请登录您的账号')
 
 async function handleLogin() {
   if (loading.value) return
@@ -167,26 +162,28 @@ onMounted(async () => {
 .landscape i:nth-child(2) { left: -170px; bottom: -340px; transform: rotate(-38deg); }
 .landscape i:nth-child(3) { left: -70px; bottom: -390px; transform: rotate(-48deg); }
 .login-panel { z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 40px; }
-.login-content { width: 100%; max-width: 420px; padding: 40px; border: 1px solid var(--ops-border-soft); border-radius: 16px; background: var(--ops-surface); box-shadow: 0 18px 65px #45628d12, 0 3px 12px #45628d05; }
+.login-content { width: 100%; max-width: 420px; box-sizing: border-box; padding: 40px; border: 1px solid var(--ops-border-soft); border-radius: 10px; background: var(--ops-surface); box-shadow: 0 8px 32px rgb(0 0 0 / 4%); }
 .login-heading { margin-bottom: 32px; }
-.login-content h2 { margin: 0 0 12px; color: var(--ink); font-size: 28px; font-weight: 600; }
-.login-intro { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.login-content h2 { margin: 0; color: var(--ink); font-size: 24px; line-height: 1.4; font-weight: 600; }
+.login-form :deep(.el-form-item__label) { padding: 0; margin-bottom: 8px; color: var(--ink); font-size: 13px; font-weight: 500; }
+.login-form :deep(.el-form-item__label::before) { display: none; }
 .login-form :deep(.el-form-item) { margin-bottom: 24px; }
 .login-form :deep(.el-input__wrapper) { min-height: 44px; padding: 0 12px; background: transparent; border-radius: 6px; box-shadow: 0 0 0 1px var(--ops-border) inset; transition: box-shadow .2s; }
 .login-form :deep(.el-input__wrapper:hover), .login-form :deep(.el-input__wrapper.is-focus) { box-shadow: 0 0 0 1px var(--accent) inset; }
 .login-form :deep(.el-input__inner) { color: var(--ink); font-size: 14px; }
-.login-form :deep(.el-input__prefix) { color: #939dac; font-size: 18px; margin-right: 4px; }
 .login-form :deep(.submit-item) { margin-top: 32px; margin-bottom: 0; }
 .login-button, .external-login-button { width: 100%; height: 44px; font-size: 14px; font-weight: 500; border-radius: 6px; background: var(--accent); border-color: var(--accent); }
 .login-button:hover, .external-login-button:hover { background: var(--el-color-primary-dark-2); border-color: var(--el-color-primary-dark-2); }
-.auth-badge { display: inline-block; margin-bottom: 16px; padding: 4px 8px; color: var(--accent); background: var(--ops-primary-soft); border-radius: 4px; font-size: 11px; }
 .external-login { text-align: center; }
 .provider-mark { margin: 0 auto 24px; }
 .provider-mark svg { width: 40px; height: 40px; }
 .oidc-orange { fill: #f8931e; }.oidc-gray { fill: #929aa5; }
 .button-arrow { margin-left: 8px; }
 .external-login p { margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
-.auth-switch { display: block; margin: 24px auto 0; padding: 4px; color: var(--accent); font: inherit; font-size: 13px; border: 0; background: transparent; cursor: pointer; }
+.auth-switch-area { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--ops-border-soft); }
+.auth-switch { display: block; margin: 0 auto; padding: 4px; color: var(--muted); font: inherit; font-size: 13px; border: 0; background: transparent; cursor: pointer; }
+.auth-switch:hover { color: var(--accent); }
+.auth-switch:disabled { opacity: .5; cursor: not-allowed; }
 .auth-switch:hover { text-decoration: underline; text-underline-offset: 4px; }
 .auth-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
 .login-footer { position: absolute; bottom: 28px; left: 24px; right: 24px; color: #98a4b8; font-size: 12px; text-align: center; }

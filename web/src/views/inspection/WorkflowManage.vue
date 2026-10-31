@@ -7,13 +7,9 @@
         aria-label="搜索工作流"
         placeholder="搜索工作流名称或描述"
         class="script-search"
-        @keyup.enter="searchWorkflows"
-        @clear="searchWorkflows"
-      >
-        <template #append>
-          <el-button aria-label="搜索" @click="searchWorkflows"><el-icon><Search /></el-icon></el-button>
-        </template>
-      </el-input>
+        @input="searchWorkflows"
+          @keyup.enter="searchWorkflows"
+        @clear="searchWorkflows" :prefix-icon="Search" />
       <div class="script-toolbar-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadData">刷新</el-button>
         <el-button type="primary" :icon="Plus" @click="openCreate" v-permission="['workflow:create']">创建</el-button>

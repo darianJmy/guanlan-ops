@@ -55,7 +55,7 @@ type CreateUserReq struct {
 	Nickname string `json:"nickname"`
 	Email    string `json:"email"`
 	Phone    string `json:"phone"`
-	Status   int    `json:"status"`
+	Status   int    `json:"status" binding:"oneof=0 1"`
 }
 
 func CreateUser(c *gin.Context) {
@@ -65,11 +65,11 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	if req.Status == 0 {
-		req.Status = 1
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "密码不能超过 72 字节")
+		return
 	}
-
-	hashed, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	user := models.User{
 		Username: req.Username,
 		Password: string(hashed),

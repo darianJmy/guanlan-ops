@@ -9,7 +9,7 @@ type User struct {
 	Nickname  string    `gorm:"size:50" json:"nickname"`
 	Email     string    `gorm:"size:100" json:"email"`
 	Phone     string    `gorm:"size:20" json:"phone"`
-	Status    int       `gorm:"default:1" json:"status"` // 1=启用 0=禁用
+	Status    int       `json:"status"` // 1=启用 0=禁用
 	Roles     []Role    `gorm:"many2many:user_roles" json:"roles"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

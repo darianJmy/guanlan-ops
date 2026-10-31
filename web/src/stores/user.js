@@ -31,17 +31,7 @@ export const useUserStore = defineStore('user', {
       const res = await getUserInfo()
       this.userInfo = res.data.user
       this.permissions = res.data.permissions
-      // Hide code-maintained definitions and the unused external API token entry.
-      const hiddenMenuPaths = new Set(['/system/permissions', '/system/menus', '/settings/api-tokens'])
-      const hiddenMenuComponents = new Set(['system/PermissionManage', 'system/MenuManage', 'system/APITokenManage'])
-      const normalizeMenuNames = menus => (menus || []).filter(menu =>
-        !hiddenMenuPaths.has(menu.path) && !hiddenMenuComponents.has(menu.component)
-      ).map(menu => ({
-        ...menu,
-        name: menu.path === '/settings/ai-models' && menu.name === 'AI 模型' ? '模型' : menu.name,
-        ...(menu.children ? { children: normalizeMenuNames(menu.children) } : {}),
-      }))
-      this.menus = normalizeMenuNames(res.data.menus)
+      this.menus = res.data.menus
       return res.data
     },
 

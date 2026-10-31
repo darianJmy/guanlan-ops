@@ -14,7 +14,7 @@
           <el-tab-pane label="告警静默" name="silence">
             <section class="rule-section">
               <div class="strategy-toolbar">
-                <div><el-input v-model="silenceKeyword" clearable aria-label="搜索告警静默" placeholder="搜索策略名称" @keyup.enter="searchSilences" @clear="searchSilences"><template #append><el-button aria-label="搜索" @click="searchSilences"><el-icon><Search /></el-icon></el-button></template></el-input></div>
+                <div><el-input v-model="silenceKeyword" clearable aria-label="搜索告警静默" placeholder="搜索策略名称" @keyup.enter="searchSilences" @clear="searchSilences" :prefix-icon="Search" /></div>
                 <div><el-button :icon="Refresh" @click="searchSilences">刷新</el-button><el-button type="primary" :icon="Plus" @click="openSilenceDrawer()">创建</el-button></div>
               </div>
               <el-table :data="pagedSilenceRules" v-loading="silenceLoading">
@@ -39,7 +39,7 @@
           <el-tab-pane label="告警抑制" name="inhibition">
             <section class="rule-section">
               <div class="strategy-toolbar">
-                <div><el-input v-model="inhibitionKeyword" clearable aria-label="搜索告警抑制" placeholder="搜索策略名称" @keyup.enter="searchInhibitions" @clear="searchInhibitions"><template #append><el-button aria-label="搜索" @click="searchInhibitions"><el-icon><Search /></el-icon></el-button></template></el-input></div>
+                <div><el-input v-model="inhibitionKeyword" clearable aria-label="搜索告警抑制" placeholder="搜索策略名称" @keyup.enter="searchInhibitions" @clear="searchInhibitions" :prefix-icon="Search" /></div>
                 <div><el-button :icon="Refresh" @click="reloadRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openRuleDrawer()">创建</el-button></div>
               </div>
               <el-table :data="pagedRules">
@@ -65,7 +65,7 @@
           <el-tab-pane label="分组收敛" name="grouping">
             <section class="rule-section grouping-section">
               <div class="strategy-toolbar">
-                <div><el-input v-model="groupingKeyword" clearable aria-label="搜索分组收敛" placeholder="搜索策略名称" @keyup.enter="searchGroupings" @clear="searchGroupings"><template #append><el-button aria-label="搜索" @click="searchGroupings"><el-icon><Search /></el-icon></el-button></template></el-input></div>
+                <div><el-input v-model="groupingKeyword" clearable aria-label="搜索分组收敛" placeholder="搜索策略名称" @keyup.enter="searchGroupings" @clear="searchGroupings" :prefix-icon="Search" /></div>
                 <div><el-button :icon="Refresh" @click="loadGroupingRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openGroupingDrawer()">创建</el-button></div>
               </div>
               <el-table v-loading="groupingLoading" :data="pagedGroupingRows" table-layout="fixed">
@@ -191,7 +191,7 @@
     </el-drawer>
 
     <el-drawer v-model="ruleDrawerVisible" class="center-drawer config-drawer" size="min(460px, 94vw)" :close-on-click-modal="false" destroy-on-close>
-      <template #header><div class="drawer-header"><DrawerBackButton @click="ruleDrawerVisible = false" /><span class="drawer-title">{{ ruleForm.id ? '编辑抑制规则' : '创建抑制规则' }}</span></div></template>
+      <template #header><div class="drawer-header"><span class="drawer-title">{{ ruleForm.id ? '编辑抑制规则' : '创建抑制规则' }}</span></div></template>
       <el-form ref="ruleFormRef" :model="ruleForm" :rules="ruleRules" label-position="top" class="strategy-form inhibition-form">
         <el-form-item label="抑制规则名称" prop="name">
           <el-input v-model="ruleForm.name" maxlength="128" show-word-limit aria-label="抑制规则名称" />
@@ -241,7 +241,7 @@
     </el-drawer>
 
     <el-drawer v-model="groupingDrawerVisible" class="center-drawer config-drawer" size="min(460px, 94vw)" :close-on-click-modal="false" destroy-on-close>
-      <template #header><div class="drawer-header"><DrawerBackButton @click="groupingDrawerVisible = false" /><span class="drawer-title">{{ grouping.id ? '编辑分组收敛策略' : '创建分组收敛策略' }}</span></div></template>
+      <template #header><div class="drawer-header"><span class="drawer-title">{{ grouping.id ? '编辑分组收敛策略' : '创建分组收敛策略' }}</span></div></template>
       <el-form label-position="top" class="strategy-form grouping-form">
         <el-form-item label="策略名称" required>
           <el-input v-model="grouping.name" maxlength="128" show-word-limit aria-label="分组收敛策略名称" />
@@ -290,7 +290,7 @@
     </el-drawer>
 
     <el-drawer v-model="silenceDrawerVisible" class="center-drawer config-drawer" size="min(460px, 94vw)" :close-on-click-modal="false" destroy-on-close>
-      <template #header><div class="drawer-header"><DrawerBackButton @click="silenceDrawerVisible = false" /><span class="drawer-title">{{ silenceForm.id ? '编辑告警静默' : '创建告警静默' }}</span></div></template>
+      <template #header><div class="drawer-header"><span class="drawer-title">{{ silenceForm.id ? '编辑告警静默' : '创建告警静默' }}</span></div></template>
       <el-form ref="silenceFormRef" :model="silenceForm" :rules="silenceFormRules" label-position="top" class="strategy-form silence-form">
         <el-form-item label="策略名称" prop="name">
           <el-input v-model="silenceForm.name" maxlength="128" show-word-limit aria-label="静默策略名称" />

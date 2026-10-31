@@ -13,13 +13,8 @@
           aria-label="搜索云监控2.0"
           placeholder="仪表盘名称"
           class="workspace-search"
-          @keyup.enter="search"
-          @clear="search"
-        >
-          <template #append>
-            <el-button aria-label="搜索" @click="search"><el-icon><Search /></el-icon></el-button>
-          </template>
-        </el-input>
+          @input="scheduleSearch" @keyup.enter="searchNow"
+          @clear="searchNow" :prefix-icon="Search" />
         <div class="toolbar-actions">
           <el-button :icon="Refresh" :loading="loading" @click="fetchData">刷新</el-button>
           <el-button type="primary" :icon="Plus" @click="openCreate" v-permission="['dashboard:create']">创建</el-button>
@@ -138,6 +133,8 @@
 </template>
 
 <script setup>
+import { useSearchDebounce } from '../../composables/useSearchDebounce'
+
 const props = defineProps({ embedded: Boolean })
 const emit = defineEmits(['changed', 'view-change', 'select-type'])
 defineExpose({ create: openCreate, edit: openEdit, open: openWorkspace })
@@ -292,6 +289,7 @@ function backFromForm() {
   drawerVisible.value = false
   if (props.embedded && !form.id) emit('select-type')
 }
+const { scheduleSearch, searchNow } = useSearchDebounce(search)
 </script>
 
 <style scoped>

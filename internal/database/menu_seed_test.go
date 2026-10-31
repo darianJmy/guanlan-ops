@@ -43,6 +43,16 @@ func TestProbeMenuUnderAlertCenter(t *testing.T) {
 	if db.Migrator().HasTable("scheduled_tasks") || db.Migrator().HasTable("scheduled_task_executions") {
 		t.Fatal("fresh database created retired scheduler tables")
 	}
+	var retiredMenus int64
+	if err := db.Model(&models.Menu{}).Where("path IN ?", []string{"/system/permissions", "/system/menus", "/settings/api-tokens"}).Count(&retiredMenus).Error; err != nil {
+		t.Fatal(err)
+	}
+	if retiredMenus != 0 {
+		t.Fatal("fresh database created retired menus")
+	}
+	if db.Migrator().HasTable("alert_rule_datasources") {
+		t.Fatal("fresh database created direct rule bindings")
+	}
 	// Reopening a database must not rewrite a user's menu configuration.
 	if err := db.Model(&probe).Updates(map[string]interface{}{"parent_id": 0, "sort": 42}).Error; err != nil {
 		t.Fatal(err)

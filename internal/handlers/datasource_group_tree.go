@@ -138,24 +138,3 @@ func syncAllDatasourceGroupRuleBindings(tx *gorm.DB) error {
 	}
 	return nil
 }
-
-// Reconcile selections after status changes, including legacy direct selections.
-func syncDatasourceStatusRuleBindings(tx *gorm.DB, datasourceIDs []uint) error {
-	if err := syncAllDatasourceGroupRuleBindings(tx); err != nil {
-		return err
-	}
-	var ruleIDs []uint
-	if err := tx.Model(&models.AlertRuleDatasource{}).Distinct("rule_id").Where("datasource_id IN ?", datasourceIDs).Pluck("rule_id", &ruleIDs).Error; err != nil {
-		return err
-	}
-	for _, ruleID := range ruleIDs {
-		ids, err := effectiveAlertRuleDatasourceIDs(tx, ruleID)
-		if err != nil {
-			return err
-		}
-		if err := replaceAlertRuleBindings(tx, ruleID, ids); err != nil {
-			return err
-		}
-	}
-	return nil
-}

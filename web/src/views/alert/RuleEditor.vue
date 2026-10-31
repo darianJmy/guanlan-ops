@@ -19,14 +19,11 @@
         </el-form-item>
 
         <div class="section-heading"><div><strong>规则配置</strong></div></div>
-        <el-form-item class="datasource-field" prop="datasource_ids">
-          <template #label><span class="detail-label">实例分组<el-tooltip content="选择实例分组后，规则自动覆盖全部子分组中的指标实例；后续新增实例自动生效。旧规则的直接实例绑定可保留或移除。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="数据源选择说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <el-select v-model="datasourceSelection" multiple filterable collapse-tags :max-collapse-tags="5" placeholder="" @change="formRef?.validateField('datasource_ids')">
-            <el-option-group v-if="visibleDatasourceGroups.length" label="实例分组（包含子分组）">
-              <el-option v-for="item in visibleDatasourceGroups" :key="`group-${item.id}`" :label="`${item.path || item.name}（${item.scope_member_count ?? item.member_count} 个实例）`" :value="`group:${item.id}`" />
-            </el-option-group>
-            <el-option-group v-if="legacyDatasources.length" label="原有直接绑定（可移除）">
-              <el-option v-for="item in legacyDatasources" :key="`source-${item.id}`" :label="item.name" :value="`source:${item.id}`" />
+        <el-form-item class="datasource-field" prop="datasource_group_ids">
+          <template #label><span class="detail-label">实例分组<el-tooltip content="选择实例分组后，规则自动覆盖全部子分组中的指标实例；后续新增实例自动生效。" placement="top"><el-icon class="detail-help-icon" tabindex="0" aria-label="数据源选择说明"><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <el-select v-model="form.datasource_group_ids" multiple filterable collapse-tags :max-collapse-tags="5" placeholder="" @change="formRef?.validateField('datasource_group_ids')">
+            <el-option-group v-if="datasourceGroups.length" label="实例分组（包含子分组）">
+              <el-option v-for="item in datasourceGroups" :key="`group-${item.id}`" :label="`${item.path}（${item.scope_member_count} 个实例）`" :value="item.id" />
             </el-option-group>
           </el-select>
         </el-form-item>
@@ -133,32 +130,23 @@ const previewVisible = ref(false), previewRows = ref([]), previewErrors = ref([]
 const group = reactive({ name: '', description: '' })
 const conditionOperators = ['>', '<', '>=', '<=', '!=', '==']
 const severityOrder = ['P2', 'P1', 'P0']
-const form = reactive({ name: '', description: '', expression: '', datasource_group_ids: [], datasource_ids: [], fault_center_id: null, evaluation_interval_seconds: 60, for_seconds: 60, recovery_wait_seconds: 0, status: 1, external_labels: [], conditions: [{ severity: 'P2', operator: '', threshold: null }] })
+const form = reactive({ name: '', description: '', expression: '', datasource_group_ids: [], fault_center_id: null, evaluation_interval_seconds: 60, for_seconds: 60, recovery_wait_seconds: 0, status: 1, external_labels: [], conditions: [{ severity: 'P2', operator: '', threshold: null }] })
 const descriptionAnnotation = reactive({ key: 'description', value: '' })
 const formRules = {
   name: [{ required: true, message: '请输入规则名称', trigger: 'blur' }],
   expression: [{ required: true, message: '请输入 PromQL 表达式', trigger: 'blur' }],
-  datasource_ids: [{ validator: (_rule, value, callback) => { if (!form.datasource_group_ids.length && !value?.length) callback(new Error('请至少选择一个实例分组')); else callback() }, trigger: 'change' }],
+  datasource_group_ids: [{ type: 'array', required: true, min: 1, message: '请至少选择一个实例分组', trigger: 'change' }],
   conditions: [{ required: true, validator: (_rule, _value, callback) => { try { normalizeConditions(); callback() } catch (error) { callback(error) } }, trigger: 'change' }],
   evaluation_interval_seconds: [{ validator: validateEvaluationInterval, trigger: 'change' }],
   for_seconds: [{ validator: validateTimingWindow('持续时间', 604800), trigger: 'change' }],
   recovery_wait_seconds: [{ validator: validateTimingWindow('恢复时间', 86400), trigger: 'change' }],
   fault_center_id: [{ required: true, message: '请选择故障中心', trigger: 'change' }],
 }
-const legacyDatasources = computed(() => datasources.value.filter(item => form.datasource_ids.includes(item.id)))
-const visibleDatasourceGroups = computed(() => datasourceGroups.value)
 const activeCenters = computed(() => centers.value.filter(item => item.status === 1))
-const datasourceSelection = computed({
-  get: () => [...form.datasource_group_ids.map(id => `group:${id}`), ...form.datasource_ids.map(id => `source:${id}`)],
-  set: (values) => {
-    form.datasource_group_ids = values.filter(value => value.startsWith('group:')).map(value => Number(value.slice(6))).filter(Boolean)
-    form.datasource_ids = values.filter(value => value.startsWith('source:')).map(value => Number(value.slice(7))).filter(Boolean)
-  },
-})
 const effectiveDatasourceIds = computed(() => {
-  const groupDatasourceIDs = datasourceGroups.value.filter(item => form.datasource_group_ids.includes(item.id)).flatMap(item => item.effective_datasource_ids || item.datasource_ids || [])
+  const groupDatasourceIDs = datasourceGroups.value.filter(item => form.datasource_group_ids.includes(item.id)).flatMap(item => item.effective_datasource_ids)
   const available = new Set(datasources.value.map(item => item.id))
-  return [...new Set([...form.datasource_ids, ...groupDatasourceIDs])].filter(id => available.has(id))
+  return [...new Set(groupDatasourceIDs)].filter(id => available.has(id))
 })
 const triggerTiming = computed(() => timingSummary(form.for_seconds, '命中', '触发'))
 const recoveryTiming = computed(() => timingSummary(form.recovery_wait_seconds, '不命中', '恢复'))
@@ -231,7 +219,7 @@ function hydrateRule(rule) {
     conditions.push({ severity: item.severity, operator: conditionOperators.includes(item.operator) ? item.operator : '>', threshold: Number(item.threshold) || 0 })
   }
   if (!conditions.length) { ElMessage.error('告警规则条件配置无效'); cancel(); return }
-  Object.assign(form, { name: rule.name || '', description: rule.description || '', expression: rule.expression || '', datasource_group_ids: [...(rule.datasource_group_ids || [])], datasource_ids: [...(rule.direct_datasource_ids || [])], fault_center_id: rule.fault_center_id, evaluation_interval_seconds: rule.evaluation_interval_seconds || 60, for_seconds: rule.for_seconds ?? sourceConditions[0]?.for_seconds ?? 0, recovery_wait_seconds: rule.recovery_wait_seconds ?? 0, status: rule.status, external_labels: mapToPairs(rule.external_labels), conditions })
+  Object.assign(form, { name: rule.name || '', description: rule.description || '', expression: rule.expression || '', datasource_group_ids: [...(rule.datasource_group_ids || [])], fault_center_id: rule.fault_center_id, evaluation_interval_seconds: rule.evaluation_interval_seconds || 60, for_seconds: rule.for_seconds, recovery_wait_seconds: rule.recovery_wait_seconds ?? 0, status: rule.status, external_labels: mapToPairs(rule.external_labels), conditions })
   descriptionAnnotation.value = rule.annotations?.description || ''
 }
 
@@ -313,7 +301,7 @@ async function saveRule() {
   saving.value = true
   try {
     const annotations = { description: descriptionAnnotation.value.trim() }
-    const payload = { group_id: groupId, name: form.name.trim(), description: form.description.trim(), expression: form.expression.trim(), datasource_group_ids: form.datasource_group_ids, datasource_ids: form.datasource_ids, fault_center_id: form.fault_center_id, severity: conditions[0].severity, evaluation_interval_seconds: form.evaluation_interval_seconds, for_seconds: form.for_seconds, recovery_wait_seconds: form.recovery_wait_seconds, status: form.status, conditions, external_labels: pairsToMap(form.external_labels), annotations: Object.fromEntries(Object.entries(annotations).filter(([, value]) => value)) }
+    const payload = { group_id: groupId, name: form.name.trim(), description: form.description.trim(), expression: form.expression.trim(), datasource_group_ids: form.datasource_group_ids, fault_center_id: form.fault_center_id, severity: conditions[0].severity, evaluation_interval_seconds: form.evaluation_interval_seconds, for_seconds: form.for_seconds, recovery_wait_seconds: form.recovery_wait_seconds, status: form.status, conditions, external_labels: pairsToMap(form.external_labels), annotations: Object.fromEntries(Object.entries(annotations).filter(([, value]) => value)) }
     if (isEdit.value) await updateAlertRule(ruleId, payload)
     else await createAlertRule(payload)
     ElMessage.success(isEdit.value ? '告警规则已更新' : '告警规则已创建')

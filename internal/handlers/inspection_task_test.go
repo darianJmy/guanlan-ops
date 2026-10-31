@@ -32,13 +32,20 @@ func TestInspectionSeverityDefaultsAndNormalizes(t *testing.T) {
 	}
 }
 
-func TestInspectionExecutionNodesRequireCurrentArray(t *testing.T) {
-	nodes := inspectionExecutionNodes(`{"execution_nodes":[{"node_type":"ssh","node_id":2},{"node_type":"agent","node_id":3},{"node_type":"ssh","node_id":2}]}`)
-	if len(nodes) != 2 || inspectionNodeKey(nodes[0]) != "ssh:2" || inspectionNodeKey(nodes[1]) != "agent:3" {
-		t.Fatalf("unexpected execution nodes: %#v", nodes)
+func TestInspectionExecutionRequiresOneNode(t *testing.T) {
+	valid := `{"execution_nodes":[{"node_type":"direct","node_id":0}]}`
+	if err := validateInspectionExecutionNodes(valid); err != nil {
+		t.Fatal(err)
 	}
-	if legacy := inspectionExecutionNodes(`{"node_type":"ssh","node_id":8}`); len(legacy) != 0 {
-		t.Fatalf("legacy execution node config must be rejected: %#v", legacy)
+	for _, config := range []string{
+		`{}`, `{"execution_nodes":[]}`,
+		`{"execution_nodes":[{"node_type":"direct","node_id":0},{"node_type":"direct","node_id":0}]}`,
+		`{"execution_nodes":[{"node_type":"direct","node_id":1}]}`,
+		`{"execution_nodes":[{"node_type":"","node_id":0}]}`,
+	} {
+		if err := validateInspectionExecutionNodes(config); err == nil {
+			t.Fatalf("accepted invalid execution node: %s", config)
+		}
 	}
 }
 

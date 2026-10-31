@@ -14,15 +14,9 @@
             aria-label="搜索日志仪表盘"
             placeholder="仪表盘名称"
             class="project-search"
-            @keyup.enter="searchProjects"
-            @clear="searchProjects"
-          >
-            <template #append>
-              <el-button aria-label="搜索" @click="searchProjects">
-                <el-icon><Search /></el-icon>
-              </el-button>
-            </template>
-          </el-input>
+            @input="searchProjects"
+          @keyup.enter="searchProjects"
+            @clear="searchProjects" :prefix-icon="Search" />
         </div>
         <div class="toolbar-actions">
           <el-button :icon="Refresh" :loading="projectLoading" @click="fetchProjects">刷新</el-button>
@@ -74,7 +68,7 @@
       <div class="subpage-header">
         <el-button link type="primary" :icon="ArrowLeft" @click="backToProjects">返回</el-button>
         <div class="toolbar-actions">
-          <el-input v-model="logstoreKeyword" clearable :placeholder="`搜索 ${resourceLabel}`" class="project-search" @input="page = 1" />
+          <el-input :prefix-icon="Search" v-model="logstoreKeyword" clearable :placeholder="`搜索 ${resourceLabel}`" class="project-search" @input="page = 1" />
           <el-button :loading="logstoreLoading" @click="fetchLogstores">刷新</el-button>
         </div>
       </div>

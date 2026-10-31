@@ -47,15 +47,6 @@ type AlertRuleBinding struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
-// AlertRuleDatasource stores data sources selected directly on a rule. Runtime
-// bindings are rebuilt from these rows plus every selected data source group.
-type AlertRuleDatasource struct {
-	ID           uint      `gorm:"primaryKey" json:"id"`
-	RuleID       uint      `gorm:"not null;uniqueIndex:idx_alert_rule_direct_datasource;index" json:"rule_id"`
-	DatasourceID uint      `gorm:"not null;uniqueIndex:idx_alert_rule_direct_datasource;index" json:"datasource_id"`
-	CreatedAt    time.Time `json:"created_at"`
-}
-
 type AlertRuleDatasourceGroup struct {
 	ID                uint      `gorm:"primaryKey" json:"id"`
 	RuleID            uint      `gorm:"not null;uniqueIndex:idx_alert_rule_datasource_group;index" json:"rule_id"`

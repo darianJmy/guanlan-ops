@@ -11,7 +11,7 @@
   "name": "CPU 使用率超过 80%",
   "group_id": 1,
   "fault_center_id": 1,
-  "datasource_ids": [1],
+  "datasource_group_ids": [1],
   "expression": "100 * (1 - avg by(instance)(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
   "conditions": [{"severity": "P0", "operator": ">", "threshold": 80}],
   "evaluation_interval_seconds": 60,

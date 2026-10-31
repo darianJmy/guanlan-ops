@@ -31,7 +31,6 @@ type alertRuleConfigEntry struct {
 	Name                      string                          `yaml:"name"`
 	Description               string                          `yaml:"description,omitempty"`
 	Expression                string                          `yaml:"expression"`
-	DatasourceIDs             []uint                          `yaml:"datasource_ids,omitempty"`
 	DatasourceGroupIDs        []uint                          `yaml:"datasource_group_ids,omitempty"`
 	FaultCenterID             uint                            `yaml:"fault_center_id"`
 	ForSeconds                int                             `yaml:"for_seconds"`
@@ -241,7 +240,7 @@ func alertRuleConfigRequest(groupID uint, entry alertRuleConfigEntry) saveAlertR
 	}
 	return saveAlertRuleReq{
 		GroupID: groupID, Name: entry.Name, Description: entry.Description, Expression: entry.Expression,
-		DatasourceIDs: entry.DatasourceIDs, DatasourceGroupIDs: entry.DatasourceGroupIDs, FaultCenterID: entry.FaultCenterID,
+		DatasourceGroupIDs: entry.DatasourceGroupIDs, FaultCenterID: entry.FaultCenterID,
 		ForSeconds: entry.ForSeconds, RecoveryWaitSeconds: entry.RecoveryWaitSeconds, EvaluationIntervalSeconds: interval,
 		ExternalLabels: entry.ExternalLabels, Annotations: entry.Annotations, Status: status, Conditions: conditions,
 	}
@@ -256,10 +255,6 @@ func alertRuleConfigDocumentFromRules(rules []models.AlertRule) (alertRuleConfig
 	for _, rule := range rules {
 		ruleIDs = append(ruleIDs, rule.ID)
 	}
-	var directSelections []models.AlertRuleDatasource
-	if err := database.DB.Where("rule_id IN ?", ruleIDs).Order("rule_id ASC, datasource_id ASC").Find(&directSelections).Error; err != nil {
-		return document, fmt.Errorf("读取规则数据源失败")
-	}
 	var groupSelections []models.AlertRuleDatasourceGroup
 	if err := database.DB.Where("rule_id IN ?", ruleIDs).Order("rule_id ASC, datasource_group_id ASC").Find(&groupSelections).Error; err != nil {
 		return document, fmt.Errorf("读取规则数据源分组失败")
@@ -267,10 +262,6 @@ func alertRuleConfigDocumentFromRules(rules []models.AlertRule) (alertRuleConfig
 	var conditions []models.AlertRuleCondition
 	if err := database.DB.Where("rule_id IN ?", ruleIDs).Order("rule_id ASC, sort ASC, id ASC").Find(&conditions).Error; err != nil {
 		return document, fmt.Errorf("读取规则告警条件失败")
-	}
-	directIDsByRule := make(map[uint][]uint, len(rules))
-	for _, selection := range directSelections {
-		directIDsByRule[selection.RuleID] = append(directIDsByRule[selection.RuleID], selection.DatasourceID)
 	}
 	groupIDsByRule := make(map[uint][]uint, len(rules))
 	for _, selection := range groupSelections {
@@ -285,7 +276,7 @@ func alertRuleConfigDocumentFromRules(rules []models.AlertRule) (alertRuleConfig
 		status := rule.Status
 		document.Rules = append(document.Rules, alertRuleConfigEntry{
 			Name: rule.Name, Description: rule.Description, Expression: rule.Expression,
-			DatasourceIDs: directIDsByRule[rule.ID], DatasourceGroupIDs: groupIDsByRule[rule.ID], FaultCenterID: rule.FaultCenterID,
+			DatasourceGroupIDs: groupIDsByRule[rule.ID], FaultCenterID: rule.FaultCenterID,
 			ForSeconds: rule.ForSeconds, RecoveryWaitSeconds: rule.RecoveryWaitSeconds, EvaluationIntervalSeconds: rule.EvaluationIntervalSeconds,
 			ExternalLabels: decodeAlertRuleExternalLabels(rule.Labels), Annotations: decodeAlertRuleAnnotations(rule.Annotations),
 			Conditions: conditionsByRule[rule.ID], Status: &status,

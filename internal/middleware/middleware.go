@@ -43,8 +43,14 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		c.Set("user_id", claims.UserID)
-		c.Set("username", claims.Username)
+		var user models.User
+		if err := database.DB.First(&user, claims.UserID).Error; err != nil || user.Status != 1 {
+			resp.Error(c, http.StatusUnauthorized, resp.CodeUnauthorized, "账号不存在或已被禁用")
+			c.Abort()
+			return
+		}
+		c.Set("user_id", user.ID)
+		c.Set("username", user.Username)
 		c.Next()
 	}
 }

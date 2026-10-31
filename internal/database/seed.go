@@ -92,8 +92,6 @@ func seedInitialData(db *gorm.DB) error {
 		{ID: 1, ParentID: 0, Name: "用户管理", Path: "/system", Component: "", Icon: "User", Sort: 98, Type: 1, Permission: "", Status: 1},
 		{ID: 2, ParentID: 1, Name: "用户列表", Path: "/system/users", Component: "system/UserManage", Icon: "User", Sort: 1, Type: 2, Permission: "user:list", Status: 1},
 		{ID: 3, ParentID: 1, Name: "角色列表", Path: "/system/roles", Component: "system/RoleManage", Icon: "Avatar", Sort: 2, Type: 2, Permission: "role:list", Status: 1},
-		{ID: 4, ParentID: 1, Name: "权限列表", Path: "/system/permissions", Component: "system/PermissionManage", Icon: "Lock", Sort: 3, Type: 2, Permission: "perm:list", Status: 1},
-		{ID: 5, ParentID: 1, Name: "菜单列表", Path: "/system/menus", Component: "system/MenuManage", Icon: "Menu", Sort: 4, Type: 2, Permission: "menu:list", Status: 1},
 		{ID: 7, ParentID: 0, Name: "接入中心", Path: "/integrations/sources", Component: "monitor/IntegrationManage", Icon: "Connection", Sort: 10, Type: 2, Permission: "datasource:list", Status: 1},
 		{ID: 8, ParentID: 0, Name: "仪表盘", Path: "/dashboards", Component: "monitor/DashboardHub", Icon: "DataAnalysis", Sort: 1, Type: 2, Permission: "dashboard:list", Status: 1},
 		{ID: 11, ParentID: 38, Name: "拨测任务", Path: "/inspection/items", Component: "inspection/InspectionRuleGroupList", Icon: "Checked", Sort: 3, Type: 2, Permission: "inspection:list", Status: 1},
@@ -114,7 +112,6 @@ func seedInitialData(db *gorm.DB) error {
 		{ID: 86, ParentID: 87, Name: "Git 认证", Path: "/settings/git-credentials", Component: "system/GitCredentialManage", Icon: "Key", Sort: 3, Type: 2, Permission: "git-credential:list", Status: 1},
 		{ID: 87, ParentID: 0, Name: "系统设置", Path: "/settings", Component: "", Icon: "Tools", Sort: 99, Type: 1, Permission: "", Status: 1},
 		{ID: 89, ParentID: 87, Name: "登录认证", Path: "/settings/authentication", Component: "system/AuthSetting", Icon: "Lock", Sort: 2, Type: 2, Permission: "system-setting:list", Status: 1},
-		{ID: 90, ParentID: 87, Name: "访问令牌", Path: "/settings/api-tokens", Component: "system/APITokenManage", Icon: "Key", Sort: 4, Type: 2, Permission: "api-token:list", Status: 1},
 		{ID: 93, ParentID: 87, Name: "模型", Path: "/settings/ai-models", Component: "system/AIModelManage", Icon: "Cpu", Sort: 6, Type: 2, Permission: "system-setting:list", Status: 1},
 	}
 	if err := db.Create(&menus).Error; err != nil {

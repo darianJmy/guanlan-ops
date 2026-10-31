@@ -184,9 +184,6 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 	if _, _, _, err := normalizeDatasourceGroupInput(saveDatasourceGroupReq{Name: "mixed", DatasourceIDs: []uint{prom.ID}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := datasourceIDsForSelection(db, nil, []uint{prom.ID}); err != nil {
-		t.Fatal(err)
-	}
 	registry := buildOpsToolRegistry(0)
 	if len(registry.Specs()) != 1 || registry.Specs()[0].DatasourceType != "prometheus" {
 		t.Fatalf("retired AI tools remain: %+v", registry.Specs())
@@ -207,11 +204,6 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 		t.Fatal("left orphan group membership")
 	}
 	db.Where("group_id = ?", group.ID).Delete(&models.DatasourceGroupMember{})
-	db.Create(&models.AlertRuleDatasource{RuleID: 77, DatasourceID: prom.ID})
-	_, body = call(http.MethodDelete, fmt.Sprintf("/sources/%d", prom.ID), nil)
-	if body["code"] == float64(0) {
-		t.Fatal("deleted alert rule dependency")
-	}
 	// Switching to no authentication removes the previous credentials.
 	valid["auth_type"] = "none"
 	_, body = call(http.MethodPut, fmt.Sprintf("/sources/%d", prom.ID), valid)

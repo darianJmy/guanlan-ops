@@ -170,14 +170,6 @@ func TestDatasourceGroupHierarchyLifecycle(t *testing.T) {
 	}
 	var logSource models.Datasource
 	db.Where("name = ?", "loki").First(&logSource)
-	// A batch with a direct rule reference must leave the source and membership intact.
-	db.Create(&models.AlertRuleDatasource{RuleID: ruleID, DatasourceID: logSource.ID})
-	call("DELETE", "/sources/batch", map[string]interface{}{"ids": []uint{logSource.ID}}, false)
-	db.Model(&models.DatasourceGroupMember{}).Where("datasource_id = ?", logSource.ID).Count(&membershipCount)
-	if membershipCount != 1 {
-		t.Fatal("rejected batch removed membership")
-	}
-	db.Where("rule_id = ? AND datasource_id = ?", ruleID, logSource.ID).Delete(&models.AlertRuleDatasource{})
 	call("DELETE", "/sources/batch", map[string]interface{}{"ids": []uint{logSource.ID}}, true)
 	db.Model(&models.DatasourceGroupMember{}).Where("group_id = ?", prom).Count(&membershipCount)
 	if membershipCount != 0 {

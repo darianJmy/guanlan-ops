@@ -9,6 +9,7 @@ const request = axios.create({
 
 request.interceptors.request.use((config) => {
   const token = getToken()
+  config.sessionToken = token
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
@@ -17,6 +18,9 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => {
+    if (isPreviousSession(response.config)) {
+      return Promise.reject(new axios.CanceledError('登录会话已切换', response.config))
+    }
     if (response.config.responseType === 'blob') {
       return response
     }
@@ -33,6 +37,13 @@ request.interceptors.response.use(
   },
   (error) => {
     if (axios.isCancel(error)) return Promise.reject(error)
+    if (isPreviousSession(error.config)) {
+      return Promise.reject(new axios.CanceledError('登录会话已切换', error.config))
+    }
+    if (error.response?.status === 401) {
+      removeToken()
+      window.location.href = '/login'
+    }
     if (error.response?.data instanceof Blob) {
       return error.response.data.text().then((text) => {
         let message = statusMessage(error.response.status) || '下载失败'
@@ -50,6 +61,10 @@ request.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+function isPreviousSession(config) {
+  return !!config?.sessionToken && config.sessionToken !== getToken()
+}
 
 function statusMessage(status) {
   const map = {

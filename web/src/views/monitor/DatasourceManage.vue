@@ -2,7 +2,7 @@
   <div class="page-container">
     <div class="datasource-toolbar">
       <div class="datasource-filters" role="search" aria-label="监控实例筛选">
-        <el-input v-model="keyword" class="filter-keyword" :prefix-icon="Search" clearable aria-label="搜索数据源实例" placeholder="搜索名称、地址或标签" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
+        <el-input v-model="keyword" class="filter-keyword" :prefix-icon="Search" clearable aria-label="搜索实例名称或地址" placeholder="搜索实例名称或地址" @input="handleKeywordInput" @keyup.enter="handleSearch" @clear="handleSearch" />
         <el-select v-model="typeFilter" class="filter-type" aria-label="按类型筛选" placeholder="全部类型" clearable @change="handleSearch"><el-option v-for="item in datasourceTypes" :key="item.type" :label="item.name" :value="item.type" /></el-select>
         <el-select v-model="statusFilter" class="filter-status" aria-label="按状态筛选" placeholder="全部状态" clearable @change="handleSearch"><el-option label="启用" value="1" /><el-option label="禁用" value="0" /></el-select>
         <el-button @click="handleReset">清空</el-button>
@@ -30,7 +30,7 @@
       </el-table>
       <div class="pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next" @current-change="fetchData" @size-change="handleSearch" /></div>
     </el-card>
-    <el-drawer v-model="pickerVisible" class="standard-config-drawer datasource-drawer" direction="rtl" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
+    <el-drawer v-model="pickerVisible" class="standard-config-drawer datasource-drawer" direction="rtl" size="min(320px, 94vw)" :close-on-click-modal="true" destroy-on-close>
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
           <span :id="titleId" :class="[titleClass, 'drawer-title']">选择数据源类型</span>

@@ -1714,6 +1714,11 @@
   "excluded": [
     {
       "method": "GET",
+      "path": "/automation-tasks/options",
+      "reason": "表单任务选项投影；模型通过 list_automation_tasks 查询任务"
+    },
+    {
+      "method": "GET",
       "path": "/user/info",
       "reason": "当前身份由认证上下文提供"
     },

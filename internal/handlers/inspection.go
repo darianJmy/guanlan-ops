@@ -751,25 +751,10 @@ func inspectionExecutionNodes(config string) []inspectionExecutionNode {
 		}
 		return nil
 	}
-	nodes := payload.ExecutionNodes
-	result := make([]inspectionExecutionNode, 0, len(nodes))
-	seen := map[string]struct{}{}
-	for _, node := range nodes {
-		node.NodeType = strings.ToLower(strings.TrimSpace(node.NodeType))
-		if node.NodeType == "" {
-			node.NodeType = "direct"
-		}
-		if node.NodeType == "direct" {
-			node.NodeID = 0
-		}
-		key := inspectionNodeKey(node)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		result = append(result, node)
+	if len(payload.ExecutionNodes) != 1 {
+		return nil
 	}
-	return result
+	return payload.ExecutionNodes
 }
 
 func inspectionNodeKey(node inspectionExecutionNode) string {
@@ -778,15 +763,15 @@ func inspectionNodeKey(node inspectionExecutionNode) string {
 
 func validateInspectionExecutionNodes(config string) error {
 	nodes := inspectionExecutionNodes(config)
-	if len(nodes) == 0 {
-		return fmt.Errorf("请至少选择一个执行节点")
-	}
-	if len(nodes) > 50 {
-		return fmt.Errorf("执行节点最多选择 50 个")
+	if len(nodes) != 1 {
+		return fmt.Errorf("请选择一个执行节点")
 	}
 	for _, node := range nodes {
 		switch node.NodeType {
 		case "direct":
+			if node.NodeID != 0 {
+				return fmt.Errorf("直连节点 ID 必须为 0")
+			}
 			continue
 		case "ssh":
 			var count int64

@@ -18,6 +18,11 @@ type overviewCount struct {
 }
 
 type overviewPoint struct {
+	ProbeSuccess         int64  `json:"probe_success"`
+	ProbeFailed          int64  `json:"probe_failed"`
+	AutomationSuccess    int64  `json:"automation_success"`
+	AutomationFailed     int64  `json:"automation_failed"`
+	AutomationRunning    int64  `json:"automation_running"`
 	Time                 string `json:"time"`
 	Alerts               int64  `json:"alerts"`
 	NotificationsSuccess int64  `json:"notifications_success"`
@@ -25,6 +30,10 @@ type overviewPoint struct {
 }
 
 type overviewSummary struct {
+	AlertRuleGroups           int64 `json:"alert_rule_groups"`
+	Scripts                   int64 `json:"scripts"`
+	AlertRules                int64 `json:"alert_rules"`
+	AlertRulesEnabled         int64 `json:"alert_rules_enabled"`
 	DatasourcesEnabled        int64 `json:"datasources_enabled"`
 	Prometheus                int64 `json:"prometheus"`
 	PrometheusEnabled         int64 `json:"prometheus_enabled"`
@@ -111,6 +120,8 @@ func loadDashboardOverview(db *gorm.DB, now time.Time, rangeKey string) (dashboa
 	}{
 		{&models.DatasourceGroup{}, &out.Summary.DataCenters},
 		{&models.FaultCenter{}, &out.Summary.FaultCenters},
+		{&models.AlertRuleGroup{}, &out.Summary.AlertRuleGroups},
+		{&models.Script{}, &out.Summary.Scripts},
 	} {
 		if err := db.Model(item.model).Count(item.count).Error; err != nil {
 			return out, err
@@ -129,6 +140,8 @@ func loadDashboardOverview(db *gorm.DB, now time.Time, rangeKey string) (dashboa
 		count *int64
 	}{
 		{db.Model(&models.Datasource{}).Where("type = ?", "prometheus"), &out.Summary.Prometheus},
+		{db.Model(&models.AlertRule{}), &out.Summary.AlertRules},
+		{db.Model(&models.AlertRule{}).Where("status = 1"), &out.Summary.AlertRulesEnabled},
 		{db.Model(&models.Datasource{}).Where("type IN ?", supportedDatasourceTypes()), &out.Summary.Datasources},
 		{db.Model(&models.Datasource{}).Where("type IN ? AND status = 1", supportedDatasourceTypes()), &out.Summary.DatasourcesEnabled},
 		{db.Model(&models.Datasource{}).Where("type = ? AND status = 1", "prometheus"), &out.Summary.PrometheusEnabled},
@@ -189,6 +202,46 @@ func loadDashboardOverview(db *gorm.DB, now time.Time, rangeKey string) (dashboa
 				out.Points[index].NotificationsSuccess = row.Count
 			} else {
 				out.Points[index].NotificationsFailed = row.Count
+			}
+		}
+	}
+	// Use retained aggregates: raw inspection records are capped per node.
+	var probes []struct {
+		Bucket  string
+		Success int64
+		Failed  int64
+	}
+	probeBucket := "strftime('" + format + "', bucket_at, '+8 hours')"
+	if err := db.Model(&models.InspectionTrendBucket{}).
+		Where("julianday(bucket_at) >= julianday(?) AND julianday(bucket_at) <= julianday(?)", start, now).
+		Select(probeBucket + " AS bucket, SUM(success_count) AS success, SUM(failure_count) AS failed").
+		Group("bucket").Scan(&probes).Error; err != nil {
+		return out, err
+	}
+	for _, row := range probes {
+		if index, ok := slots[row.Bucket]; ok {
+			out.Points[index].ProbeSuccess = row.Success
+			out.Points[index].ProbeFailed = row.Failed
+		}
+	}
+	var executions []struct {
+		Bucket string
+		Status string
+		Count  int64
+	}
+	if err := bounded(db.Model(&models.AutomationExecution{}), start).
+		Select(bucket + " AS bucket, status, COUNT(*) AS count").Group("bucket, status").Scan(&executions).Error; err != nil {
+		return out, err
+	}
+	for _, row := range executions {
+		if index, ok := slots[row.Bucket]; ok {
+			switch row.Status {
+			case "success":
+				out.Points[index].AutomationSuccess += row.Count
+			case "failed":
+				out.Points[index].AutomationFailed += row.Count
+			case "running":
+				out.Points[index].AutomationRunning += row.Count
 			}
 		}
 	}

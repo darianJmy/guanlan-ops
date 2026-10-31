@@ -98,7 +98,6 @@ func createCurrentSchema(db *gorm.DB) error {
 		&models.AlertActionExecution{},
 		&models.AlertRuleGroup{},
 		&models.AlertRule{},
-		&models.AlertRuleDatasource{},
 		&models.AlertRuleDatasourceGroup{},
 		&models.AlertRuleCondition{},
 		&models.AlertRuleBinding{},

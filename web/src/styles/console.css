@@ -34,6 +34,7 @@ html.dark {
 }
 
 :root, html.dark, html[data-theme] {
+  --layout-header-height: 64px;
   --ops-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --el-font-family: var(--ops-font-family);
   --el-font-size-base: 14px;
@@ -326,6 +327,17 @@ body:has(.settings-typography) .el-popper * {
 }
 
 /* Shared spacing also applies when drawers are teleported to body. */
+.center-drawer.config-drawer .el-drawer__header {
+  box-sizing: border-box;
+  height: var(--layout-header-height, 64px);
+  min-height: var(--layout-header-height, 64px);
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--ops-border);
+}
+
 .standard-config-drawer .el-drawer__header {
   margin-bottom: 0;
   padding: 16px 20px;

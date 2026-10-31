@@ -8,13 +8,13 @@ import { parseCertificateTarget, formatCertificateTarget } from '../src/utils/ce
 import { probeTypes } from '../src/utils/probeTypes.js'
 
 const source = parseVue(readFileSync(new URL('../src/views/inspection/InspectionTaskEditor.vue', import.meta.url), 'utf8')).descriptor.scriptSetup.content
-const names = new Set(['defaultForm', 'selectedNode', 'copyTask', 'fillForm', 'configuredNodeValues', 'parseObject', 'objectToRows', 'objectToLabelRows', 'rowsToObject', 'selectedExecutionNodes', 'buildPayload', 'changeType'])
+const names = new Set(['defaultForm', 'copyTask', 'fillForm', 'configuredNodeValue', 'parseObject', 'objectToRows', 'objectToLabelRows', 'rowsToObject', 'selectedExecutionNodes', 'buildPayload', 'changeType'])
 const code = parse(source, { sourceType: 'module' }).program.body.filter(node =>
   node.type === 'FunctionDeclaration' ? names.has(node.id.name) : node.type === 'VariableDeclaration' && node.declarations.some(d => names.has(d.id.name))
 ).map(node => source.slice(node.start, node.end)).join('\n')
 function editor() {
   const context = vm.createContext({ parseCertificateTarget, formatCertificateTarget, taskTypes: probeTypes, computed: ({get,set}) => ({ get value() { return get() }, set value(value) { set(value) } }) })
-  vm.runInContext('const legacyNodeValues = {value: []}; const automationTasks = {value: []}; const formRef = {value: null};', context)
+  vm.runInContext('const automationTasks = {value: []}; const formRef = {value: null};', context)
   vm.runInContext(code + '\nconst form = defaultForm();', context)
   return expression => vm.runInContext(expression, context)
 }
@@ -27,9 +27,9 @@ const original = {
 
 test('single node selection replaces the previous selection in saved configuration', () => {
   const run = editor()
-  run("selectedNode.value = 'ssh:7'; selectedNode.value = 'agent:9'")
+  run("form.node_value = 'ssh:7'; form.node_value = 'agent:9'")
   assert.deepEqual(JSON.parse(run('JSON.stringify(selectedExecutionNodes())')), [{node_type:'agent', node_id:9}])
-  run("selectedNode.value = 'direct'")
+  run("form.node_value = 'direct'")
   assert.deepEqual(JSON.parse(run('JSON.stringify(selectedExecutionNodes())')), [{node_type:'direct', node_id:0}])
 })
 
@@ -55,21 +55,15 @@ test('copy creates a new draft in the original group with unique name and preser
   assert.deepEqual(config.execution_nodes, [{node_type:'ssh',node_id:7}])
 })
 
-test('existing multi-node tasks are preserved, but their copies require a single node', () => {
+test('editing and copying use the same single execution node', () => {
   const run = editor()
-  const row = {...original, config: JSON.stringify({target:original.target,execution_nodes:[{node_type:'direct',node_id:0},{node_type:'ssh',node_id:7}]})}
-  run(`fillForm(${JSON.stringify(row)}); legacyNodeValues.value = [...form.node_values]`)
-  assert.equal(run('selectedNode.value'), '__legacy__')
-  assert.equal(run('selectedExecutionNodes().length'), 2)
-  run("selectedNode.value = 'ssh:7'")
-  assert.equal(run('selectedExecutionNodes().length'), 1)
-  run("selectedNode.value = '__legacy__'")
-  assert.equal(run('selectedExecutionNodes().length'), 2)
-  run(`copyTask(${JSON.stringify(row)}, [])`)
-  assert.equal(run('form.node_values.length'), 0)
+  run(`fillForm(${JSON.stringify(original)})`)
+  assert.equal(run('form.node_value'), 'ssh:7')
+  run(`copyTask(${JSON.stringify(original)}, [])`)
+  assert.equal(run('form.node_value'), 'ssh:7')
   run("changeType('tcp')")
-  assert.equal(run('form.node_values.length'), 0)
-  run("selectedNode.value = 'direct'")
+  assert.equal(run('form.node_value'), 'ssh:7')
+  run("form.node_value = 'direct'")
   assert.equal(run('selectedExecutionNodes().length'), 1)
 })
 
@@ -89,7 +83,7 @@ test('existing multi-node tasks are preserved, but their copies require a single
 
 test('script probes only serialize the automation task reference', () => {
   const run = editor()
-  run("automationTasks.value = [{id: 12, name: '健康检查', status: 1}]; changeType('script'); Object.assign(form, {automation_task_id: 12, node_values: ['ssh:7'], timeout_ms: 100, script_id: 99})")
+  run("automationTasks.value = [{id: 12, name: '健康检查', status: 1}]; changeType('script'); Object.assign(form, {automation_task_id: 12, node_value: 'ssh:7', timeout_ms: 100, script_id: 99})")
   const payload = JSON.parse(run('JSON.stringify(buildPayload())'))
   assert.equal(payload.target, '健康检查')
   const config = JSON.parse(payload.config)

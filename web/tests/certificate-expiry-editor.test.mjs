@@ -53,7 +53,7 @@ test('TCP remains a connectivity task without an expiry policy', () => {
 
 test('certificate probe serialization keeps its selected execution node', () => {
   const run = editor()
-  run("changeType('certificate_expiry'); form.host = 'example.com'; form.node_values = ['agent:7']; form.expiry_alert_days = 14")
+  run("changeType('certificate_expiry'); form.host = 'example.com'; form.node_value = 'agent:7'; form.expiry_alert_days = 14")
   const payload = JSON.parse(run('JSON.stringify(buildPayload())'))
   const config = JSON.parse(payload.config)
   assert.equal(payload.type, 'certificate_expiry')

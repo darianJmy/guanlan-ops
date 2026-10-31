@@ -43,7 +43,6 @@ type saveAlertRuleReq struct {
 	Name                      string                      `json:"name"`
 	Description               string                      `json:"description"`
 	Expression                string                      `json:"expression"`
-	DatasourceIDs             []uint                      `json:"datasource_ids"`
 	FaultCenterID             uint                        `json:"fault_center_id"`
 	ForSeconds                int                         `json:"for_seconds"`
 	RecoveryWaitSeconds       int                         `json:"recovery_wait_seconds"`
@@ -63,10 +62,9 @@ type saveAlertRuleConditionReq struct {
 }
 
 type alertRuleSelection struct {
-	DirectDatasourceIDs []uint
-	DatasourceGroupIDs  []uint
-	EffectiveIDs        []uint
-	Conditions          []models.AlertRuleCondition
+	DatasourceGroupIDs []uint
+	EffectiveIDs       []uint
+	Conditions         []models.AlertRuleCondition
 }
 
 type promVectorSeries struct {
@@ -155,7 +153,9 @@ func GetAlertRule(c *gin.Context) {
 
 func CreateAlertRule(c *gin.Context) {
 	var req saveAlertRuleReq
-	if c.ShouldBindJSON(&req) != nil {
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&req) != nil {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "告警规则格式不正确")
 		return
 	}
@@ -200,7 +200,9 @@ func UpdateAlertRule(c *gin.Context) {
 		return
 	}
 	var req saveAlertRuleReq
-	if c.ShouldBindJSON(&req) != nil {
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&req) != nil {
 		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "告警规则格式不正确")
 		return
 	}
@@ -358,9 +360,6 @@ func BatchDeleteAlertRules(c *gin.Context) {
 		if err := tx.Where("rule_id IN ?", ruleIDs).Delete(&models.AlertRuleBinding{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("rule_id IN ?", ruleIDs).Delete(&models.AlertRuleDatasource{}).Error; err != nil {
-			return err
-		}
 		if err := tx.Where("rule_id IN ?", ruleIDs).Delete(&models.AlertRuleDatasourceGroup{}).Error; err != nil {
 			return err
 		}
@@ -389,9 +388,6 @@ func DeleteAlertRule(c *gin.Context) {
 			return err
 		}
 		if err := tx.Where("rule_id = ?", rule.ID).Delete(&models.AlertRuleBinding{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("rule_id = ?", rule.ID).Delete(&models.AlertRuleDatasource{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("rule_id = ?", rule.ID).Delete(&models.AlertRuleDatasourceGroup{}).Error; err != nil {
@@ -499,13 +495,12 @@ func buildAlertRule(req saveAlertRuleReq, excludeID uint) (models.AlertRule, ale
 	}
 	datasourceGroupIDs := append([]uint{}, req.DatasourceGroupIDs...)
 	datasourceGroupIDs = normalizeChannelIDs(datasourceGroupIDs)
-	directDatasourceIDs := normalizeChannelIDs(req.DatasourceIDs)
-	effectiveIDs, err := datasourceIDsForSelection(database.DB, datasourceGroupIDs, directDatasourceIDs)
+	effectiveIDs, err := datasourceIDsForSelection(database.DB, datasourceGroupIDs)
 	if err != nil {
 		return models.AlertRule{}, emptySelection, err
 	}
-	if len(datasourceGroupIDs) == 0 && len(directDatasourceIDs) == 0 {
-		return models.AlertRule{}, emptySelection, fmt.Errorf("请至少选择一个数据源或数据源分组")
+	if len(datasourceGroupIDs) == 0 {
+		return models.AlertRule{}, emptySelection, fmt.Errorf("请至少选择一个实例分组")
 	}
 	severity := strings.ToUpper(strings.TrimSpace(req.Severity))
 	if severity == "" {
@@ -530,7 +525,7 @@ func buildAlertRule(req saveAlertRuleReq, excludeID uint) (models.AlertRule, ale
 	delete(labels, "severity")
 	encodedLabels, _ := json.Marshal(labels)
 	encodedAnnotations, _ := json.Marshal(annotations)
-	selection := alertRuleSelection{DirectDatasourceIDs: directDatasourceIDs, DatasourceGroupIDs: datasourceGroupIDs, EffectiveIDs: effectiveIDs, Conditions: conditions}
+	selection := alertRuleSelection{DatasourceGroupIDs: datasourceGroupIDs, EffectiveIDs: effectiveIDs, Conditions: conditions}
 	return models.AlertRule{GroupID: req.GroupID, Name: req.Name, Description: req.Description, Expression: req.Expression, ForSeconds: req.ForSeconds, RecoveryWaitSeconds: req.RecoveryWaitSeconds, NoDataPolicy: "resolve", EvaluationIntervalSeconds: req.EvaluationIntervalSeconds, Severity: severity, Labels: string(encodedLabels), Annotations: string(encodedAnnotations), FaultCenterID: req.FaultCenterID, Status: req.Status}, selection, nil
 }
 
@@ -630,7 +625,7 @@ func replaceAlertRuleConditions(tx *gorm.DB, ruleID uint, conditions []models.Al
 	return nil
 }
 
-func datasourceIDsForSelection(tx *gorm.DB, datasourceGroupIDs, directDatasourceIDs []uint) ([]uint, error) {
+func datasourceIDsForSelection(tx *gorm.DB, datasourceGroupIDs []uint) ([]uint, error) {
 	if len(datasourceGroupIDs) > 0 {
 		var groupCount int64
 		if err := tx.Model(&models.DatasourceGroup{}).Where("id IN ?", datasourceGroupIDs).Count(&groupCount).Error; err != nil {
@@ -640,16 +635,7 @@ func datasourceIDsForSelection(tx *gorm.DB, datasourceGroupIDs, directDatasource
 			return nil, fmt.Errorf("数据源分组不存在")
 		}
 	}
-	if len(directDatasourceIDs) > 0 {
-		var datasourceCount int64
-		if err := tx.Model(&models.Datasource{}).Where("id IN ? AND type IN ? AND status = 1", directDatasourceIDs, metricDatasourceTypes()).Count(&datasourceCount).Error; err != nil {
-			return nil, err
-		}
-		if datasourceCount != int64(len(directDatasourceIDs)) {
-			return nil, fmt.Errorf("数据源不存在、已停用或不支持指标查询")
-		}
-	}
-	effectiveIDs := append([]uint{}, directDatasourceIDs...)
+	effectiveIDs := []uint{}
 	if len(datasourceGroupIDs) > 0 {
 		expandedIDs, err := expandedDatasourceGroupIDs(tx, datasourceGroupIDs)
 		if err != nil {
@@ -667,16 +653,8 @@ func datasourceIDsForSelection(tx *gorm.DB, datasourceGroupIDs, directDatasource
 }
 
 func replaceAlertRuleSelections(tx *gorm.DB, ruleID uint, selection alertRuleSelection) error {
-	if err := tx.Where("rule_id = ?", ruleID).Delete(&models.AlertRuleDatasource{}).Error; err != nil {
-		return err
-	}
 	if err := tx.Where("rule_id = ?", ruleID).Delete(&models.AlertRuleDatasourceGroup{}).Error; err != nil {
 		return err
-	}
-	for _, datasourceID := range selection.DirectDatasourceIDs {
-		if err := tx.Create(&models.AlertRuleDatasource{RuleID: ruleID, DatasourceID: datasourceID}).Error; err != nil {
-			return err
-		}
 	}
 	for _, datasourceGroupID := range selection.DatasourceGroupIDs {
 		if err := tx.Create(&models.AlertRuleDatasourceGroup{RuleID: ruleID, DatasourceGroupID: datasourceGroupID}).Error; err != nil {
@@ -687,14 +665,6 @@ func replaceAlertRuleSelections(tx *gorm.DB, ruleID uint, selection alertRuleSel
 }
 
 func effectiveAlertRuleDatasourceIDs(tx *gorm.DB, ruleID uint) ([]uint, error) {
-	var directSelections []models.AlertRuleDatasource
-	if err := tx.Where("rule_id = ?", ruleID).Find(&directSelections).Error; err != nil {
-		return nil, err
-	}
-	directIDs := make([]uint, 0, len(directSelections))
-	for _, selection := range directSelections {
-		directIDs = append(directIDs, selection.DatasourceID)
-	}
 	var groupSelections []models.AlertRuleDatasourceGroup
 	if err := tx.Where("rule_id = ?", ruleID).Find(&groupSelections).Error; err != nil {
 		return nil, err
@@ -703,13 +673,7 @@ func effectiveAlertRuleDatasourceIDs(tx *gorm.DB, ruleID uint) ([]uint, error) {
 	for _, selection := range groupSelections {
 		groupIDs = append(groupIDs, selection.DatasourceGroupID)
 	}
-	var activeDirectIDs []uint
-	if len(directIDs) > 0 {
-		if err := tx.Model(&models.Datasource{}).Where("id IN ? AND type IN ? AND status = 1", directIDs, metricDatasourceTypes()).Pluck("id", &activeDirectIDs).Error; err != nil {
-			return nil, err
-		}
-	}
-	return datasourceIDsForSelection(tx, groupIDs, activeDirectIDs)
+	return datasourceIDsForSelection(tx, groupIDs)
 }
 
 func replaceAlertRuleBindings(tx *gorm.DB, ruleID uint, datasourceIDs []uint) error {
@@ -828,12 +792,6 @@ func alertRuleResponse(rule models.AlertRule) gin.H {
 	database.DB.Select("id", "name").First(&center, rule.FaultCenterID)
 	var group models.AlertRuleGroup
 	database.DB.Select("id", "name").First(&group, rule.GroupID)
-	var directSelections []models.AlertRuleDatasource
-	database.DB.Where("rule_id = ?", rule.ID).Order("id ASC").Find(&directSelections)
-	directDatasourceIDs := make([]uint, 0, len(directSelections))
-	for _, selection := range directSelections {
-		directDatasourceIDs = append(directDatasourceIDs, selection.DatasourceID)
-	}
 	var datasourceGroupSelections []models.AlertRuleDatasourceGroup
 	database.DB.Where("rule_id = ?", rule.ID).Order("id ASC").Find(&datasourceGroupSelections)
 	datasourceGroupIDs := make([]uint, 0, len(datasourceGroupSelections))
@@ -850,7 +808,7 @@ func alertRuleResponse(rule models.AlertRule) gin.H {
 	database.DB.Model(&models.AlertInstance{}).Where("source = ? AND source_id = ? AND status IN ?", alertRuleSource, rule.ID, []string{alertStatusPending, alertStatusFiring, alertStatusRecovering}).Count(&activeCount)
 	var conditions []models.AlertRuleCondition
 	database.DB.Where("rule_id = ?", rule.ID).Order("sort ASC, id ASC").Find(&conditions)
-	return gin.H{"id": rule.ID, "group_id": rule.GroupID, "group_name": group.Name, "name": rule.Name, "description": rule.Description, "expression": rule.Expression, "datasource_group_ids": datasourceGroupIDs, "datasource_group_names": datasourceGroupNames, "direct_datasource_ids": directDatasourceIDs, "datasource_ids": datasourceIDs, "datasource_names": datasourceNames, "datasource_results": datasourceResults, "fault_center_id": rule.FaultCenterID, "fault_center_name": center.Name, "for_seconds": rule.ForSeconds, "recovery_wait_seconds": rule.RecoveryWaitSeconds, "no_data_policy": "resolve", "evaluation_interval_seconds": rule.EvaluationIntervalSeconds, "severity": rule.Severity, "conditions": conditions, "external_labels": decodeAlertRuleExternalLabels(rule.Labels), "annotations": decodeAlertRuleAnnotations(rule.Annotations), "status": rule.Status, "last_evaluated_at": lastEvaluatedAt, "last_status": aggregateStatus, "last_error": aggregateError, "active_count": activeCount, "created_at": rule.CreatedAt, "updated_at": rule.UpdatedAt}
+	return gin.H{"id": rule.ID, "group_id": rule.GroupID, "group_name": group.Name, "name": rule.Name, "description": rule.Description, "expression": rule.Expression, "datasource_group_ids": datasourceGroupIDs, "datasource_group_names": datasourceGroupNames, "datasource_ids": datasourceIDs, "datasource_names": datasourceNames, "datasource_results": datasourceResults, "fault_center_id": rule.FaultCenterID, "fault_center_name": center.Name, "for_seconds": rule.ForSeconds, "recovery_wait_seconds": rule.RecoveryWaitSeconds, "no_data_policy": "resolve", "evaluation_interval_seconds": rule.EvaluationIntervalSeconds, "severity": rule.Severity, "conditions": conditions, "external_labels": decodeAlertRuleExternalLabels(rule.Labels), "annotations": decodeAlertRuleAnnotations(rule.Annotations), "status": rule.Status, "last_evaluated_at": lastEvaluatedAt, "last_status": aggregateStatus, "last_error": aggregateError, "active_count": activeCount, "created_at": rule.CreatedAt, "updated_at": rule.UpdatedAt}
 }
 
 func decodeRuleTextMap(value string) map[string]string {

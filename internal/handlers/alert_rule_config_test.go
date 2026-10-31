@@ -11,7 +11,7 @@ kind: AlertRuleList
 rules:
   - name: CPU 使用率过高
     expression: node_cpu_usage > 90
-    datasource_ids: [1]
+    datasource_group_ids: [1]
     fault_center_id: 1
     for_seconds: 120
     recovery_wait_seconds: 0

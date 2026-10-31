@@ -21,7 +21,7 @@ import (
 func operationTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := platformToolDB(t)
-	if err := db.AutoMigrate(&models.AlertRule{}, &models.AlertRuleCondition{}, &models.AlertRuleBinding{}, &models.AlertRuleDatasource{}, &models.AlertRuleDatasourceGroup{}, &models.AlertInstance{}, &models.AlertEvent{}, &models.APIAccessToken{}, &models.MCPClient{}); err != nil {
+	if err := db.AutoMigrate(&models.AlertRule{}, &models.AlertRuleCondition{}, &models.AlertRuleBinding{}, &models.AlertRuleDatasourceGroup{}, &models.AlertInstance{}, &models.AlertEvent{}, &models.APIAccessToken{}, &models.MCPClient{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, op := range platformOperations {
@@ -33,7 +33,7 @@ func operationTestDB(t *testing.T) *gorm.DB {
 			t.Fatal(err)
 		}
 	}
-	for _, row := range []interface{}{&models.AlertRuleGroup{ID: 1, Name: "CPU"}, &models.FaultCenter{ID: 1, Name: "ops", Status: 1}, &models.Datasource{ID: 1, Name: "metrics", Type: "prometheus", URL: "http://metrics.invalid", Status: 1}} {
+	for _, row := range []interface{}{&models.DatasourceGroup{ID: 1, Name: "metrics"}, &models.DatasourceGroupMember{GroupID: 1, DatasourceID: 1}, &models.AlertRuleGroup{ID: 1, Name: "CPU"}, &models.FaultCenter{ID: 1, Name: "ops", Status: 1}, &models.Datasource{ID: 1, Name: "metrics", Type: "prometheus", URL: "http://metrics.invalid", Status: 1}} {
 		if err := db.Create(row).Error; err != nil {
 			t.Fatal(err)
 		}
@@ -43,7 +43,7 @@ func operationTestDB(t *testing.T) *gorm.DB {
 func cpuRuleArgs() map[string]interface{} {
 	return map[string]interface{}{
 		"name": "CPU over 80%", "expression": "100 * (1 - avg by(instance)(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
-		"group_id": 1, "fault_center_id": 1, "datasource_ids": []uint{1}, "conditions": []map[string]interface{}{{"severity": "P0", "operator": ">", "threshold": 80}},
+		"group_id": 1, "fault_center_id": 1, "datasource_group_ids": []uint{1}, "conditions": []map[string]interface{}{{"severity": "P0", "operator": ">", "threshold": 80}},
 		"status": 0, "evaluation_interval_seconds": 60, "for_seconds": 300, "recovery_wait_seconds": 60,
 	}
 }

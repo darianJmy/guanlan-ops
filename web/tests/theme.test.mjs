@@ -8,7 +8,7 @@ test('day and night palettes resolve and apply with the right color scheme', () 
   globalThis.window = { matchMedia: () => ({ matches: false }) }
   globalThis.document = { documentElement: { dataset: {}, style: {}, classList: { toggle(name, enabled) { enabled ? classes.add(name) : classes.delete(name) } } } }
   assert.deepEqual(themes.map(theme => theme.id), ['light', 'dark'])
-  for (const theme of [...themes, ...themes.toReversed()]) {
+  for (const theme of [...themes, ...[...themes].reverse()]) {
     assert.ok(isTheme(theme.id))
     applyTheme(theme.id)
     assert.equal(document.documentElement.dataset.theme, theme.id)

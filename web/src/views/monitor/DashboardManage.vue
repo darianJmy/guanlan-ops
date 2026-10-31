@@ -14,15 +14,9 @@
           aria-label="搜索监控仪表盘"
           placeholder="仪表盘名称"
           class="dashboard-search"
+          @input="searchDashboards"
           @keyup.enter="searchDashboards"
-          @clear="searchDashboards"
-        >
-          <template #append>
-            <el-button aria-label="搜索" @click="searchDashboards">
-              <el-icon><Search /></el-icon>
-            </el-button>
-          </template>
-        </el-input>
+          @clear="searchDashboards" :prefix-icon="Search" />
         <div class="toolbar-actions">
           <el-button :icon="Refresh" :loading="loading" @click="fetchData">刷新</el-button>
           <el-button type="primary" :icon="Plus" @click="handleAdd" v-permission="['dashboard:create']">创建</el-button>

@@ -34,7 +34,7 @@
       <template v-else>
         <div class="histogram-title">当前返回日志分布 <span>非全量日志统计 · 点击柱形调整查询时间范围</span></div>
         <v-chart v-if="entries.length" :option="histogram" autoresize class="histogram" @click="selectBucket" />
-        <div class="log-tools"><el-input v-model="keyword" clearable placeholder="在返回日志中搜索并高亮" aria-label="搜索返回日志" /><el-select v-model="level" clearable placeholder="全部级别" aria-label="日志级别"><el-option v-for="value in levels" :key="value" :value="value" :label="value.toUpperCase()" /></el-select><el-switch v-model="wrap" active-text="换行" /><el-button @click="ascending=!ascending">{{ ascending?'最早优先':'最新优先' }}</el-button><span>{{ filteredEntries.length }} 条</span></div>
+        <div class="log-tools"><el-input :prefix-icon="Search" v-model="keyword" clearable placeholder="在返回日志中搜索并高亮" aria-label="搜索返回日志" /><el-select v-model="level" clearable placeholder="全部级别" aria-label="日志级别"><el-option v-for="value in levels" :key="value" :value="value" :label="value.toUpperCase()" /></el-select><el-switch v-model="wrap" active-text="换行" /><el-button @click="ascending=!ascending">{{ ascending?'最早优先':'最新优先' }}</el-button><span>{{ filteredEntries.length }} 条</span></div>
         <div class="log-lines" :class="{nowrap:!wrap}">
           <article v-for="(entry,index) in pageEntries" :key="`${entry.timestamp}-${index}`" class="log-row" :class="`level-${logLevel(entry)}`">
             <button class="log-content" @click="selectedEntry=entry;detailOpen=true"><time>{{ timestamp(entry.timestamp) }}</time><span class="severity">{{ logLevel(entry).toUpperCase() }}</span><span class="line-text"><template v-for="(part,i) in highlightParts(entry.line,keyword)" :key="i"><mark v-if="part.match">{{ part.text }}</mark><template v-else>{{ part.text }}</template></template></span></button>
@@ -52,6 +52,7 @@
   </section>
 </template>
 <script setup>
+import { Search } from '@element-plus/icons-vue'
 import { computed,onBeforeUnmount,onMounted,ref,watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { use } from 'echarts/core'

@@ -15,13 +15,6 @@ const staticRoutes = [
     component: () => import('../views/Layout.vue'),
     redirect: '/dashboard',
     children: [
-      { path: 'system/permissions', redirect: '/dashboard' },
-      { path: 'system/menus', redirect: '/dashboard' },
-      { path: 'settings/api-tokens', redirect: '/dashboard' },
-      { path: 'explore', redirect: '/monitor/query' },
-      { path: 'observability/logs', redirect: '/monitor/query?kind=logs' },
-      { path: 'observability/traces', redirect: '/monitor/query?kind=traces' },
-      { path: 'observability', redirect: '/monitor/query' },
       {
         path: 'dashboard',
         name: 'Dashboard',
@@ -154,7 +147,16 @@ function resetDynamicRoutes() {
 }
 
 function addDynamicRoutes(menus) {
-  const addRouteFromMenu = (items, parentPath = '') => {
+  const settings = menus.find(menu => menu.path === '/settings')
+  const firstSetting = settings?.children?.find(menu => menu.type === 2 && componentMap[menu.component])
+  if (firstSetting) {
+    dynamicRouteRemovers.push(router.addRoute('Layout', {
+      path: 'settings',
+      name: 'SettingsHome',
+      redirect: firstSetting.path,
+    }))
+  }
+  const addRouteFromMenu = (items) => {
     items.forEach((menu) => {
       if (menu.type === 2 && componentMap[menu.component]) {
         const routePath = menu.path.replace(/^\//, '')
@@ -167,7 +169,7 @@ function addDynamicRoutes(menus) {
         dynamicRouteRemovers.push(removeRoute)
       }
       if (menu.children && menu.children.length > 0) {
-        addRouteFromMenu(menu.children, parentPath)
+        addRouteFromMenu(menu.children)
       }
     })
   }

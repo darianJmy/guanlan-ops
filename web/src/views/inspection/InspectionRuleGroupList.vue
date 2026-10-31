@@ -2,13 +2,7 @@
   <div class="group-page">
     <div class="group-toolbar">
       <div class="search-area" role="search" aria-label="规则组筛选">
-        <el-input v-model="keyword" clearable aria-label="搜索拨测规则组" placeholder="搜索规则组名称" @keyup.enter="handleSearch" @clear="handleSearch">
-          <template #append>
-            <el-button aria-label="搜索" @click="handleSearch">
-              <el-icon><Search /></el-icon>
-            </el-button>
-          </template>
-        </el-input>
+        <el-input v-model="keyword" clearable aria-label="搜索拨测规则组" placeholder="搜索规则组名称" @input="scheduleSearch" @keyup.enter="searchNow" @clear="searchNow" :prefix-icon="Search" />
       </div>
       <div class="toolbar-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadGroups">刷新</el-button>
@@ -61,6 +55,8 @@
 </template>
 
 <script setup>
+import { useSearchDebounce } from '../../composables/useSearchDebounce'
+
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -122,6 +118,7 @@ async function removeGroup(row) {
   await loadGroups()
 }
 
+const { scheduleSearch, searchNow } = useSearchDebounce(handleSearch)
 </script>
 
 <style scoped>

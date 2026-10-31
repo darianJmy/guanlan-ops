@@ -10,11 +10,7 @@
       </aside>
       <section class="asset-content" :aria-label="assetTab === 'repositories' ? 'Git 仓库列表' : '在线脚本列表'">
         <header class="script-toolbar">
-          <el-input v-model="keyword" clearable class="script-search" :aria-label="assetTab === 'repositories' ? '搜索 Git 仓库' : '搜索脚本'" :placeholder="assetTab === 'repositories' ? '搜索名称、地址或分支' : '搜索名称或描述'" @keyup.enter="handleSearch" @clear="handleSearch">
-            <template #append>
-              <el-button aria-label="搜索" @click="handleSearch"><el-icon><Search /></el-icon></el-button>
-            </template>
-          </el-input>
+          <el-input v-model="keyword" clearable class="script-search" :aria-label="assetTab === 'repositories' ? '搜索 Git 仓库' : '搜索脚本'" placeholder="搜索名称" @input="scheduleSearch" @keyup.enter="searchNow" @clear="searchNow" :prefix-icon="Search" />
           <div class="script-toolbar-actions">
             <el-button :icon="Refresh" @click="loadScripts">刷新</el-button>
             <el-button type="primary" :icon="Plus" @click="openCreate" v-permission="createPermissions">创建</el-button>
@@ -77,6 +73,8 @@
 </template>
 
 <script setup>
+import { useSearchDebounce } from '../../composables/useSearchDebounce'
+
 import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -140,6 +138,7 @@ async function removeOne(row) {
 }
 function rowKey(row) { return `${row.source}:${row.id}` }
 function formatTime(value) { return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—' }
+const { scheduleSearch, searchNow } = useSearchDebounce(handleSearch)
 </script>
 
 <style scoped>

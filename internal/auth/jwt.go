@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"errors"
 	"guanlan/internal/config"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -14,6 +16,10 @@ type Claims struct {
 }
 
 func GenerateToken(userID uint, username string) (string, error) {
+	secret := strings.TrimSpace(config.AppConfig.JWTSecret)
+	if secret == "" {
+		return "", errors.New("jwt secret is empty")
+	}
 	claims := Claims{
 		UserID:   userID,
 		Username: username,
@@ -23,17 +29,25 @@ func GenerateToken(userID uint, username string) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(config.AppConfig.JWTSecret))
+	return token.SignedString([]byte(secret))
 }
 
 func ParseToken(tokenString string) (*Claims, error) {
+	secret := strings.TrimSpace(config.AppConfig.JWTSecret)
+	if secret == "" {
+		return nil, errors.New("jwt secret is empty")
+	}
+	tokenString = strings.TrimSpace(tokenString)
+	if tokenString == "" {
+		return nil, jwt.ErrTokenMalformed
+	}
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
-		return []byte(config.AppConfig.JWTSecret), nil
-	})
+		return []byte(secret), nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil {
 		return nil, err
 	}
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid && claims.UserID > 0 {
 		return claims, nil
 	}
 	return nil, jwt.ErrSignatureInvalid

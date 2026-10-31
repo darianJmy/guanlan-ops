@@ -16,15 +16,19 @@
     "axios": "^1.6.0",
     "echarts": "^6.1.0",
     "element-plus": "^2.4.4",
-    "monaco-editor": "^0.56.0",
+    "monaco-editor": "^0.57.0",
     "pinia": "^2.1.7",
-    "pnpm": "^12.14.0",
     "vue": "^3.4.0",
     "vue-echarts": "^8.0.1",
     "vue-router": "^4.2.5"
   },
+  "overrides": {
+    "monaco-editor": {
+      "dompurify": "3.4.17"
+    }
+  },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^4.5.0",
-    "vite": "^5.0.0"
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^6.4.5"
   }
 }

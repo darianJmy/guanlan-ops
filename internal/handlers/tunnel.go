@@ -110,7 +110,7 @@ func TestTunnelConnection(c *gin.Context) {
 }
 
 func checkTunnelReachable(t models.Tunnel) (bool, string) {
-	addr := fmt.Sprintf("%s:%d", t.Host, t.Port)
+	addr := net.JoinHostPort(t.Host, strconv.Itoa(t.Port))
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return false, fmt.Sprintf("无法连接 %s: %s", addr, err.Error())
@@ -191,10 +191,7 @@ func ListDatasourcesWithTunnel(c *gin.Context) {
 	}
 	if keyword := strings.TrimSpace(query.Keyword); keyword != "" {
 		kw := "%" + keyword + "%"
-		tx = tx.Where(
-			"name LIKE ? OR category LIKE ? OR type LIKE ? OR url LIKE ? OR labels LIKE ? OR labels LIKE ? OR remark LIKE ?",
-			kw, kw, kw, kw, kw, datasourceLabelSearchPattern(keyword), kw,
-		)
+		tx = tx.Where("name LIKE ? OR url LIKE ?", kw, kw)
 	}
 	if label := strings.TrimSpace(query.Label); label != "" {
 		tx = tx.Where("labels LIKE ?", datasourceLabelSearchPattern(label))
@@ -339,7 +336,7 @@ func UpdateDatasourceWithTunnel(c *gin.Context) {
 		if err := tx.Model(&existing).Updates(updates).Error; err != nil {
 			return err
 		}
-		return syncDatasourceStatusRuleBindings(tx, []uint{existing.ID})
+		return syncAllDatasourceGroupRuleBindings(tx)
 	}); err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "更新实例失败")
 		return
@@ -373,7 +370,7 @@ func BatchUpdateDatasourceStatus(c *gin.Context) {
 			return result.Error
 		}
 		updated = result.RowsAffected
-		return syncDatasourceStatusRuleBindings(tx, req.IDs)
+		return syncAllDatasourceGroupRuleBindings(tx)
 	})
 	if err != nil {
 		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "批量更新状态失败")

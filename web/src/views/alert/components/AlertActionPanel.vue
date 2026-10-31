@@ -1,7 +1,7 @@
 <template>
   <section class="action-panel">
     <div class="strategy-toolbar">
-      <div><el-input v-model="ruleKeyword" clearable aria-label="搜索自动化处置规则" placeholder="搜索策略名称" @keyup.enter="searchRules" @clear="searchRules"><template #append><el-button aria-label="搜索" @click="searchRules"><el-icon><Search /></el-icon></el-button></template></el-input></div>
+      <div><el-input v-model="ruleKeyword" clearable aria-label="搜索自动化处置规则" placeholder="搜索策略名称" @input="rulePage = 1" @keyup.enter="searchRules" @clear="searchRules" :prefix-icon="Search" /></div>
       <div><el-button :icon="Refresh" @click="loadRules">刷新</el-button><el-button type="primary" :icon="Plus" @click="openRule()">创建</el-button></div>
     </div>
     <el-table v-loading="rulesLoading" :data="pagedRules">
@@ -19,7 +19,7 @@
     <div class="pagination"><el-pagination v-model:current-page="rulePage" v-model:page-size="rulePageSize" :page-sizes="[10, 20, 50]" :total="filteredRules.length" layout="total, sizes, prev, pager, next" @size-change="rulePage = 1" /></div>
 
     <el-drawer v-model="drawerVisible" class="center-drawer config-drawer action-drawer" size="min(460px, 94vw)" :close-on-click-modal="false" destroy-on-close>
-      <template #header><div class="drawer-header"><DrawerBackButton @click="drawerVisible = false" /><span class="drawer-title">{{ form.id ? '编辑处置规则' : '创建处置规则' }}</span></div></template>
+      <template #header><div class="drawer-header"><span class="drawer-title">{{ form.id ? '编辑处置规则' : '创建处置规则' }}</span></div></template>
       <el-form label-position="top" class="strategy-form action-form">
         <el-form-item label="规则名称" required>
           <el-input v-model="form.name" maxlength="128" show-word-limit aria-label="处置规则名称" />
@@ -62,7 +62,6 @@
 </template>
 
 <script setup>
-import DrawerBackButton from '../../../components/DrawerBackButton.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ArrowLeft, Delete, Plus, QuestionFilled, Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
