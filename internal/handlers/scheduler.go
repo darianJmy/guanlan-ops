@@ -17,6 +17,9 @@ func StartScheduler() {
 }
 
 func schedulerLoop() {
+	historyTicker := time.NewTicker(time.Hour)
+	defer historyTicker.Stop()
+	cleanupExpiredInspectionRecords(time.Now())
 	taskTicker := time.NewTicker(time.Second)
 	alertRuleTicker := time.NewTicker(5 * time.Second)
 	notificationTicker := time.NewTicker(time.Second)
@@ -26,6 +29,8 @@ func schedulerLoop() {
 	runDueAlertRuleBindings(time.Now())
 	for {
 		select {
+		case now := <-historyTicker.C:
+			cleanupExpiredInspectionRecords(now)
 		case now := <-notificationTicker.C:
 			dispatchDueAlertGroups(now)
 			dispatchDueAlertActions(now)

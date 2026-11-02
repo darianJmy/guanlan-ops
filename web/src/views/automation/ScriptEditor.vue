@@ -1,9 +1,5 @@
 <template>
   <div class="script-editor-page" v-loading="loading">
-    <div class="preview-header">
-      <el-button link type="primary" :icon="ArrowLeft" @click="cancel">返回</el-button>
-    </div>
-
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="editor-form">
       <section class="form-section metadata-section">
         <div class="section-heading">
@@ -62,7 +58,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, InfoFilled, QuestionFilled } from '@element-plus/icons-vue'
+import { InfoFilled, QuestionFilled } from '@element-plus/icons-vue'
 import { createScript, getScript, updateScript } from '../../api/script'
 import CodeEditor from '../../components/CodeEditor.vue'
 import EditorActionBar from '../../components/EditorActionBar.vue'
@@ -109,7 +105,6 @@ async function save() {
 
 <style scoped>
 .script-editor-page { --ink:var(--ops-text); --muted:var(--ops-muted); --border:var(--ops-border); display:flex; min-height:calc(100vh - 100px); flex-direction:column; gap:14px; padding-bottom:72px; }
-.preview-header { display:flex; align-items:center; justify-content:space-between; gap:20px; }
 .editor-form { display:flex; min-width:0; flex:1; flex-direction:column; gap:14px; }
 .form-section { padding:20px 22px; background:var(--ops-surface); border:1px solid var(--border); border-radius:10px; box-shadow:0 5px 18px rgba(31,50,81,.035); }
 .section-heading { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:18px; }

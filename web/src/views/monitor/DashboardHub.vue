@@ -45,10 +45,9 @@
 
     <component v-if="selectedType" :is="editors[selectedType]" ref="editor" embedded @changed="load" @view-change="previewing = $event" @select-type="pickerVisible = true" />
 
-    <el-drawer v-model="pickerVisible" class="standard-config-drawer dashboard-type-drawer" size="min(320px, 94vw)" :close-on-click-modal="false" destroy-on-close>
+    <el-drawer v-model="pickerVisible" class="standard-config-drawer dashboard-type-drawer" size="min(320px, 94vw)" :close-on-click-modal="true" destroy-on-close>
       <template #header="{ titleId, titleClass }">
         <div class="drawer-header">
-          <DrawerBackButton @click="pickerVisible = false" />
           <span :id="titleId" :class="[titleClass, 'drawer-title']">选择仪表盘类型</span>
         </div>
       </template>
@@ -75,7 +74,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getDashboardCards, reorderDashboardCards, deleteDashboard, deleteSLSDashboardProject, deleteCloudMonitorWorkspace } from '../../api/dashboard'
 import { dashboardKey, moveDashboard } from '../../utils/dashboardOrder'
 import { useUserStore } from '../../stores/user'
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import PageEmpty from '../../components/PageEmpty.vue'
 import DashboardManage from './DashboardManage.vue'
 import SLSDashboardManage from './SLSDashboardManage.vue'
@@ -220,6 +218,16 @@ onMounted(load)
 .card-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .card-actions .el-button + .el-button { margin-left: 0; }
 :global(.el-drawer.dashboard-type-drawer) { border-radius: 0; }
+:global(.el-drawer.dashboard-type-drawer .el-drawer__header) {
+  box-sizing: border-box;
+  height: var(--layout-header-height, 64px);
+  min-height: var(--layout-header-height, 64px);
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--ops-border);
+}
 .drawer-header { display: flex; align-items: center; gap: 12px; }
 .drawer-title { font-size: 16px; font-weight: 500; color: var(--ops-text); }
 .type-groups { display: flex; flex-direction: column; gap: 24px; }

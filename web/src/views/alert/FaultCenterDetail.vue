@@ -158,8 +158,8 @@
 
     <el-empty v-else-if="!pageLoading" description="故障中心不存在"><el-button type="primary" @click="router.push('/alerts')">返回故障中心</el-button></el-empty>
 
-    <el-drawer v-model="detailVisible" class="center-drawer" size="min(460px, 94vw)" :close-on-click-modal="false">
-      <template #header><div class="drawer-header"><DrawerBackButton @click="detailVisible = false" /><span class="drawer-title">告警详情</span></div></template>
+    <el-drawer v-model="detailVisible" class="center-drawer alert-detail-drawer" size="min(460px, 94vw)" :close-on-click-modal="true">
+      <template #header><div class="drawer-header"><span class="drawer-title">告警详情</span></div></template>
       <div v-if="currentAlert" class="alert-detail">
         <dl><div class="detail-item--full"><dt>告警名称</dt><dd><router-link v-if="canOpenAlertRule(currentAlert)" class="detail-link" :to="alertRuleEditRoute(currentAlert)">{{ alertResult.alertname || currentAlert.title || '—' }}</router-link><template v-else>{{ alertResult.alertname || currentAlert.title || '—' }}</template></dd></div><div><dt>告警等级</dt><dd><el-tag class="severity-tag" :type="severityType(currentAlert.severity)" effect="light" size="small">{{ currentAlert.severity || '—' }}</el-tag></dd></div><div><dt>告警状态</dt><dd><el-tag :type="statusType(currentAlert.status)" effect="light" size="small">{{ displayStatus(currentAlert) }}</el-tag></dd></div><div v-if="isPrometheusAlert(currentAlert)"><dt>告警规则组</dt><dd>{{ currentAlert.rule_group_name || '—' }}</dd></div><div><dt>告警来源</dt><dd>{{ alertSourceText(currentAlert) }}</dd></div><div v-if="isPrometheusAlert(currentAlert)"><dt>数据源</dt><dd>{{ alertResult.datasource || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)"><dt>当前值</dt><dd>{{ alertResult.value || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)" class="detail-item--full"><dt>命中条件</dt><dd>{{ alertResult.condition || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)" class="detail-item--full"><dt>告警指纹</dt><dd class="detail-monospace">{{ alertResult.fingerprint || currentAlert.fingerprint || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)" class="detail-item--full"><dt>PromQL</dt><dd class="detail-monospace">{{ alertResult.expression || '—' }}</dd></div><div><dt>首次发现</dt><dd>{{ formatTime(currentAlert.started_at) }}</dd></div><div><dt>正式触发</dt><dd>{{ formatTime(currentAlert.fired_at) }}</dd></div><div><dt>最近事件</dt><dd>{{ formatTime(currentAlert.last_event_at) }}</dd></div><div v-if="currentAlert.resolved_at"><dt>{{ currentAlert.status === 'terminated' ? '终止时间' : '恢复时间' }}</dt><dd>{{ formatTime(currentAlert.resolved_at) }}</dd></div><div v-if="isSilenced(currentAlert)" class="detail-item--full"><dt>静默至</dt><dd>{{ formatTime(currentAlert.silenced_until) }}</dd></div><div v-if="alertResult.annotations?.description || currentAlert.rule_description" class="detail-item--full"><dt>描述信息</dt><dd>{{ alertResult.annotations?.description || currentAlert.rule_description }}</dd></div><div class="detail-item--full"><dt>通知状态</dt><dd class="notification-state-detail"><span>{{ notificationStatusText(currentAlert) }}</span><small v-if="showNotificationReason(currentAlert)">{{ currentAlert.notification_reason }}</small><small v-if="hasUpcomingNotification(currentAlert)">预计通知：{{ formatTime(currentAlert.next_notification_at) }}</small></dd></div></dl>
         <section v-if="isPrometheusAlert(currentAlert)" class="alert-label-sections">
@@ -350,7 +350,6 @@
 <script setup>
 import { usePageBreadcrumb } from '../../composables/usePageBreadcrumb'
 import RecordTimeRange from '../../components/RecordTimeRange.vue'
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TableEmpty from '../../components/TableEmpty.vue'
@@ -774,6 +773,17 @@ function paginate(rows, currentPage, currentPageSize) { const start = (validPage
 </script>
 
 <style scoped>
+:global(.center-drawer.alert-detail-drawer .el-drawer__header) {
+  box-sizing: border-box;
+  height: var(--layout-header-height, 64px);
+  min-height: var(--layout-header-height, 64px);
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--ops-border);
+}
+
 .detail-page :deep(.el-tag){border-radius:0}
 .detail-page :deep(.severity-tag){min-width:36px;justify-content:center;font-weight:600}
 .detail-monospace{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:500!important}

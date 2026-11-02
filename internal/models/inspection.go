@@ -45,7 +45,7 @@ type InspectionRecord struct {
 	Status     string    `gorm:"size:20;not null" json:"status"` // success, fail, error
 	Result     string    `gorm:"type:text" json:"result"`        // JSON 详情
 	DurationMs int64     `json:"duration_ms"`
-	CreatedAt  time.Time `json:"created_at"`
+	CreatedAt  time.Time `gorm:"index" json:"created_at"`
 }
 
 type InspectionNodeState struct {
@@ -65,7 +65,7 @@ type InspectionNodeState struct {
 }
 
 // InspectionTrendBucket stores compact five-minute aggregates for charts.
-// Raw InspectionRecord rows are intentionally limited to the latest 12 per node.
+// Raw InspectionRecord rows are retained for three days.
 type InspectionTrendBucket struct {
 	ID             uint      `gorm:"primaryKey" json:"id"`
 	ItemID         uint      `gorm:"not null;uniqueIndex:idx_inspection_trend_bucket" json:"item_id"`

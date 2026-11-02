@@ -12,10 +12,6 @@ export function importInspectionItems(content, overwrite, dryRun = false, groupI
   return request({ url: '/inspection-items/import', method: 'post', data: { content, overwrite, dry_run: dryRun, group_id: groupId }, timeout: 30000 })
 }
 
-export function getInspectionItemOverview(id, params) {
-  return request({ url: `/inspection-items/${id}/overview`, method: 'get', params })
-}
-
 export function createInspectionItem(data) {
   return request({ url: '/inspection-items', method: 'post', data })
 }

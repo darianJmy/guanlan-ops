@@ -16,6 +16,7 @@ const props = defineProps({
   language: { type: String, default: 'shell' },
   height: { type: String, default: '420px' },
   ariaLabel: { type: String, default: '代码编辑器' },
+  readOnly: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'execute'])
 const container = ref()
@@ -39,6 +40,20 @@ let editor
 let contentSubscription
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() }
+
+if (!monaco.languages.getLanguages().some(item => item.id === 'json')) {
+  monaco.languages.register({ id: 'json' })
+  monaco.languages.setMonarchTokensProvider('json', {
+    tokenizer: { root: [
+      [/"([^"\\]|\\.)*"(?=\s*:)/, 'key'],
+      [/"([^"\\]|\\.)*"/, 'string'],
+      [/\b(true|false|null)\b/, 'keyword'],
+      [/-?\d+(\.\d+)?([eE][+-]?\d+)?/, 'number'],
+      [/[{}\[\]]/, '@brackets'],
+      [/[,:]/, 'delimiter'],
+    ] },
+  })
+}
 
 if (!monaco.languages.getLanguages().some(item => item.id === 'yaml')) {
   monaco.languages.register({ id: 'yaml', extensions: ['.yaml', '.yml'], aliases: ['YAML', 'yaml'] })
@@ -80,6 +95,8 @@ onMounted(() => {
     theme: 'guanlan',
     automaticLayout: true,
     ariaLabel: props.ariaLabel,
+    readOnly: props.readOnly,
+    domReadOnly: props.readOnly,
     fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace",
     fontSize: 13,
     lineHeight: 21,
@@ -97,6 +114,8 @@ onMounted(() => {
 watch(() => props.modelValue, value => {
   if (editor && value !== editor.getValue()) editor.setValue(value || '')
 })
+
+watch(() => props.readOnly, readOnly => editor?.updateOptions({ readOnly, domReadOnly: readOnly }))
 
 watch(() => props.language, language => {
   const model = editor?.getModel()

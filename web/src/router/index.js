@@ -37,7 +37,7 @@ const staticRoutes = [
         path: 'inspection/items/:id',
         name: 'InspectionTaskDetail',
         component: () => import('../views/inspection/InspectionTaskDetail.vue'),
-        meta: { title: '拨测任务详情', activeMenu: '/inspection/items' },
+        meta: { title: '拨测历史记录', activeMenu: '/inspection/items' },
       },
       {
         path: 'inspection/items/:id/edit',

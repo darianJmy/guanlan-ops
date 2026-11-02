@@ -13,18 +13,20 @@
           <svg class="signal-trails" viewBox="0 0 440 280" fill="none">
             <path d="M0 178h70l40-42h96M440 86h-74l-52 50h-77M42 40h62l48 49h52M439 230h-85l-61-58h-56" />
             <path class="signal-highlight" d="M0 178h70l40-42h96M440 86h-74l-52 50h-77" />
-            <circle cx="42" cy="40" r="3" /><circle cx="439" cy="230" r="3" />
           </svg>
           <i class="orbit orbit-one"></i><i class="orbit orbit-two"></i><i class="orbit orbit-three"></i>
-          <div class="orbit-core"><div class="core-inner"><el-icon><Cpu /></el-icon></div></div>
+          <div class="orbit-core">
+            <div class="core-inner">
+              <svg class="core-robot" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 8V4H8" />
+                <rect width="16" height="12" x="4" y="8" rx="2" />
+                <path d="M2 14h2m16 0h2m-7-1v2m-6-2v2" />
+              </svg>
+            </div>
+          </div>
           <span class="orbit-node node-one"><el-icon><Bell /></el-icon><small>告警</small></span>
           <span class="orbit-node node-two"><el-icon><Aim /></el-icon><small>探测</small></span>
           <span class="orbit-node node-three"><el-icon><Tickets /></el-icon><small>执行</small></span>
-          <i class="star star-one"></i><i class="star star-two"></i><i class="star star-three"></i>
-        </div>
-        <div class="workspace-actions">
-          <span class="refresh-note">{{ loading ? '正在同步数据' : '每分钟自动更新' }}</span>
-          <el-button :icon="Refresh" :loading="loading" @click="loadOverview">刷新数据</el-button>
         </div>
       </header>
       <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon />
@@ -100,7 +102,7 @@
 
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
-import { Refresh, Bell, Tickets, Cpu, Aim, Warning, FolderOpened, Document } from '@element-plus/icons-vue'
+import { Bell, Tickets, Cpu, Aim, Warning, FolderOpened, Document } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart, BarChart, PieChart } from 'echarts/charts'
@@ -225,12 +227,10 @@ onBeforeUnmount(() => { requestID++; clearInterval(refreshTimer) })
 </script>
 
 <style scoped>
-.dashboard { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; display: flex; flex-direction: column; gap: 24px; padding: 0 0 20px; border-radius: 24px; color: var(--ops-text); background: radial-gradient(ellipse at 0 0, #7b61ff12, transparent 45%), radial-gradient(ellipse at 100% 65%, #00bbd412, transparent 45%), var(--ops-bg); }
-.workspace-heading, .workspace-actions, .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.dashboard { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; display: flex; flex-direction: column; gap: 24px; padding: 0 0 20px; color: var(--ops-text); }
+.workspace-heading, .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .workspace-heading h1 { margin: 0; font-size: 25px; line-height: 1.4; font-weight: 650; letter-spacing: -.5px; }
 .workspace-heading p { margin: 7px 0 0; font-size: 13px; color: var(--ops-muted); }
-.workspace-actions { justify-content: flex-end; }
-.refresh-note { color: var(--ops-muted); font-size: 12px; }
 .watch-summary { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 20px; }
 .alert-focus { --tile-accent: #7361e9; position: relative; padding: 24px 28px; }
 .alert-focus.has-alerts { --tile-accent: var(--ops-danger); }
@@ -289,7 +289,6 @@ onBeforeUnmount(() => { requestID++; clearInterval(refreshTimer) })
 .inventory-row dd { margin: 0; font-size: 19px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
 .workspace-heading { position: relative; isolation: isolate; overflow: hidden; min-height: 270px; box-sizing: border-box; padding: 38px 40px; border: 1px solid #d8ddf4; border-radius: 22px; color: #34416b; background: radial-gradient(ellipse at 68% 110%, #d4bef57a, transparent 48%), radial-gradient(ellipse at 76% 16%, #b7ebf599, transparent 42%), linear-gradient(115deg, #f8faff 0%, #eef0ff 45%, #f4efff 100%); box-shadow: 0 12px 32px #7986c518, inset 0 1px 0 #ffffff; }
-.workspace-heading::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: .45; background-image: radial-gradient(#8b9ed5 1px, transparent 1px), radial-gradient(#9ca8df80 .7px, transparent .7px); background-position: 9px 12px, 49px 37px; background-size: 113px 101px, 67px 79px; mask-image: linear-gradient(90deg, transparent 20%, black 70%); pointer-events: none; }
 .workspace-heading::after { content: ''; position: absolute; bottom: 0; left: 12%; right: 12%; height: 1px; background: linear-gradient(90deg, transparent, #8b8bff, #73e9f9, transparent); box-shadow: 0 -2px 18px #8687ff; pointer-events: none; }
 .workspace-intro { position: relative; z-index: 1; width: 43%; max-width: 520px; }
 .workspace-badge { display: inline-flex; align-items: center; gap: 12px; font-size: clamp(18px, 1.6vw, 24px); font-weight: 600; letter-spacing: 1px; color: #3f487e; margin-bottom: 12px; text-shadow: 0 2px 16px #ffffff90; }
@@ -300,32 +299,23 @@ onBeforeUnmount(() => { requestID++; clearInterval(refreshTimer) })
 .workspace-tags .el-icon { font-size: 15px; color: #2586a7; }
 .workspace-tags > span:nth-child(2) .el-icon { color: #8560c4; }
 .workspace-tags > span:nth-child(3) .el-icon { color: #b564a4; }
-.workspace-actions { align-self: flex-start; position: relative; z-index: 2; flex-direction: column-reverse; gap: 12px; }
-.workspace-actions .refresh-note { color: #687596; font-size: 11px; }
-.workspace-actions :deep(.el-button) { height: 37px; padding: 0 15px; color: #5265a6; border-color: #c3ceef; background: linear-gradient(120deg, #ffffffeb, #f5f3ffcc); box-shadow: 0 0 18px #70b4ff15, inset 0 1px 0 #ffffff20; backdrop-filter: blur(10px); border-radius: 9px; }
-.workspace-actions :deep(.el-button:hover) { background: #ffffff; border-color: #8fa4e5; box-shadow: 0 0 24px #70b4ff30; }
-.workspace-actions :deep(.el-button:focus-visible) { outline: 2px solid #637cd4; outline-offset: 4px; }
 .orbital-art { position: absolute; left: 66%; top: 50%; width: 380px; height: 270px; transform: translate(-50%, -50%); pointer-events: none; animation: orbit-reveal 1.6s ease-out both; }
 .orbit-halo { position: absolute; inset: 10% 12%; border-radius: 50%; background: radial-gradient(ellipse, #7885ff40, #72a5ef08 58%, transparent 72%); filter: blur(12px); }
 .orbit-floor { position: absolute; left: -25%; right: -25%; height: 200px; bottom: -100px; transform: perspective(240px) rotateX(62deg); transform-origin: top; background-image: linear-gradient(#8b9aff25 1px, transparent 1px), linear-gradient(90deg, #8b9aff25 1px, transparent 1px); background-size: 28px 28px; mask-image: radial-gradient(ellipse at 50% 0, black, transparent 70%); }
 .signal-trails { position: absolute; width: 116%; height: 100%; left: -8%; top: 0; overflow: visible; }
 .signal-trails path { stroke: #8fa5db55; stroke-width: 1; }
-.signal-trails circle { fill: #6f9ce8; filter: drop-shadow(0 0 5px #63bfff); }
 .signal-trails path.signal-highlight { stroke: #609eda; stroke-dasharray: 40 350; filter: drop-shadow(0 0 4px #63bfff); animation: signal-arrive 2.8s ease-out both; }
 .orbit { position: absolute; inset: 32px 40px; border: 1px solid #8d9ce4a0; border-radius: 50%; transform: rotate(-22deg) scaleY(.58); box-shadow: 0 0 12px #6e95ff25, inset 0 0 10px #6e95ff15; }
-.orbit::after { content: ''; position: absolute; width: 7px; height: 7px; top: 16%; left: 12%; border-radius: 50%; background: #78b8ec; box-shadow: 0 0 12px 3px #77ddff80; }
 .orbit-two { inset: 39px 46px; transform: rotate(40deg) scaleY(.72); border-color: #75bfcda0; border-bottom: 2px solid #73bbd4; }
 .orbit-three { inset: 24px 57px; transform: rotate(-62deg) scaleY(.7); border-color: #aa8bd5a0; border-right: 2px solid #ad8be2; }
 .orbit-core { position: absolute; width: 94px; height: 94px; left: calc(50% - 47px); top: calc(50% - 47px); display: grid; place-items: center; border: 1px solid #ffffff; border-radius: 24px; background: linear-gradient(135deg, #ffffffee, #b8cafa 45%, #d7b9ec); box-shadow: 0 0 0 7px #b0bfff0b, 0 0 0 15px #a1bcff08, 0 0 50px #8e9bff70, inset 3px 3px 12px #ffffff40, inset -4px -4px 12px #8c88c035; transform: rotate(-12deg); }
 .core-inner { display: grid; place-items: center; width: 65px; height: 65px; color: #6677c5; font-size: 40px; border: 1px solid #ffffffaa; border-radius: 17px; background: linear-gradient(145deg, #ffffffb0, #e0e7ff80); text-shadow: 0 0 12px #c0eaff; }
-.core-inner .el-icon { filter: drop-shadow(0 0 7px #b9edff80); }
+.core-robot { filter: drop-shadow(0 0 7px #b9edff80); }
 .orbit-node { position: absolute; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid #ffffff; border-radius: 10px; color: #478ab3; background: linear-gradient(135deg, #ffffffed, #dceefbed); box-shadow: 0 8px 22px #6b7cbd25, inset 0 1px 0 #ffffff20; font-size: 20px; }
 .orbit-node small { font-size: 10px; color: #596184; letter-spacing: 1px; }
 .node-one { left: 16px; top: 55px; transform: rotate(-8deg); }
 .node-two { right: 6px; top: 111px; transform: rotate(8deg); color: #8965c5; background: linear-gradient(135deg, #ffffffee, #e7dffbed); }
 .node-three { bottom: 24px; left: 103px; transform: rotate(-5deg); color: #af70a7; background: linear-gradient(135deg, #ffffffee, #f1dff1ed); }
-.star { position: absolute; width: 3px; height: 3px; background: #91ace6; border-radius: 50%; box-shadow: 0 0 8px 2px #89d5ff88; }
-.star-one { left: 28%; top: 8%; }.star-two { right: 12%; bottom: 18%; }.star-three { right: 22%; top: 16%; width: 2px; height: 2px; }
 @keyframes signal-arrive { from { stroke-dashoffset: 390; opacity: 0; } to { stroke-dashoffset: 0; opacity: 1; } }
 .alert-focus, .watch-item { overflow: hidden; border: 1px solid color-mix(in srgb, var(--tile-accent) 22%, var(--ops-surface)); border-radius: 18px; background: radial-gradient(ellipse at 100% 0, color-mix(in srgb, var(--tile-accent) 13%, transparent), transparent 68%), var(--ops-surface); box-shadow: 0 8px 24px color-mix(in srgb, var(--tile-accent) 7%, transparent); }
 .alert-focus::after, .watch-item::after { content: ''; position: absolute; width: 105px; height: 105px; right: -38px; bottom: -46px; border-radius: 50%; border: 14px solid color-mix(in srgb, var(--tile-accent) 7%, transparent); pointer-events: none; }
@@ -372,21 +362,18 @@ onBeforeUnmount(() => { requestID++; clearInterval(refreshTimer) })
   .inventory-row { padding: 12px 0; }
   .inventory-row:first-child { border-top: 0; }
   .trend-tabs button .el-icon { display: inline-flex; }
-  .refresh-note { display: none; }
   .orbital-art { left: 78%; width: 310px; opacity: .5; }
   .workspace-intro { width: 60%; }
-  .workspace-actions { align-self: flex-start; }
   .alert-focus { padding: 22px; }
   .watch-item { padding: 22px 18px; }
 }
 @media (max-width: 600px) {
-  .dashboard { gap: 18px; padding: 0 0 12px; border-radius: 16px; }
+  .dashboard { gap: 18px; padding: 0 0 12px; }
   .workspace-heading { padding: 24px 20px; min-height: 240px; }
   .workspace-heading .workspace-intro { max-width: 100%; width: 100%; }
   .workspace-tags { gap: 12px; font-size: 10px; flex-wrap: wrap; }
   .orbital-art { display: none; }
   .workspace-badge { font-size: 19px; letter-spacing: 0; }
-  .workspace-actions :deep(.el-button) { padding: 8px; font-size: 11px; }
   .workspace-heading { align-items: flex-start; flex-direction: column; gap: 18px; }
   .workspace-heading h1 { font-size: 27px; }
   .workspace-heading p { font-size: 12px; max-width: 320px; line-height: 1.8; }

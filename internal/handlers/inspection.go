@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	inspectionRawRecordLimit  = 12
+	inspectionRecordRetention = 3 * 24 * time.Hour
 	inspectionTrendBucketSize = 5 * time.Minute
 	inspectionTrendRetention  = 30 * 24 * time.Hour
 )
@@ -920,7 +920,6 @@ func executeAndRecordInspection(item *models.InspectionItem) models.InspectionRe
 		totalDuration += durationMS
 		database.DB.Create(&models.InspectionRecord{ItemID: item.ID, NodeType: node.NodeType, NodeID: node.NodeID, NodeName: node.NodeName, Status: status, Result: result, DurationMs: durationMS})
 		recordInspectionTrend(item.ID, node, status, result, durationMS, now)
-		retainLatestInspectionRecords(item.ID, node, inspectionRawRecordLimit)
 		state := loadInspectionNodeState(item.ID, node)
 		updateInspectionNodeLifecycle(*item, node, &state, status, result, now)
 		if status != "success" {
@@ -972,13 +971,9 @@ func recordInspectionTrend(itemID uint, node inspectionExecutionNode, status, re
 	}
 }
 
-func retainLatestInspectionRecords(itemID uint, node inspectionExecutionNode, limit int) {
-	var staleIDs []uint
-	database.DB.Model(&models.InspectionRecord{}).
-		Where("item_id = ? AND node_type = ? AND node_id = ?", itemID, node.NodeType, node.NodeID).
-		Order("id DESC").Offset(limit).Limit(100000).Pluck("id", &staleIDs)
-	if len(staleIDs) > 0 {
-		database.DB.Where("id IN ?", staleIDs).Delete(&models.InspectionRecord{})
+func cleanupExpiredInspectionRecords(now time.Time) {
+	if err := database.DB.Where("created_at < ?", now.Add(-inspectionRecordRetention)).Delete(&models.InspectionRecord{}).Error; err != nil {
+		logger.Error("cleanup inspection records failed", "error", err)
 	}
 }
 
@@ -1258,6 +1253,21 @@ func sendInspectionRecoveryNotification(item models.InspectionItem, node inspect
 // ── Records ──
 
 func ListInspectionRecords(c *gin.Context) {
+	var startTime, endTime time.Time
+	for key, destination := range map[string]*time.Time{"start_time": &startTime, "end_time": &endTime} {
+		if value := strings.TrimSpace(c.Query(key)); value != "" {
+			parsed, err := time.Parse(time.RFC3339, value)
+			if err != nil {
+				resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "时间格式不正确")
+				return
+			}
+			*destination = parsed
+		}
+	}
+	if !startTime.IsZero() && !endTime.IsZero() && startTime.After(endTime) {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "开始时间不能晚于结束时间")
+		return
+	}
 	itemID := c.Query("item_id")
 	nodeType := strings.ToLower(strings.TrimSpace(c.Query("node_type")))
 	nodeID := strings.TrimSpace(c.Query("node_id"))
@@ -1267,9 +1277,30 @@ func ListInspectionRecords(c *gin.Context) {
 		page = 1
 	}
 
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	var item models.InspectionItem
+	if itemID != "" {
+		if err := database.DB.Select("id", "name", "type", "group_id").Where("id = ?", itemID).First(&item).Error; err != nil {
+			resp.Error(c, http.StatusOK, resp.CodeNotFound, "拨测任务不存在")
+			return
+		}
+	}
+
 	var total int64
 	var records []models.InspectionRecord
-	tx := database.DB.Model(&models.InspectionRecord{})
+	tx := database.DB.Model(&models.InspectionRecord{}).Where("created_at >= ?", time.Now().Add(-inspectionRecordRetention))
+	if !startTime.IsZero() {
+		tx = tx.Where("created_at >= ?", startTime)
+	}
+	if !endTime.IsZero() {
+		tx = tx.Where("created_at <= ?", endTime)
+	}
+	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+		pattern := "%" + strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(keyword) + "%"
+		tx = tx.Where("(node_name LIKE ? ESCAPE '\\' OR result LIKE ? ESCAPE '\\')", pattern, pattern)
+	}
 	if itemID != "" {
 		tx = tx.Where("item_id = ?", itemID)
 	}
@@ -1279,11 +1310,18 @@ func ListInspectionRecords(c *gin.Context) {
 	if nodeID != "" {
 		tx = tx.Where("node_id = ?", nodeID)
 	}
-	tx.Count(&total)
-	tx.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&records)
+	if err := tx.Count(&total).Error; err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询拨测记录失败")
+		return
+	}
+	if err := tx.Order("created_at DESC, id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&records).Error; err != nil {
+		resp.Error(c, http.StatusInternalServerError, resp.CodeInternalServerError, "查询拨测记录失败")
+		return
+	}
 
 	resp.Success(c, http.StatusOK, "成功", gin.H{
 		"list":      records,
+		"item":      gin.H{"id": item.ID, "name": item.Name, "type": item.Type, "group_id": item.GroupID},
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,

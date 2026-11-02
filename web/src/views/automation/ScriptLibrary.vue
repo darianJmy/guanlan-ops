@@ -57,12 +57,12 @@
     </section>
 
     <el-drawer v-model="repositoryVisible" class="repository-drawer" size="min(460px, 94vw)" :close-on-click-modal="false">
-      <template #header><div class="standard-drawer-header"><DrawerBackButton @click="repositoryVisible = false" /><div class="drawer-title">{{ repositoryForm.id ? '编辑 Git 仓库' : '创建 Git 仓库' }}<small>仓库由平台拉取，执行节点不会获得 Git 凭据</small></div></div></template>
+      <template #header><div class="standard-drawer-header"><div class="drawer-title">{{ repositoryForm.id ? '编辑 Git 仓库' : '创建 Git 仓库' }}</div></div></template>
       <el-form label-position="top">
         <el-form-item label="仓库名称" required><el-input v-model="repositoryForm.name" maxlength="128" /></el-form-item>
-        <el-form-item label="仓库地址" required><el-input v-model="repositoryForm.repository_url" placeholder="https://git.example.com/team/ops.git" /></el-form-item>
-        <el-form-item label="默认分支或标签"><el-input v-model="repositoryForm.default_ref" placeholder="留空使用仓库默认分支" /></el-form-item>
-        <el-form-item label="Git 认证" required><el-select v-model="repositoryForm.credential_id" filterable placeholder="请选择系统设置中的 Git 认证"><el-option v-for="item in availableCredentials" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+        <el-form-item label="仓库地址" required><el-input v-model="repositoryForm.repository_url" placeholder="" /></el-form-item>
+        <el-form-item label="默认分支或标签"><el-input v-model="repositoryForm.default_ref" placeholder="" /></el-form-item>
+        <el-form-item label="Git 认证" required><el-select v-model="repositoryForm.credential_id" filterable placeholder=""><el-option v-for="item in availableCredentials" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
         <el-form-item label="备注"><el-input v-model="repositoryForm.description" type="textarea" :rows="3" maxlength="500" /></el-form-item>
         <el-form-item label="启用状态"><el-switch v-model="repositoryForm.enabled" /></el-form-item>
       </el-form>
@@ -75,7 +75,6 @@
 <script setup>
 import { useSearchDebounce } from '../../composables/useSearchDebounce'
 
-import DrawerBackButton from '../../components/DrawerBackButton.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -167,10 +166,20 @@ const { scheduleSearch, searchNow } = useSearchDebounce(handleSearch)
 .table-pagination { display: flex; justify-content: flex-end; padding-top: 16px; border-top: 1px solid #edf1f5; }
 .runtime-label { color: #3f526d; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 12px; }
 .sync-state { display:flex; min-width:0; flex-direction:column; align-items:flex-start; gap:4px; }.sync-state small { max-width:100%; overflow:hidden; color:#8793a5; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
-.drawer-title { display: flex; flex-direction: column; gap: 3px; color: var(--ink); font-size: 17px; font-weight: 700; }.drawer-title small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.drawer-title { display: flex; flex-direction: column; gap: 3px; color: var(--ink); font-size: 17px; font-weight: 700; }
 :deep(.el-select) { width: 100%; }
 .drawer-footer { justify-content: flex-end; }
 :global(.repository-drawer.el-drawer) { border-radius: 0 !important; }
+:global(.repository-drawer.el-drawer .el-drawer__header) {
+  box-sizing: border-box;
+  height: var(--layout-header-height, 64px);
+  min-height: var(--layout-header-height, 64px);
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 20px;
+  align-items: center;
+  border-bottom: 1px solid var(--ops-border);
+}
 @media (max-width: 680px) { .script-toolbar { align-items: stretch; flex-direction: column; }.script-search { width: 100%; }.script-toolbar-actions { justify-content: flex-end; } }
 @media (max-width: 720px) {
   .page-container,.script-workbench { height:auto; }

@@ -38,13 +38,13 @@
       <el-table :data="tableData" v-loading="loading" row-key="id" stripe @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="48" />
         <el-table-column prop="name" label="任务名称" min-width="180">
-          <template #default="{ row }"><div class="task-name"><button type="button" class="task-name-link" @click="handleDetail(row)">{{ row.name }}</button><small>{{ row.target || '未配置目标' }}</small></div></template>
+          <template #default="{ row }"><div class="task-name"><router-link class="task-name-text" :to="`/inspection/items/${row.id}`">{{ row.name }}</router-link></div></template>
         </el-table-column>
         <el-table-column label="类型" width="100">
           <template #default="{ row }"><span class="task-type-text">{{ typeMeta(row.type).label }}</span></template>
         </el-table-column>
         <el-table-column label="最近状态" width="120" align="center">
-          <template #default="{ row }"><div class="node-state-list"><el-tag v-for="state in nodeStateSummary(row)" :key="state.key" class="node-state-tag" :type="state.type" size="small">{{ state.label }}</el-tag></div></template>
+          <template #default="{ row }"><el-tag v-if="row.last_status" class="node-state-tag" :type="row.last_status === 'success' ? 'success' : 'danger'" size="small">{{ row.last_status === 'success' ? '正常' : '异常' }}</el-tag><span v-else>—</span></template>
         </el-table-column>
         <el-table-column label="告警等级" width="100" align="center"><template #default="{ row }"><el-tag class="severity-tag" :type="severityTagType(row.severity)" size="small">{{ row.severity || 'P2' }}</el-tag></template></el-table-column>
         <el-table-column label="执行节点" min-width="210">
@@ -379,7 +379,6 @@ function typeMeta(type) { return taskTypes.find(item => item.value === type) || 
 function changeType(type) { if (form.type === type) return; Object.assign(form, { ...defaultForm(type), name: form.name, interval_seconds: form.interval_seconds, failure_threshold: form.failure_threshold, fault_center_id: form.fault_center_id, status: form.status }); formRef.value?.clearValidate?.() }
 function handleAdd() { router.push({ path: '/inspection/items/create', query: { group_id: groupId.value } }) }
 function handleCopy(row) { router.push({ path: '/inspection/items/create', query: { group_id: row.group_id || groupId.value, copy_from: row.id } }) }
-function handleDetail(row) { router.push(`/inspection/items/${row.id}`) }
 function handleEdit(row) {
   router.push(`/inspection/items/${row.id}/edit`)
 }
@@ -404,19 +403,6 @@ function executionNodes(row) {
   const nodes = Array.isArray(config.execution_nodes) ? config.execution_nodes : []
   return nodes.map(node => ({ ...node, node_name: node.node_name || ({ direct: '服务端直连', ssh: `SSH #${node.node_id}`, agent: `Agent #${node.node_id}` })[node.node_type || 'direct'], state: 'not_run' }))
 }
-function nodeStateSummary(row) {
-  const nodes = executionNodes(row)
-  const counts = nodes.reduce((result, node) => { result[node.state || 'not_run'] = (result[node.state || 'not_run'] || 0) + 1; return result }, {})
-  const total = nodes.length, normal = (counts.success || 0) + (counts.recovering || 0), failed = counts.failed || 0, notRun = counts.not_run || 0
-  if (normal === total) return [{ key: 'normal', label: '全部正常', type: 'success' }]
-  if (failed === total) return [{ key: 'failed', label: '全部异常', type: 'danger' }]
-  if (notRun === total) return [{ key: 'not_run', label: '全部待测', type: 'info' }]
-  return [
-    normal ? { key: 'normal', label: `${normal} 个正常`, type: 'success' } : null,
-    failed ? { key: 'failed', label: `${failed} 个异常`, type: 'danger' } : null,
-    notRun ? { key: 'not_run', label: `${notRun} 个待测`, type: 'info' } : null,
-  ].filter(Boolean)
-}
 function formatDuration(seconds) { if (seconds >= 3600 && seconds % 3600 === 0) return `${seconds / 3600} 小时`; if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60} 分钟`; return `${seconds} 秒` }
 function formatShortTime(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) }
 </script>
@@ -434,10 +420,10 @@ function formatShortTime(value) { const date = new Date(value); return Number.is
 .filter-select { flex: 0 0 auto; }
 .filter-type { width: 110px; }
 .filter-status { width: 110px; }
-.task-name,.last-status { display: flex; min-width: 0; flex-direction: column; gap: 3px; }.task-name-link { align-self:flex-start;max-width:100%;padding:0;overflow:hidden;color:var(--ops-primary);font:inherit;font-size:13px;font-weight:700;text-align:left;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;background:none;border:0 }.task-name-link:hover{text-decoration:underline}.task-name-link:focus-visible{outline:2px solid rgba(23,105,224,.3);outline-offset:2px;border-radius:2px}.task-name small,.last-status small { overflow: hidden; color: #8a96a8; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.last-status { align-items: flex-start; }.node-tags{display:flex;flex-wrap:wrap;gap:5px}.execution-node-tag{max-width:100%;border-radius:2px}.execution-node-tag :deep(.el-tag__content){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-name,.last-status { display: flex; min-width: 0; flex-direction: column; gap: 3px; }.task-name-text { max-width:100%;overflow:hidden;color:var(--ops-primary);text-decoration:none;font-size:13px;font-weight:700;text-overflow:ellipsis;white-space:nowrap }.task-name-text:hover{text-decoration:underline}.task-name-text:focus-visible{outline:2px solid var(--ops-primary);outline-offset:2px}.task-name small,.last-status small { overflow: hidden; color: #8a96a8; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.last-status { align-items: flex-start; }.node-tags{display:flex;flex-wrap:wrap;gap:5px}.execution-node-tag{max-width:100%;border-radius:2px}.execution-node-tag :deep(.el-tag__content){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task-type-text { color: #4d5d73; font-size: 12px; }
 .severity-tag{min-width:36px;justify-content:center;border-radius:0;font-weight:600}
-.node-state-list{display:flex;align-items:center;flex-direction:column;gap:4px}.node-state-tag{border-radius:0}
+.node-state-tag{border-radius:0}
 .task-form { padding: 0 2px 24px; }.form-section { margin-bottom: 18px; padding: 20px; background: var(--ops-surface); border: 1px solid var(--border); border-radius: 10px; }.section-title { display: flex; align-items: baseline; gap: 10px; margin-bottom: 18px; }.section-title strong { color: var(--ink); font-size: 15px; }.section-title span { color: #8a96a8; font-size: 12px; }
 .probe-types { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 9px; }.type-card { display: flex; min-width: 0; flex-direction: column; gap: 3px; padding: 12px; color: #617087; text-align: left; cursor: pointer; background: #fafbfd; border: 1px solid var(--ops-border); border-radius: 8px; transition: .18s ease; }.type-card:hover { border-color: #a9c8ee; transform: translateY(-1px); }.type-card:focus-visible { outline: 3px solid rgba(23,105,224,.16); outline-offset: 2px; }.type-card.active { color: #1c5fb9; background: #f3f8ff; border-color: #6da5ea; box-shadow: 0 5px 14px rgba(23,105,224,.08); }.type-card>span { font-size: 10px; font-weight: 800; letter-spacing: .4px; }.type-card strong { color: #28384f; font-size: 13px; white-space: nowrap; }.type-card small { overflow: hidden; color: var(--ops-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .form-grid,.schedule-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 20px; }.full-row { grid-column: 1/-1; }:deep(.el-form-item) { margin-bottom: 18px; }:deep(.el-form-item__label) { padding-bottom: 7px; color: #46536a; font-size: 13px; font-weight: 650; }:deep(.el-select),:deep(.el-input-number) { width: 100%; }

@@ -34,7 +34,10 @@ const route = useRoute()
 .settings-navigation {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  padding: 12px 10px;
+  background: var(--ops-surface);
+  border-radius: 7px;
 }
 .settings-navigation-item {
   display: flex;
@@ -47,14 +50,17 @@ const route = useRoute()
   font-size: 14px;
   line-height: 22px;
   text-decoration: none;
-  border-radius: 7px;
+  border-radius: 4px;
   transition: color .15s, background-color .15s;
 }
 .settings-navigation-item:hover { color: var(--ops-text); background: var(--ops-surface); }
 .settings-navigation-item.active {
   color: var(--ops-primary);
-  background: var(--ops-surface);
+  background: #e1eef9;
   font-weight: 600;
+}
+:global(html.dark) .settings-navigation-item.active {
+  background: color-mix(in srgb, var(--ops-primary) 16%, var(--ops-surface));
 }
 .settings-navigation-item:focus-visible { outline: 2px solid var(--ops-primary); outline-offset: 3px; }
 .settings-workspace-content { min-width: 0; padding: 30px 36px 40px; }

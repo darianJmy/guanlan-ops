@@ -11,11 +11,12 @@
       <div class="sidebar-menu">
         <el-menu :default-active="activeMenu" router :collapse="isCollapse" :collapse-transition="false">
           <template v-for="menu in menus" :key="menu.id">
-            <el-sub-menu v-if="menu.children && menu.children.length" :index="String(menu.id)">
+            <el-sub-menu v-if="menu.children && menu.children.length" :index="String(menu.id)" popper-class="sidebar-submenu-popper">
               <template #title>
                 <el-icon><component :is="menu.icon" /></el-icon>
                 <span>{{ menu.name }}</span>
               </template>
+              <li v-if="isCollapse" class="sidebar-submenu-label" role="presentation">{{ menu.name }}</li>
               <template v-for="child in menu.children" :key="child.id">
                 <el-menu-item v-if="child.type === 2" :index="child.path">
                   <span>{{ child.name }}</span>
@@ -24,7 +25,7 @@
             </el-sub-menu>
             <el-menu-item v-else :index="menu.path">
               <el-icon><component :is="menu.icon" /></el-icon>
-              <span>{{ menu.name }}</span>
+              <template #title><span>{{ menu.name }}</span></template>
             </el-menu-item>
           </template>
         </el-menu>
@@ -43,7 +44,7 @@
           <div class="header-left">
             <el-breadcrumb separator="/">
               <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
-              <el-breadcrumb-item v-if="breadcrumbParent" :to="{ path: breadcrumbParent.path }">{{ breadcrumbParent.title }}</el-breadcrumb-item>
+              <el-breadcrumb-item v-for="parent in breadcrumbParents" :key="parent.path" :to="{ path: parent.path }">{{ parent.title }}</el-breadcrumb-item>
               <el-breadcrumb-item v-if="currentTitle">{{ currentTitle }}</el-breadcrumb-item>
             </el-breadcrumb>
           </div>
@@ -102,7 +103,7 @@
         </el-header>
 
         <div class="workspace-body">
-          <el-main v-if="store.userInfo">
+          <el-main v-if="store.userInfo" :class="{ 'dashboard-backdrop': route.path === '/dashboard' }">
             <SettingsWorkspace v-if="isSettingsPage" :items="settingsItems">
               <router-view />
             </SettingsWorkspace>
@@ -213,6 +214,10 @@ const settingsItems = computed(() => (store.menus.find(menu => menu.path === '/s
 const isSettingsPage = computed(() => settingsItems.value.some(menu => menu.path === route.path))
 const menus = computed(() => store.menus.map(menu => menu.path === '/settings' ? { ...menu, children: [] } : menu))
 const breadcrumbParent = computed(() => isSettingsPage.value ? { title: '系统设置', path: '/settings' } : route.meta.breadcrumbParent)
+const breadcrumbParents = computed(() => {
+  if (pageBreadcrumb.value?.path === route.path && pageBreadcrumb.value.parents) return pageBreadcrumb.value.parents
+  return breadcrumbParent.value ? [breadcrumbParent.value] : []
+})
 const currentTitle = computed(() => (pageBreadcrumb.value?.path === route.path && pageBreadcrumb.value.title) || route.meta.title)
 const activeMenu = computed(() => isSettingsPage.value ? '/settings' : route.meta.activeMenu || route.path)
 const activeTheme = computed(() => platform.themePreference || platform.defaultTheme)
@@ -266,6 +271,74 @@ async function handleChangePassword() {
   } catch {}
 }
 </script>
+
+<!-- Submenus are teleported to body, so their popup styles must be global. -->
+<style>
+.el-popper.sidebar-submenu-popper {
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ops-border) 65%, transparent);
+  border-radius: 14px;
+  background: var(--ops-overlay);
+  box-shadow: 0 12px 32px #00000014, 0 2px 8px #00000008,
+    inset 0 1px 0 #ffffff26;
+  overflow: hidden;
+}
+
+@supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
+  .el-popper.sidebar-submenu-popper {
+    background: color-mix(in srgb, var(--ops-overlay) 82%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+}
+
+.sidebar-submenu-popper .el-menu--popup {
+  min-width: 168px;
+  padding: 6px;
+  border-radius: 14px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sidebar-submenu-popper .el-menu-item {
+  height: 40px;
+  line-height: 40px;
+  margin: 2px 0;
+  padding: 0 14px;
+  border-radius: 9px;
+  color: var(--ops-text);
+  background: transparent;
+  font-weight: 500;
+}
+
+.sidebar-submenu-popper .sidebar-submenu-label {
+  padding: 8px 14px 10px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid var(--ops-border-soft);
+  color: var(--ops-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  list-style: none;
+}
+
+.sidebar-submenu-popper .el-menu-item:hover,
+.sidebar-submenu-popper .el-menu-item:focus-visible {
+  color: var(--ops-primary);
+  background: color-mix(in srgb, var(--ops-primary) 10%, transparent);
+}
+
+.sidebar-submenu-popper .el-menu-item.is-active {
+  color: var(--ops-primary);
+  background: color-mix(in srgb, var(--ops-primary) 14%, transparent);
+  font-weight: 600;
+}
+
+.sidebar-submenu-popper .el-menu-item:focus-visible {
+  outline: 2px solid var(--ops-primary);
+  outline-offset: -2px;
+}
+</style>
 
 <style scoped>
 .workspace-shell{display:flex;flex:1;min-width:0;min-height:0;overflow:hidden}
@@ -524,6 +597,16 @@ async function handleChangePassword() {
   min-width: 0;
   padding: 22px 24px;
   background: var(--ops-bg);
+}
+
+.el-main.dashboard-backdrop {
+  background-color: var(--ops-bg);
+  background-image:
+    radial-gradient(ellipse at 0% 0%, color-mix(in srgb, #9678e8 15%, transparent), transparent 58%),
+    radial-gradient(ellipse at 100% 35%, color-mix(in srgb, #48b9de 13%, transparent), transparent 60%),
+    radial-gradient(ellipse at 35% 100%, color-mix(in srgb, #8a98ef 10%, transparent), transparent 55%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 </style>

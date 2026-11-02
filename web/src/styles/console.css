@@ -1,6 +1,6 @@
 /* Theme tokens: page surfaces, content and all Element Plus states share one palette. */
 :root, html[data-theme="light"] {
-  --ops-bg: #f5f5f5;
+  --ops-bg: #f7fafc;
   --ops-surface: #ffffff;
   --ops-surface-soft: #fafafa;
   --ops-overlay: #ffffff;
@@ -316,6 +316,12 @@ button, input, select, textarea {
   font-size: 16px;
   font-weight: 500;
   line-height: 1.5;
+}
+
+/* Cover both default titles and custom header slots in teleported drawers. */
+.el-drawer__header,
+.el-drawer__header * {
+  font-weight: 400 !important;
 }
 
 /* Keep system settings and their teleported controls at regular weight. */

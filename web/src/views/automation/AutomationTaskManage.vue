@@ -34,7 +34,7 @@
         <template v-else>
           <el-form-item label="Git 仓库" required><el-select v-model="form.repository_id" filterable placeholder="请选择已同步仓库"><el-option v-for="item in enabledRepositories" :key="item.id" :label="item.synced_revision ? item.name : `${item.name}（未同步）`" :value="item.id" :disabled="!item.synced_revision" /></el-select></el-form-item>
           <el-form-item label="执行命令" required><el-input v-model="form.command" type="textarea" :rows="4" class="mono-input" placeholder="例如 bash deploy.sh" /></el-form-item>
-          <el-alert type="info" :closable="false" show-icon title="代码由脚本库手动同步；任务仅将本地代码部署到所选节点并执行。" />
+          <el-alert class="repository-sync-note" type="info" :closable="false" show-icon title="代码由脚本库手动同步；任务仅将本地代码部署到所选节点并执行。" />
         </template>
         <el-form-item label="执行节点" required><el-select v-model="form.node_key" filterable placeholder="请选择执行节点"><el-option label="平台本机" value="direct-0" /><el-option v-for="item in nodes" :key="item.key" :label="item.label" :value="item.key" /></el-select></el-form-item>
         <el-form-item label="超时时间"><el-input-number v-model="form.timeout_seconds" :min="1" :max="3600" controls-position="right" /><span class="unit">秒</span></el-form-item>
@@ -130,6 +130,7 @@ function nodeText(row) { if(row.node_type==='direct') return '平台本机'; if(
 </script>
 
 <style scoped>
+.repository-sync-note :deep(.el-alert__title) { font-size: 11px; }
 .automation-task-page { display: flex; min-width: 0; flex-direction: column; gap: 16px; }
 .record-card { min-width: 0; border-color: var(--ops-border); border-radius: 10px; box-shadow: 0 8px 28px rgba(31, 50, 81, .045); }
 .record-card :deep(.el-card__body) { padding: 16px; }
