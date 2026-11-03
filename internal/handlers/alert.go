@@ -267,6 +267,9 @@ func ListAlerts(c *gin.Context) {
 	tx.Count(&total)
 	tx.Order("last_event_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows)
 	attachAlertRuleDetails(rows)
+	for i := range rows {
+		rows[i].MatchingLabels = alertLabelNamespaces(rows[i])["all_labels"]
+	}
 
 	countStatus := func(status string) int64 {
 		var count int64
@@ -306,6 +309,7 @@ func attachAlertRuleDetails(alerts []models.AlertInstance) {
 		}
 		if json.Unmarshal([]byte(alerts[i].LastResult), &snapshot) == nil {
 			alerts[i].RuleDescription = snapshot.Description
+
 		}
 		if alerts[i].Source != alertRuleSource || alerts[i].SourceID == 0 {
 			continue
@@ -685,6 +689,9 @@ func UpdateAlertNotificationConfig(c *gin.Context) {
 	for i := range req.Routes {
 		route := &req.Routes[i]
 		route.LabelNamespace, route.LabelKey, route.LabelValue = strings.TrimSpace(route.LabelNamespace), strings.TrimSpace(route.LabelKey), strings.TrimSpace(route.LabelValue)
+		if route.LabelNamespace == "" {
+			route.LabelNamespace = "all_labels"
+		}
 		key := route.LabelNamespace + "\x00" + route.LabelKey + "\x00" + route.LabelValue
 		if !validAlertLabelKey(route.LabelNamespace, route.LabelKey) || route.LabelValue == "" || len(route.ChannelIDs) == 0 || seenRoutes[key] || (route.Status != 0 && route.Status != 1) {
 			resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请完整填写告警路由，且标签条件不能重复")
@@ -782,7 +789,8 @@ func parseChannelIDs(value string) []uint {
 func notificationRouteChannelIDs(alert models.AlertInstance, routes []models.AlertNotificationRoute, defaultIDs []uint) []uint {
 	labels := alertLabelNamespaces(alert)
 	for _, route := range routes {
-		if route.Status == 1 && labels[route.LabelNamespace][route.LabelKey] == route.LabelValue {
+		value, exists := labels[route.LabelNamespace][route.LabelKey]
+		if route.Status == 1 && exists && value == route.LabelValue {
 			return parseChannelIDs(route.ChannelIDs)
 		}
 	}
@@ -1048,7 +1056,7 @@ func inhibitionRuleNameExists(centerID uint, name string, excludeID uint) bool {
 
 func validAlertLabelNamespace(namespace string) bool {
 	switch namespace {
-	case "system_labels", "labels", "datasource_labels", "external_labels":
+	case "all_labels", "system_labels", "labels", "datasource_labels", "external_labels":
 		return true
 	default:
 		return false
@@ -1078,6 +1086,9 @@ func normalizeAlertLabelMatchers(values []models.AlertLabelMatcher) ([]models.Al
 	seen := make(map[string]bool, len(values))
 	for _, value := range values {
 		value.Namespace = strings.TrimSpace(value.Namespace)
+		if value.Namespace == "" {
+			value.Namespace = "all_labels"
+		}
 		value.Key = strings.TrimSpace(value.Key)
 		value.Value = strings.TrimSpace(value.Value)
 		identity := value.Namespace + "\x00" + value.Key
@@ -1098,6 +1109,9 @@ func normalizeAlertLabelSelectors(values []models.AlertLabelSelector) ([]models.
 	seen := make(map[string]bool, len(values))
 	for _, value := range values {
 		value.Namespace = strings.TrimSpace(value.Namespace)
+		if value.Namespace == "" {
+			value.Namespace = "all_labels"
+		}
 		value.Key = strings.TrimSpace(value.Key)
 		identity := value.Namespace + "\x00" + value.Key
 		if !validAlertLabelKey(value.Namespace, value.Key) || seen[identity] {
@@ -1117,6 +1131,9 @@ func normalizeAlertGroupingSelectors(values []models.AlertLabelSelector) ([]mode
 	seen := make(map[string]bool, len(values))
 	for _, value := range values {
 		value.Namespace = strings.TrimSpace(value.Namespace)
+		if value.Namespace == "" {
+			value.Namespace = "all_labels"
+		}
 		value.Key = strings.TrimSpace(value.Key)
 		identity := value.Namespace + "\x00" + value.Key
 		if !validAlertLabelKey(value.Namespace, value.Key) || seen[identity] {
@@ -1187,6 +1204,14 @@ func alertLabelNamespaces(alert models.AlertInstance) map[string]map[string]stri
 	if alert.Source != alertRuleSource && len(namespaces["labels"]) == 0 {
 		namespaces["labels"] = parseInspectionLabels(alert.Labels)
 	}
+	// Merge raw sources before reserved-key filtering. A missing system
+	// value must not discard a legitimate lower-priority label.
+	merged := map[string]string{}
+	for _, source := range []string{"external_labels", "datasource_labels", "labels"} {
+		for key, value := range namespaces[source] {
+			merged[key] = value
+		}
+	}
 	for _, key := range []string{"alertname", "severity", "datasource"} {
 		delete(namespaces["labels"], key)
 		delete(namespaces["datasource_labels"], key)
@@ -1205,6 +1230,10 @@ func alertLabelNamespaces(alert models.AlertInstance) map[string]map[string]stri
 			namespaces["system_labels"][key] = value
 		}
 	}
+	for key, value := range namespaces["system_labels"] {
+		merged[key] = value
+	}
+	namespaces["all_labels"] = merged
 	return namespaces
 }
 
@@ -1306,7 +1335,8 @@ func alertMatchesLabelMatchers(alert models.AlertInstance, matchers []models.Ale
 	}
 	labels := alertLabelNamespaces(alert)
 	for _, matcher := range matchers {
-		if labels[matcher.Namespace][matcher.Key] != matcher.Value {
+		value, exists := labels[matcher.Namespace][matcher.Key]
+		if !exists || value != matcher.Value {
 			return false
 		}
 	}
@@ -1542,7 +1572,7 @@ func syncInspectionAlert(item models.InspectionItem, node inspectionExecutionNod
 		}
 		state := nextInspectionAlertState("", false, failures, item.FailureThreshold, false)
 		alert = models.AlertInstance{
-			FaultCenterID: item.FaultCenterID, Source: "probe-task", SourceID: item.ID, Fingerprint: fingerprint, Title: fmt.Sprintf("%s · %s", item.Name, node.NodeName), Target: item.Target,
+			FaultCenterID: item.FaultCenterID, Source: "probe-task", SourceID: item.ID, Fingerprint: fingerprint, Title: item.Name, Target: item.Target,
 			Severity: normalizeInspectionSeverity(item.Severity), Status: state, Labels: runtimeLabels,
 			FailureCount: failures, FailureThreshold: normalizeFailureThreshold(item.FailureThreshold),
 			LastProbeStatus: probeStatus, LastResult: snapshot,
@@ -1561,7 +1591,7 @@ func syncInspectionAlert(item models.InspectionItem, node inspectionExecutionNod
 
 	state := nextInspectionAlertState(previous, success, failures, item.FailureThreshold, recoveryDue)
 	updates := map[string]interface{}{
-		"fault_center_id": item.FaultCenterID, "title": fmt.Sprintf("%s · %s", item.Name, node.NodeName), "target": item.Target, "severity": normalizeInspectionSeverity(item.Severity), "labels": runtimeLabels,
+		"fault_center_id": item.FaultCenterID, "title": item.Name, "target": item.Target, "severity": normalizeInspectionSeverity(item.Severity), "labels": runtimeLabels,
 		"status": state, "failure_count": failures,
 		"failure_threshold": normalizeFailureThreshold(item.FailureThreshold),
 		"last_probe_status": probeStatus, "last_result": snapshot,

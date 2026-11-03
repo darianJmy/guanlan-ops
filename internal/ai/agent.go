@@ -105,6 +105,7 @@ type agentRuntime struct {
 	orchestrator     *Orchestrator
 	trace            *RunTrace
 	round, maxRounds int
+	toolCalls        int
 }
 
 type tracedModel struct {
@@ -126,6 +127,18 @@ func (m *tracedModel) Generate(ctx context.Context, input []*schema.Message, opt
 	}
 	if r.round >= r.maxRounds {
 		return nil, errRoundLimit
+	}
+	if r.orchestrator.MaxInputBytes > 0 {
+		size := 0
+		for _, message := range input {
+			size += len(message.Content)
+			for _, call := range message.ToolCalls {
+				size += len(call.Function.Arguments)
+			}
+		}
+		if size > r.orchestrator.MaxInputBytes {
+			return nil, errRoundLimit
+		}
 	}
 	r.round++
 	start := time.Now()

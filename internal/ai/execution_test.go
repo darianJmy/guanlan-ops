@@ -250,3 +250,29 @@ func TestNativeParameterContract(t *testing.T) {
 		t.Fatal("native schema not exposed")
 	}
 }
+
+func TestExecutionDiagnosticBudgetsAndPrompt(t *testing.T) {
+	calls := 0
+	o := testOrchestrator(t, func(context.Context, ToolCall) ToolResult { calls++; return ToolResult{OK: true} })
+	o.SystemPrompt = "diagnostic-only"
+	o.MaxToolCalls = 1
+	o.Model = fakeModel(func(_ context.Context, messages []*schema.Message) (*schema.Message, error) {
+		if messages[0].Content != "diagnostic-only" {
+			t.Fatal("diagnostic prompt not applied")
+		}
+		return toolMessage("query", `{"datasource_id":1}`), nil
+	})
+	result := o.Run(context.Background(), RunRequest{})
+	if calls != 1 || result.Metadata["execution"].(RunTrace).Status != "limited" {
+		t.Fatal("tool budget not enforced")
+	}
+	o.MaxInputBytes = 10
+	o.Model = fakeModel(func(context.Context, []*schema.Message) (*schema.Message, error) {
+		t.Fatal("oversized prompt reached provider")
+		return nil, nil
+	})
+	result = o.Run(context.Background(), RunRequest{Question: strings.Repeat("x", 100)})
+	if result.Metadata["execution"].(RunTrace).Status != "limited" {
+		t.Fatal("input budget ignored")
+	}
+}

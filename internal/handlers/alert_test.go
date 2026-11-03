@@ -135,3 +135,50 @@ func TestEnrichAlertResultWithTemplateTimesKeepsEmptyRecoveryField(t *testing.T)
 		t.Fatalf("active alert must expose an empty recovery template field: %#v", result)
 	}
 }
+
+func TestUnifiedAlertLabelsPreservePrecedenceAndLegacyMatchers(t *testing.T) {
+	alert := namespacedAlert(`{"env":"prod","instance":"node-1"}`, `{"env":"staging","region":"east"}`, `{"env":"test","region":"west","team":"ops"}`)
+	labels := alertLabelNamespaces(alert)["all_labels"]
+	if labels["env"] != "prod" || labels["region"] != "east" || labels["team"] != "ops" {
+		t.Fatalf("wrong precedence: %#v", labels)
+	}
+	for _, matcher := range []models.AlertLabelMatcher{
+		{Namespace: "all_labels", Key: "env", Value: "prod"},
+		{Namespace: "all_labels", Key: "team", Value: "ops"},
+		{Namespace: "external_labels", Key: "env", Value: "test"},
+	} {
+		if _, err := normalizeAlertLabelMatchers([]models.AlertLabelMatcher{matcher}); err != nil {
+			t.Fatal(err)
+		}
+		if !alertMatchesLabelMatchers(alert, []models.AlertLabelMatcher{matcher}) {
+			t.Fatalf("matcher failed: %+v", matcher)
+		}
+	}
+	if alertMatchesLabelMatchers(alert, []models.AlertLabelMatcher{{Namespace: "all_labels", Key: "env", Value: "test"}}) {
+		t.Fatal("extra label overrode metric label")
+	}
+}
+
+func TestUnifiedAlertLabelConflictsAndMissingSystemValues(t *testing.T) {
+	alert := models.AlertInstance{Source: alertRuleSource, Title: "SystemName", Severity: "P0", LastResult: `{"datasource":"system-ds","labels":{"alertname":"metric-name","datasource":"metric-ds","env":"prod","empty":""},"datasource_labels":{"alertname":"ds-name","env":"test","region":"east","empty":"fallback"},"external_labels":{"alertname":"extra-name","region":"west","team":"ops"}}`}
+	labels := alertLabelNamespaces(alert)["all_labels"]
+	for key, want := range map[string]string{"alertname": "SystemName", "datasource": "system-ds", "severity": "P0", "env": "prod", "region": "east", "team": "ops", "empty": ""} {
+		if labels[key] != want {
+			t.Fatalf("%s: got %q want %q", key, labels[key], want)
+		}
+	}
+	if alertMatchesLabelMatchers(alert, []models.AlertLabelMatcher{{Namespace: "all_labels", Key: "env", Value: "test"}}) {
+		t.Fatal("lower priority fallback matched")
+	}
+	if alertMatchesLabelMatchers(alert, []models.AlertLabelMatcher{{Namespace: "all_labels", Key: "missing", Value: ""}}) {
+		t.Fatal("missing label matched empty value")
+	}
+	alert.LastResult = `{"labels":{"datasource":"metric-ds"},"external_labels":{"datasource":"extra-ds"}}`
+	if got := alertLabelNamespaces(alert)["all_labels"]["datasource"]; got != "metric-ds" {
+		t.Fatalf("missing system value discarded metric label: %q", got)
+	}
+	matchers, err := normalizeAlertLabelMatchers([]models.AlertLabelMatcher{{Key: "datasource", Value: "metric-ds"}})
+	if err != nil || matchers[0].Namespace != "all_labels" || !alertMatchesLabelMatchers(alert, matchers) {
+		t.Fatalf("plain Key/Value failed: %+v %v", matchers, err)
+	}
+}

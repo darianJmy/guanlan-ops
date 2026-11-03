@@ -28,6 +28,10 @@ func (r *agentRuntime) invoke(ctx context.Context, name, input string) (string, 
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
+	r.toolCalls++
+	if r.orchestrator.MaxToolCalls > 0 && r.toolCalls > r.orchestrator.MaxToolCalls {
+		return "", errRoundLimit
+	}
 	var params map[string]interface{}
 	result := ToolResult{Tool: name, ErrorCode: "INVALID_PARAMS", Message: "工具参数必须是 JSON 对象"}
 	if len(input) <= 64*1024 && json.Unmarshal([]byte(input), &params) == nil && params != nil {

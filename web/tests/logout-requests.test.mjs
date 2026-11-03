@@ -78,7 +78,7 @@ test('clearing menus during logout does not remount the settings page', async ()
   })
   const app = renderer.createApp({
     components: { ElMain: shell, SettingsWorkspace: shell, RouterView: page },
-    setup: () => ({ store, settingsItems: [], get isSettingsPage() { return state.isSettingsPage } }),
+    setup: () => ({ store, route: { path: '/settings/authentication' }, settingsItems: [], get isSettingsPage() { return state.isSettingsPage } }),
     render: compile(template),
   })
   app.mount({})

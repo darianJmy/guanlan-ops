@@ -14,7 +14,7 @@ import (
 
 var DB *gorm.DB
 
-const CurrentSchemaVersion = "2026102701"
+const CurrentSchemaVersion = "2026110301"
 
 // New opens SQLite and atomically initializes a fresh database on first startup.
 // DB is the shared connection used by the HTTP and tool handlers.
@@ -94,6 +94,8 @@ func createCurrentSchema(db *gorm.DB) error {
 		&models.AlertNotificationRoute{},
 		&models.AlertGroupingRule{},
 		&models.AlertGroupState{},
+		&models.AlertAIAnalysisRule{},
+		&models.AlertAIAnalysisJob{},
 		&models.AlertActionRule{},
 		&models.AlertActionExecution{},
 		&models.AlertRuleGroup{},
@@ -106,5 +108,5 @@ func createCurrentSchema(db *gorm.DB) error {
 	); err != nil {
 		return fmt.Errorf("create database schema: %w", err)
 	}
-	return nil
+	return db.Exec("CREATE UNIQUE INDEX idx_ai_running_center ON alert_ai_analysis_jobs(fault_center_id) WHERE status = 'running'").Error
 }

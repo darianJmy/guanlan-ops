@@ -19,6 +19,8 @@ func seedInitialData(db *gorm.DB) error {
 		return err
 	}
 	permissions := []models.Permission{
+		{ID: 68, Name: "查看告警 AI 分析", Code: "alert:ai-analysis:list", Status: 1},
+		{ID: 69, Name: "配置告警 AI 分析", Code: "alert:ai-analysis:edit", Status: 1},
 		{ID: 67, Name: "SQL 查询", Code: "query:sql", Status: 1},
 		{ID: 1, Name: "用户列表", Code: "user:list", Status: 1},
 		{ID: 2, Name: "创建用户", Code: "user:create", Status: 1},

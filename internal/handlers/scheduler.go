@@ -13,6 +13,7 @@ var inspectionWorkers = make(chan struct{}, 8)
 func StartScheduler() {
 	schedulerOnce.Do(func() {
 		go schedulerLoop()
+		go alertAIAnalysisLoop()
 	})
 }
 

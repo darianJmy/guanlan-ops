@@ -100,6 +100,9 @@
           <el-tab-pane label="自动化处置" name="automation">
             <AlertActionPanel :center-id="center.id" />
           </el-tab-pane>
+          <el-tab-pane v-if="aiUser.hasPermission('alert:ai-analysis:list')" label="AI 分析" name="ai-analysis" lazy>
+            <AlertAIAnalysisPanel :center-id="center.id" />
+          </el-tab-pane>
           <el-tab-pane label="通知配置" name="notification">
             <section class="notification-section">
               <div class="notification-heading">
@@ -134,13 +137,13 @@
                 </article>
 
                 <article class="notification-card route-card">
-                  <h3><el-icon><PriceTag /></el-icon>告警路由<el-tooltip content="根据标签将告警发送给特定通知对象；按照从上到下的顺序匹配，优先级高于默认通知对象。" placement="top"><el-icon class="notification-help-icon" tabindex="0" aria-label="告警路由说明"><QuestionFilled /></el-icon></el-tooltip></h3>
-                  <div class="route-table-head"><span>标签来源</span><span>标签 Key</span><span>标签 Value</span><span>通知对象</span><span>操作</span></div>
+                  <h3><el-icon><PriceTag /></el-icon>告警路由<el-tooltip content="根据标签将告警发送给特定通知对象；按照从上到下的顺序匹配，优先级高于默认通知对象。同名标签按系统标签 > 告警标签 > 数据源标签 > 额外标签取值，不匹配时不会继续尝试低优先级来源。" placement="top"><el-icon class="notification-help-icon" tabindex="0" aria-label="告警路由说明"><QuestionFilled /></el-icon></el-tooltip></h3>
+                  <div class="route-table-head"><span>Key</span><span>Value</span><span>通知对象</span><span>操作</span></div>
                   <div v-if="notificationConfig.routes.length" class="route-list">
                     <div v-for="(item, index) in notificationConfig.routes" :key="item.id || index" class="route-row">
-                      <el-select v-model="item.label_namespace" :disabled="!notificationEditing" placeholder="标签来源" @change="item.label_key = ''"><el-option v-for="option in labelNamespaceOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select>
-                      <el-select v-if="item.label_namespace === 'system_labels'" v-model="item.label_key" :disabled="!notificationEditing" placeholder="系统标签"><el-option v-for="option in systemLabelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else v-model="item.label_key" :disabled="!notificationEditing" maxlength="64" placeholder="标签 Key" />
-                      <el-input v-model="item.label_value" :disabled="!notificationEditing" placeholder="标签 Value" />
+
+                      <el-input v-model="item.label_key" :disabled="!notificationEditing" maxlength="64" placeholder="Key" aria-label="告警路由 Key" />
+                      <el-input v-model="item.label_value" :disabled="!notificationEditing" placeholder="Value" aria-label="告警路由 Value" />
                       <el-select v-model="item.channel_ids" multiple filterable collapse-tags :disabled="!notificationEditing" placeholder="通知对象"><el-option v-for="channel in enabledNotificationChannels" :key="channel.id" :label="channel.name" :value="channel.id" /></el-select>
                       <el-button v-if="notificationEditing" text type="danger" :icon="Delete" aria-label="删除告警路由" @click="removeNotificationRoute(index)" />
                       <span v-else>—</span>
@@ -162,10 +165,10 @@
       <template #header><div class="drawer-header"><span class="drawer-title">告警详情</span></div></template>
       <div v-if="currentAlert" class="alert-detail">
         <dl><div class="detail-item--full"><dt>告警名称</dt><dd><router-link v-if="canOpenAlertRule(currentAlert)" class="detail-link" :to="alertRuleEditRoute(currentAlert)">{{ alertResult.alertname || currentAlert.title || '—' }}</router-link><template v-else>{{ alertResult.alertname || currentAlert.title || '—' }}</template></dd></div><div><dt>告警等级</dt><dd><el-tag class="severity-tag" :type="severityType(currentAlert.severity)" effect="light" size="small">{{ currentAlert.severity || '—' }}</el-tag></dd></div><div><dt>告警状态</dt><dd><el-tag :type="statusType(currentAlert.status)" effect="light" size="small">{{ displayStatus(currentAlert) }}</el-tag></dd></div><div v-if="isPrometheusAlert(currentAlert)"><dt>告警规则组</dt><dd>{{ currentAlert.rule_group_name || '—' }}</dd></div><div><dt>告警来源</dt><dd>{{ alertSourceText(currentAlert) }}</dd></div><div v-if="isPrometheusAlert(currentAlert)"><dt>数据源</dt><dd>{{ alertResult.datasource || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)"><dt>当前值</dt><dd>{{ alertResult.value || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)" class="detail-item--full"><dt>命中条件</dt><dd>{{ alertResult.condition || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)" class="detail-item--full"><dt>告警指纹</dt><dd class="detail-monospace">{{ alertResult.fingerprint || currentAlert.fingerprint || '—' }}</dd></div><div v-if="isPrometheusAlert(currentAlert)" class="detail-item--full"><dt>PromQL</dt><dd class="detail-monospace">{{ alertResult.expression || '—' }}</dd></div><div><dt>首次发现</dt><dd>{{ formatTime(currentAlert.started_at) }}</dd></div><div><dt>正式触发</dt><dd>{{ formatTime(currentAlert.fired_at) }}</dd></div><div><dt>最近事件</dt><dd>{{ formatTime(currentAlert.last_event_at) }}</dd></div><div v-if="currentAlert.resolved_at"><dt>{{ currentAlert.status === 'terminated' ? '终止时间' : '恢复时间' }}</dt><dd>{{ formatTime(currentAlert.resolved_at) }}</dd></div><div v-if="isSilenced(currentAlert)" class="detail-item--full"><dt>静默至</dt><dd>{{ formatTime(currentAlert.silenced_until) }}</dd></div><div v-if="alertResult.annotations?.description || currentAlert.rule_description" class="detail-item--full"><dt>描述信息</dt><dd>{{ alertResult.annotations?.description || currentAlert.rule_description }}</dd></div><div class="detail-item--full"><dt>通知状态</dt><dd class="notification-state-detail"><span>{{ notificationStatusText(currentAlert) }}</span><small v-if="showNotificationReason(currentAlert)">{{ currentAlert.notification_reason }}</small><small v-if="hasUpcomingNotification(currentAlert)">预计通知：{{ formatTime(currentAlert.next_notification_at) }}</small></dd></div></dl>
-        <section v-if="isPrometheusAlert(currentAlert)" class="alert-label-sections">
-          <div v-for="section in alertLabelSections" :key="section.key" class="alert-label-section">
-            <span>{{ section.title }}</span>
-            <div class="scope-tags"><span v-for="item in section.items" :key="item.key" class="scope-tag" :class="labelToneClass(item.key)">{{ item.key }}:{{ item.value }}</span><small v-if="!section.items.length">暂无标签</small></div>
+        <section class="alert-label-sections">
+          <div class="alert-label-section">
+            <span class="form-label">匹配标签<el-tooltip content="同名标签优先级：系统标签 > 告警标签 > 数据源标签 > 额外标签。只使用最高优先级的值，不匹配时不会继续尝试其他来源。" placement="top"><el-icon tabindex="0" aria-label="标签优先级说明"><QuestionFilled /></el-icon></el-tooltip></span>
+            <div class="scope-tags"><span v-for="item in matchingLabelItems" :key="item.key" class="scope-tag" :class="labelToneClass(item.key)">{{ item.key }}:{{ item.value }}</span><small v-if="!matchingLabelItems.length">暂无标签</small></div>
           </div>
         </section>
         <section class="alert-timeline">
@@ -187,6 +190,7 @@
           <div class="detail-section-heading"><span>最近一次结果</span></div>
           <pre>{{ formatResult(currentAlert.last_result) }}</pre>
         </section>
+        <AlertAIAnalysisResult v-if="detailVisible && aiUser.hasPermission('alert:ai-analysis:list') && aiUser.hasPermission('datasource:list')" :key="currentAlert.id" :center-id="center.id" :alert-id="currentAlert.id" />
       </div>
     </el-drawer>
 
@@ -197,43 +201,16 @@
           <el-input v-model="ruleForm.name" maxlength="128" show-word-limit aria-label="抑制规则名称" />
         </el-form-item>
         <el-form-item required>
-          <template #label><span class="form-label">源标签<el-tooltip content="匹配源告警的标签，多组条件之间是“且”关系" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <div class="label-match-list">
-            <div v-for="(matcher, index) in ruleForm.source_matchers" :key="index" class="label-match-item">
-              <el-button v-if="ruleForm.source_matchers.length > 1" class="label-match-remove" text circle type="danger" :icon="Delete" :aria-label="`删除源标签条件 ${index + 1}`" @click="removeRuleMatcher('source_matchers', index)" />
-              <div class="label-source-control">
-                <span>标签来源</span>
-                <el-radio-group v-model="matcher.namespace" class="label-source-options" aria-label="源标签来源" @change="matcher.key = ''"><el-radio-button v-for="option in labelNamespaceOptions" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button></el-radio-group>
-              </div>
-              <div class="label-match-fields"><div class="label-field-control"><span>标签 Key</span><el-select v-if="matcher.namespace === 'system_labels'" v-model="matcher.key" aria-label="源系统标签"><el-option v-for="option in systemLabelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else v-model="matcher.key" maxlength="64" aria-label="源标签 Key" /></div><div class="label-field-control"><span>标签 Value</span><el-input v-model="matcher.value" maxlength="255" aria-label="源标签 Value" /></div></div>
-            </div>
-            <el-button class="add-match-condition" plain :icon="Plus" :disabled="ruleForm.source_matchers.length >= 10" @click="addRuleMatcher('source_matchers')">添加源标签条件</el-button>
-          </div>
+          <template #label><span class="form-label">源标签<el-tooltip content="匹配源告警的标签，多组条件之间是“且”关系。同名标签优先级：系统标签 > 告警标签 > 数据源标签 > 额外标签。只使用最高优先级的值，不匹配时不会继续尝试其他来源。" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <AlertLabelCondition v-model="ruleForm.source_matchers" label="源标签条件" />
         </el-form-item>
         <el-form-item required>
-          <template #label><span class="form-label">目标标签<el-tooltip content="匹配目标告警的标签，多组条件之间是“且”关系" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <div class="label-match-list">
-            <div v-for="(matcher, index) in ruleForm.target_matchers" :key="index" class="label-match-item">
-              <el-button v-if="ruleForm.target_matchers.length > 1" class="label-match-remove" text circle type="danger" :icon="Delete" :aria-label="`删除目标标签条件 ${index + 1}`" @click="removeRuleMatcher('target_matchers', index)" />
-              <div class="label-source-control">
-                <span>标签来源</span>
-                <el-radio-group v-model="matcher.namespace" class="label-source-options" aria-label="目标标签来源" @change="matcher.key = ''"><el-radio-button v-for="option in labelNamespaceOptions" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button></el-radio-group>
-              </div>
-              <div class="label-match-fields"><div class="label-field-control"><span>标签 Key</span><el-select v-if="matcher.namespace === 'system_labels'" v-model="matcher.key" aria-label="目标系统标签"><el-option v-for="option in systemLabelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else v-model="matcher.key" maxlength="64" aria-label="目标标签 Key" /></div><div class="label-field-control"><span>标签 Value</span><el-input v-model="matcher.value" maxlength="255" aria-label="目标标签 Value" /></div></div>
-            </div>
-            <el-button class="add-match-condition" plain :icon="Plus" :disabled="ruleForm.target_matchers.length >= 10" @click="addRuleMatcher('target_matchers')">添加目标标签条件</el-button>
-          </div>
+          <template #label><span class="form-label">目标标签<el-tooltip content="匹配目标告警的标签，多组条件之间是“且”关系。同名标签优先级：系统标签 > 告警标签 > 数据源标签 > 额外标签。只使用最高优先级的值，不匹配时不会继续尝试其他来源。" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <AlertLabelCondition v-model="ruleForm.target_matchers" label="目标标签条件" />
         </el-form-item>
         <el-form-item>
-          <template #label><span class="form-label">相等标签<el-tooltip content="可选；源告警与目标告警在指定来源下的标签值必须相等" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <div class="label-match-list">
-            <div v-for="(selector, index) in ruleForm.equal_labels" :key="index" class="label-match-item equal-label-item">
-              <el-button class="label-match-remove" text circle type="danger" :icon="Delete" :aria-label="`删除相等标签 ${index + 1}`" @click="removeEqualLabel(index)" />
-              <div class="label-source-control"><span>标签来源</span><el-radio-group v-model="selector.namespace" class="label-source-options" aria-label="相等标签来源" @change="selector.key = ''"><el-radio-button v-for="option in labelNamespaceOptions" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button></el-radio-group></div>
-              <div class="label-field-control equal-label-key"><span>标签 Key</span><el-select v-if="selector.namespace === 'system_labels'" v-model="selector.key" aria-label="相等系统标签"><el-option v-for="option in systemLabelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else v-model="selector.key" maxlength="64" aria-label="相等标签 Key" /></div>
-            </div>
-            <el-button class="add-match-condition" plain :icon="Plus" :disabled="ruleForm.equal_labels.length >= 10" @click="addEqualLabel">添加相等标签</el-button>
-          </div>
+          <template #label><span class="form-label">相等标签<el-tooltip content="可选；源告警与目标告警合并后的标签值必须相等。同名标签优先级：系统标签 > 告警标签 > 数据源标签 > 额外标签。只使用最高优先级的值，不匹配时不会继续尝试其他来源。" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <AlertLabelCondition v-model="ruleForm.equal_labels" key-only :min-items="0" label="相等标签" />
         </el-form-item>
         <el-form-item label="启用状态"><el-switch v-model="ruleForm.enabled" /></el-form-item>
       </el-form>
@@ -247,26 +224,16 @@
           <el-input v-model="grouping.name" maxlength="128" show-word-limit aria-label="分组收敛策略名称" />
         </el-form-item>
         <el-form-item>
-          <template #label><span class="form-label">匹配告警<el-tooltip content="只有满足全部匹配条件的告警才会进入该策略；不配置表示匹配全部告警。策略按优先级从小到大匹配，只使用第一条命中的策略" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <div class="label-match-list">
-            <div v-for="(matcher, index) in grouping.matchers" :key="index" class="label-match-item">
-              <el-button class="label-match-remove" text circle type="danger" :icon="Delete" :aria-label="`删除匹配条件 ${index + 1}`" @click="removeGroupingMatcher(index)" />
-              <div class="label-source-control"><span>标签来源</span><el-radio-group v-model="matcher.namespace" class="label-source-options" aria-label="匹配标签来源" @change="matcher.key = ''"><el-radio-button v-for="option in labelNamespaceOptions" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button></el-radio-group></div>
-              <div class="label-match-fields"><div class="label-field-control"><span>标签 Key</span><el-select v-if="matcher.namespace === 'system_labels'" v-model="matcher.key" aria-label="匹配系统标签"><el-option v-for="option in systemLabelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else v-model="matcher.key" maxlength="64" aria-label="匹配标签 Key" /></div><div class="label-field-control"><span>标签 Value</span><el-input v-model="matcher.value" maxlength="255" aria-label="匹配标签 Value" /></div></div>
-            </div>
-            <el-button class="add-match-condition" plain :icon="Plus" :disabled="grouping.matchers.length >= 10" @click="addGroupingMatcher">添加匹配条件</el-button>
-          </div>
+          <template #label><span class="form-label">匹配告警<el-tooltip content="只有满足全部匹配条件的告警才会进入该策略；选择“全部告警”时不限制标签。策略按优先级从小到大匹配，只使用第一条命中的策略。同名标签优先级：系统标签 > 告警标签 > 数据源标签 > 额外标签。只使用最高优先级的值，不匹配时不会继续尝试其他来源。" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <el-radio-group v-model="groupingMatchMode" class="grouping-match-mode" aria-label="匹配告警范围" @change="changeGroupingMatchMode">
+            <el-radio-button value="all">全部告警</el-radio-button>
+            <el-radio-button value="conditions">按条件匹配</el-radio-button>
+          </el-radio-group>
+          <AlertLabelCondition v-if="groupingMatchMode === 'conditions'" v-model="grouping.matchers" label="匹配条件" />
         </el-form-item>
         <el-form-item>
-          <template #label><span class="form-label">分组标签<el-tooltip content="系统读取所选标签的实际值进行分组；相同值的告警合并为一条通知。不配置时，命中策略的所有告警合并为一个大组" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <div class="label-match-list">
-            <div v-for="(selector, index) in grouping.group_by" :key="index" class="label-match-item grouping-label-item">
-              <el-button class="label-match-remove" text circle type="danger" :icon="Delete" :aria-label="`删除分组标签 ${index + 1}`" @click="removeGroupingSelector(index)" />
-              <div class="label-source-control"><span>标签来源</span><el-radio-group v-model="selector.namespace" class="label-source-options" aria-label="分组标签来源" @change="selector.key = ''"><el-radio-button v-for="option in labelNamespaceOptions" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button></el-radio-group></div>
-              <div class="label-field-control grouping-label-key"><span>标签 Key</span><el-select v-if="selector.namespace === 'system_labels'" v-model="selector.key" aria-label="分组系统标签"><el-option v-for="option in systemLabelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else v-model="selector.key" maxlength="64" aria-label="分组标签 Key" /></div>
-            </div>
-            <el-button class="add-match-condition" plain :icon="Plus" :disabled="grouping.group_by.length >= 10" @click="addGroupingSelector">添加分组标签</el-button>
-          </div>
+          <template #label><span class="form-label">分组标签<el-tooltip content="系统读取所选标签的实际值进行分组；相同值的告警合并为一条通知。不配置时，命中策略的所有告警合并为一个大组。同名标签优先级：系统标签 > 告警标签 > 数据源标签 > 额外标签。只使用最高优先级的值，不匹配时不会继续尝试其他来源。" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <AlertLabelCondition v-model="grouping.group_by" add-label="添加分组字段" key-only :min-items="0" label="分组标签" />
         </el-form-item>
         <div class="grouping-timing-grid">
           <el-form-item>
@@ -296,29 +263,8 @@
           <el-input v-model="silenceForm.name" maxlength="128" show-word-limit aria-label="静默策略名称" />
         </el-form-item>
         <el-form-item required>
-          <template #label><span class="form-label">匹配标签<el-tooltip content="从告警已有标签中选择字段并填写匹配值；多组条件之间是“且”关系" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
-          <div class="label-match-list">
-            <div v-for="(matcher, index) in silenceForm.matchers" :key="index" class="label-match-item">
-              <el-button v-if="silenceForm.matchers.length > 1" class="label-match-remove" text circle type="danger" :icon="Delete" :aria-label="`删除匹配条件 ${index + 1}`" title="删除条件" @click="removeSilenceMatcher(index)" />
-              <div class="label-source-control">
-                <span>标签来源</span>
-                <el-radio-group v-model="matcher.namespace" class="label-source-options" aria-label="标签来源" @change="matcher.key = ''">
-                  <el-radio-button v-for="option in labelNamespaceOptions" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button>
-                </el-radio-group>
-              </div>
-              <div class="label-match-fields">
-                <div class="label-field-control">
-                  <span>标签 Key</span>
-                  <el-select v-if="matcher.namespace === 'system_labels'" v-model="matcher.key" aria-label="静默系统标签"><el-option v-for="option in silenceSystemLabelOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select><el-input v-else v-model="matcher.key" maxlength="64" aria-label="标签 Key" />
-                </div>
-                <div class="label-field-control">
-                  <span>标签 Value</span>
-                  <el-input v-model="matcher.value" maxlength="255" aria-label="标签 Value" />
-                </div>
-              </div>
-            </div>
-            <el-button class="add-match-condition" plain :icon="Plus" :disabled="silenceForm.matchers.length >= 10" @click="addSilenceMatcher">添加匹配条件</el-button>
-          </div>
+          <template #label><span class="form-label">匹配标签<el-tooltip content="输入标签 Key 和匹配值；多组条件之间是“且”关系。同名标签优先级：系统标签 > 告警标签 > 数据源标签 > 额外标签。只使用最高优先级的值，不匹配时不会继续尝试其他来源。" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
+          <AlertLabelCondition v-model="silenceForm.matchers" label="匹配条件" />
         </el-form-item>
         <el-form-item>
           <template #label><span class="form-label">静默类型<el-tooltip content="一次性静默按起止日期生效；周期性静默按星期和每日时间永久循环" placement="top"><el-icon><QuestionFilled /></el-icon></el-tooltip></span></template>
@@ -348,6 +294,8 @@
 </template>
 
 <script setup>
+import AlertLabelCondition from '../../components/AlertLabelCondition.vue'
+const labelNamespaceOptions = [{ label: '系统标签', value: 'system_labels' }, { label: '告警标签', value: 'labels' }, { label: '数据源标签', value: 'datasource_labels' }, { label: '额外标签', value: 'external_labels' }]
 import { usePageBreadcrumb } from '../../composables/usePageBreadcrumb'
 import RecordTimeRange from '../../components/RecordTimeRange.vue'
 import { computed, defineComponent, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -358,6 +306,10 @@ import { ArrowDown, Bell, Clock, Delete, Edit, Loading, Plus, PriceTag, Question
 import { createGroupingRule, createInhibitionRule, createSilenceRule, deleteGroupingRule, deleteInhibitionRule, deleteSilenceRule, getAlertEvents, getAlerts, getFaultCenterNotificationConfig, getFaultCenters, getGroupingRules, getInhibitionRules, getSilenceRules, updateFaultCenterNotificationConfig, updateGroupingRule, updateInhibitionRule, updateSilenceRule } from '../../api/alert'
 import { getNotificationChannels } from '../../api/notification'
 import AlertActionPanel from './components/AlertActionPanel.vue'
+import AlertAIAnalysisPanel from './components/AlertAIAnalysisPanel.vue'
+import AlertAIAnalysisResult from '../../components/AlertAIAnalysisResult.vue'
+import { useUserStore } from '../../stores/user'
+const aiUser = useUserStore()
 
 const AlertTable = defineComponent({
   props: { rows: Array, loading: Boolean, total: Number, page: Number, pageSize: Number, allowSilence: Boolean, advancedFilters: Boolean, historyFilters: Boolean },
@@ -440,10 +392,10 @@ const groupingKeyword = ref(''), inhibitionKeyword = ref(''), silenceKeyword = r
 const detailVisible = ref(false), currentAlert = ref(null), alertEvents = ref([]), eventLoading = ref(false), eventLoaded = ref(false), lifecycleExpanded = ref(false), groupingDrawerVisible = ref(false), ruleDrawerVisible = ref(false), silenceDrawerVisible = ref(false)
 const notificationEditing = ref(false), notificationSnapshot = ref(null)
 const ruleFormRef = ref(), silenceFormRef = ref()
+const groupingMatchMode = ref('all')
 const grouping = reactive({ id: null, name: '', matchers: [], group_by: [], wait_seconds: 30, interval_seconds: 300, priority: 100, enabled: true })
-const emptyMatcher = () => ({ namespace: 'labels', key: '', value: '' })
-const emptySelector = () => ({ namespace: 'labels', key: '' })
-const labelNamespaceOptions = [{ label: '系统标签', value: 'system_labels' }, { label: 'PromQL 标签', value: 'labels' }, { label: '数据源标签', value: 'datasource_labels' }, { label: '额外标签', value: 'external_labels' }]
+const emptyMatcher = () => ({ namespace: 'all_labels', key: '', value: '' })
+const emptySelector = () => ({ namespace: 'all_labels', key: '' })
 const systemLabelOptions = [{ label: 'alertname（告警名称）', value: 'alertname' }, { label: 'severity（告警等级）', value: 'severity' }, { label: 'datasource（数据源）', value: 'datasource' }]
 const silenceSystemLabelOptions = systemLabelOptions.filter(option => option.value !== 'severity')
 const weekdayOptions = [{ label: '周一', value: 1 }, { label: '周二', value: 2 }, { label: '周三', value: 3 }, { label: '周四', value: 4 }, { label: '周五', value: 5 }, { label: '周六', value: 6 }, { label: '周日', value: 7 }]
@@ -453,12 +405,7 @@ const silenceClock = ref(Date.now())
 const notificationConfig = reactive({ default_channel_ids: [], repeat_interval_minutes: 60, recovery_notification: true, routes: [], updated_at: '' })
 const enabledNotificationChannels = computed(() => notificationChannels.value.filter(channel => channel.status === 1))
 const alertResult = computed(() => parseResult(currentAlert.value?.last_result))
-const alertLabelSections = computed(() => [
-  { key: 'system_labels', title: '系统标签', items: labelItems({ alertname: alertResult.value.alertname || currentAlert.value?.title, severity: currentAlert.value?.severity || alertResult.value.severity, datasource: alertResult.value.datasource }) },
-  { key: 'datasource_labels', title: '数据源标签', items: labelItems(alertResult.value.datasource_labels) },
-  { key: 'external_labels', title: '额外标签', items: labelItems(alertResult.value.external_labels) },
-  { key: 'labels', title: 'PromQL 标签', items: labelItems(alertResult.value.labels) },
-])
+const matchingLabelItems = computed(() => labelItems(currentAlert.value?.matching_labels))
 const groupingRows = computed(() => groupingPolicies.value.map(row => ({ ...row, enabled: row.status === 1, wait_time: formatDuration(row.wait_seconds), interval_time: formatDuration(row.interval_seconds) })))
 const filteredGroupingRows = computed(() => groupingRows.value.filter(row => { const text = `${row.name} ${matcherSummary(row.matchers)} ${selectorSummary(row.group_by)}`.toLowerCase(); return text.includes(groupingKeyword.value.trim().toLowerCase()) }))
 const filteredRules = computed(() => rules.value.filter(row => { const text = `${row.name} ${matcherSummary(row.source_matchers)} ${matcherSummary(row.target_matchers)} ${selectorSummary(row.equal_labels)}`.toLowerCase(); return text.includes(inhibitionKeyword.value.trim().toLowerCase()) }))
@@ -523,9 +470,9 @@ async function toggleLifecycle() {
     if (currentAlert.value?.id === alertId) eventLoading.value = false
   }
 }
-function eventTitle(item) { if (item.event_type === 'created') return `创建${item.to_status === 'firing' ? '告警' : '预告警'}（${item.to_severity || '—'}）`; if (item.event_type === 'snapshot') return `历史状态快照：${displayStatus({ status: item.to_status })}（${item.to_severity || '—'}）`; if (item.event_type === 'severity_changed') return `告警等级 ${item.from_severity || '—'} → ${item.to_severity || '—'}`; if (item.event_type === 'state_changed') return `状态 ${displayStatus({ status: item.from_status })} → ${displayStatus({ status: item.to_status })}`; if (item.event_type === 'evaluation_status_changed') return `评估状态变为 ${item.evaluation_status}`; if (item.event_type === 'notification_sent') return item.reason === 'resolved' ? '恢复通知已发送' : '告警通知已发送'; if (item.event_type === 'notification_skipped') return '告警未发送通知'; if (item.event_type === 'notification_failed') return item.reason === 'resolved' ? '恢复通知发送失败' : '告警通知发送失败'; if (item.event_type === 'silenced') return '告警已静默'; if (item.event_type === 'unsilenced') return '告警已解除静默'; return item.event_type }
+function eventTitle(item) { if (item.event_type === 'created') return `创建${item.to_status === 'firing' ? '告警' : '预告警'}（${item.to_severity || '—'}）`; if (item.event_type === 'severity_changed') return `告警等级 ${item.from_severity || '—'} → ${item.to_severity || '—'}`; if (item.event_type === 'state_changed') return `状态 ${displayStatus({ status: item.from_status })} → ${displayStatus({ status: item.to_status })}`; if (item.event_type === 'evaluation_status_changed') return `评估状态变为 ${item.evaluation_status}`; if (item.event_type === 'notification_sent') return item.reason === 'resolved' ? '恢复通知已发送' : '告警通知已发送'; if (item.event_type === 'notification_skipped') return '告警未发送通知'; if (item.event_type === 'notification_failed') return item.reason === 'resolved' ? '恢复通知发送失败' : '告警通知发送失败'; if (item.event_type === 'silenced') return '告警已静默'; if (item.event_type === 'unsilenced') return '告警已解除静默'; return item.event_type }
 function eventTimelineType(item) { if (item.event_type === 'notification_failed') return 'danger'; if (item.event_type === 'notification_sent' || item.to_status === 'resolved') return 'success'; if (item.event_type === 'silenced' || item.event_type === 'unsilenced') return 'info'; if (item.event_type === 'created') return 'warning'; return 'primary' }
-function eventReason(reason) { return ({ condition_detected: '首次命中告警条件', for_duration_reached: '持续命中达到配置时间', condition_retriggered: '恢复等待期间再次命中', severity_condition_changed: '命中的最高告警等级发生变化', condition_cleared: '告警条件不再命中', condition_cleared_before_firing: '持续时间内条件已恢复', recovery_wait_reached: '持续未命中达到恢复等待时间', resolved_before_first_notification: '在首次分组通知前恢复，告警事件已保留', retriggered_before_recovery_notification: '恢复通知发送前，同一告警已重新触发', rule_disabled: '规则已停用', rule_deleted: '规则已删除', datasource_unbound: '数据源已解除绑定', no_data: 'PromQL 查询无数据', error: 'PromQL 查询失败', migration_snapshot: '事件时间线上线前的告警，仅保留当时状态快照', probe_failed: '拨测失败', probe_recovered: '拨测恢复', certificate_domain_unhealthy: '证书域名异常', certificate_domain_changed: '证书域名状态发生变化', certificate_domain_recovered: '证书域名恢复正常', manual_unsilence: '人工解除静默' })[reason] || reason }
+function eventReason(reason) { return ({ condition_detected: '首次命中告警条件', for_duration_reached: '持续命中达到配置时间', condition_retriggered: '恢复等待期间再次命中', severity_condition_changed: '命中的最高告警等级发生变化', condition_cleared: '告警条件不再命中', condition_cleared_before_firing: '持续时间内条件已恢复', recovery_wait_reached: '持续未命中达到恢复等待时间', resolved_before_first_notification: '在首次分组通知前恢复，告警事件已保留', retriggered_before_recovery_notification: '恢复通知发送前，同一告警已重新触发', rule_disabled: '规则已停用', rule_deleted: '规则已删除', datasource_unbound: '数据源已解除绑定', no_data: 'PromQL 查询无数据', error: 'PromQL 查询失败', probe_failed: '拨测失败', probe_recovered: '拨测恢复', certificate_domain_unhealthy: '证书域名异常', certificate_domain_changed: '证书域名状态发生变化', certificate_domain_recovered: '证书域名恢复正常', manual_unsilence: '人工解除静默' })[reason] || reason }
 async function loadGroupingRules() { groupingLoading.value = true; try { groupingPolicies.value = (await getGroupingRules(center.value.id)).data || [] } finally { groupingLoading.value = false } }
 function searchGroupings() { groupingPage.value = 1 }
 async function reloadRules() { rules.value = (await getInhibitionRules(center.value.id)).data || [] }
@@ -538,14 +485,14 @@ function syncNotificationConfig(data) {
     default_channel_ids: [...(data.default_channel_ids || [])],
     repeat_interval_minutes: Math.max(1, Math.round(Number(data.repeat_interval_seconds || 3600) / 60)),
     recovery_notification: data.recovery_notification !== false,
-    routes: (data.routes || []).map(item => ({ id: item.id, label_namespace: item.label_namespace || 'labels', label_key: item.label_key || '', label_value: item.label_value || '', channel_ids: [...(item.channel_ids || [])], status: item.status === 0 ? 0 : 1 })),
+    routes: (data.routes || []).map(item => ({ id: item.id, label_namespace: 'all_labels', label_key: item.label_key || '', label_value: item.label_value || '', channel_ids: [...(item.channel_ids || [])], status: item.status === 0 ? 0 : 1 })),
     updated_at: data.updated_at || '',
   })
   notificationSnapshot.value = JSON.parse(JSON.stringify(notificationConfig))
 }
 async function reloadNotificationConfig() { const [configRes, channelsRes] = await Promise.all([getFaultCenterNotificationConfig(center.value.id), getNotificationChannels()]); notificationChannels.value = channelsRes.data || []; syncNotificationConfig(configRes.data || {}) }
 function cancelNotificationEdit() { if (notificationSnapshot.value) Object.assign(notificationConfig, JSON.parse(JSON.stringify(notificationSnapshot.value))); notificationEditing.value = false }
-function addNotificationRoute() { notificationConfig.routes.push({ label_namespace: 'labels', label_key: '', label_value: '', channel_ids: [], status: 1 }) }
+function addNotificationRoute() { notificationConfig.routes.push({ label_namespace: 'all_labels', label_key: '', label_value: '', channel_ids: [], status: 1 }) }
 function removeNotificationRoute(index) { notificationConfig.routes.splice(index, 1) }
 async function saveNotificationConfig() {
   if (notificationConfig.routes.some(item => !item.label_namespace || !item.label_key.trim() || !item.label_value.trim() || !item.channel_ids.length)) return ElMessage.warning('请完整填写告警路由')
@@ -555,7 +502,7 @@ async function saveNotificationConfig() {
       default_channel_ids: notificationConfig.default_channel_ids,
       repeat_interval_seconds: Number(notificationConfig.repeat_interval_minutes) * 60,
       recovery_notification: notificationConfig.recovery_notification,
-      routes: notificationConfig.routes.map(item => ({ label_namespace: item.label_namespace, label_key: item.label_key.trim(), label_value: item.label_value.trim(), channel_ids: item.channel_ids, status: item.status })),
+      routes: notificationConfig.routes.map(item => ({ label_namespace: 'all_labels', label_key: item.label_key.trim(), label_value: item.label_value.trim(), channel_ids: item.channel_ids, status: item.status })),
     })
     await reloadNotificationConfig()
     notificationEditing.value = false
@@ -574,7 +521,12 @@ function openGroupingDrawer(row) {
     priority: Number(row.priority),
     enabled: row.status === 1,
   } : { id: null, name: '', matchers: [], group_by: [], wait_seconds: 30, interval_seconds: 300, priority: 100, enabled: true })
+  groupingMatchMode.value = grouping.matchers.length ? 'conditions' : 'all'
   groupingDrawerVisible.value = true
+}
+
+function changeGroupingMatchMode(mode) {
+  if (mode === 'conditions' && !grouping.matchers.length) grouping.matchers = [emptyMatcher()]
 }
 
 async function removeGroupingPolicy(row) {
@@ -587,15 +539,17 @@ async function removeGroupingPolicy(row) {
 async function saveGrouping() {
   grouping.name = grouping.name.trim()
   if (!grouping.name) return ElMessage.warning('请输入策略名称')
-  if (grouping.matchers.length > 10) return ElMessage.warning('匹配条件最多配置 10 组')
+  const matchers = groupingMatchMode.value === 'conditions' ? grouping.matchers : []
+  if (groupingMatchMode.value === 'conditions' && !matchers.length) return ElMessage.warning('请至少填写一条匹配条件')
+  if (matchers.length > 10) return ElMessage.warning('匹配条件最多配置 10 组')
   if (grouping.group_by.length > 10) return ElMessage.warning('分组标签最多配置 10 个')
-  if (!validOptionalMatchers(grouping.matchers)) return ElMessage.warning('请完整填写匹配标签来源、Key 和 Value，且不要重复')
-  if (!validSelectors(grouping.group_by)) return ElMessage.warning('请完整填写分组标签来源和 Key，且不要重复')
+  if (!validOptionalMatchers(matchers)) return ElMessage.warning('请完整填写 Key 和 Value，且不要重复')
+  if (!validSelectors(grouping.group_by)) return ElMessage.warning('请完整填写分组字段 Key，且不要重复')
   savingGrouping.value = true
   try {
     const payload = {
       name: grouping.name,
-      matchers: cloneMatchers(grouping.matchers).map(item => ({ ...item, key: item.key.trim(), value: item.value.trim() })),
+      matchers: cloneMatchers(matchers).map(item => ({ ...item, key: item.key.trim(), value: item.value.trim() })),
       group_by: cloneSelectors(grouping.group_by).map(item => ({ ...item, key: item.key.trim() })),
       wait_seconds: Number(grouping.wait_seconds),
       interval_seconds: Number(grouping.interval_seconds),
@@ -609,8 +563,8 @@ async function saveGrouping() {
     ElMessage.success(grouping.id ? '分组策略已更新' : '分组策略已创建')
   } finally { savingGrouping.value = false }
 }
-function cloneMatchers(values) { return (values || []).map(item => ({ namespace: item.namespace || 'labels', key: item.key || '', value: item.value || '' })) }
-function cloneSelectors(values) { return (values || []).map(item => ({ namespace: item.namespace || 'labels', key: item.key || '' })) }
+function cloneMatchers(values) { return (values || []).map(item => ({ namespace: 'all_labels', key: item.key || '', value: item.value || '' })) }
+function cloneSelectors(values) { return (values || []).map(item => ({ namespace: 'all_labels', key: item.key || '' })) }
 function validOptionalMatchers(values) {
   const identities = new Set()
   return values.every(item => {
@@ -670,7 +624,7 @@ function openSilenceDrawer(row) {
   if (!silenceForm.matchers.length) silenceForm.matchers = [emptyMatcher()]
   silenceDrawerVisible.value = true
 }
-function firstAlertMatcher(row) { const result = parseResult(row?.last_result); const alertname = result.alertname || row?.title; if (alertname) return { namespace: 'system_labels', key: 'alertname', value: String(alertname) }; for (const namespace of ['labels', 'datasource_labels', 'external_labels']) { const entry = Object.entries(result[namespace] || {})[0]; if (entry) return { namespace, key: entry[0], value: String(entry[1]) } } return emptyMatcher() }
+function firstAlertMatcher(row) { const result = parseResult(row?.last_result); const alertname = result.alertname || row?.title; if (alertname) return { namespace: 'all_labels', key: 'alertname', value: String(alertname) }; for (const namespace of ['labels', 'datasource_labels', 'external_labels']) { const entry = Object.entries(result[namespace] || {})[0]; if (entry) return { namespace: 'all_labels', key: entry[0], value: String(entry[1]) } } return emptyMatcher() }
 function addSilenceMatcher() { if (silenceForm.matchers.length < 10) silenceForm.matchers.push(emptyMatcher()); else ElMessage.warning('匹配标签最多配置 10 组') }
 function removeSilenceMatcher(index) { silenceForm.matchers.splice(index, 1); if (!silenceForm.matchers.length) addSilenceMatcher() }
 function sortSilenceWeekdays() { silenceForm.weekdays.sort((a, b) => a - b) }
@@ -766,13 +720,17 @@ function parseResult(value) { if (!value) return {}; if (typeof value === 'objec
 function labelItems(value) { if (!value || typeof value !== 'object' || Array.isArray(value)) return []; return Object.entries(value).filter(([, itemValue]) => itemValue !== undefined && itemValue !== null && String(itemValue).trim() !== '').sort(([left], [right]) => left.localeCompare(right)).map(([key, itemValue]) => ({ key, value: String(itemValue) })) }
 function labelToneClass(key) { const normalized = String(key || '').trim().toLowerCase(); const preferred = { env: 'yellow', owner: 'purple', service: 'blue' }; if (preferred[normalized]) return `scope-tag-${preferred[normalized]}`; const tones = ['blue', 'yellow', 'purple', 'cyan', 'green']; const hash = [...normalized].reduce((total, character) => total + character.charCodeAt(0), 0); return `scope-tag-${tones[hash % tones.length]}` }
 function labelNamespaceText(value) { return labelNamespaceOptions.find(item => item.value === value)?.label || value || '未知来源' }
-function matcherSummary(values) { return values?.length ? values.map(item => `${labelNamespaceText(item.namespace)}.${item.key}=${item.value}`).join(' 且 ') : '—' }
-function selectorSummary(values) { return values?.length ? values.map(item => `${labelNamespaceText(item.namespace)}.${item.key}`).join('、') : '—' }
+function matcherSummary(values) { return values?.length ? values.map(item => `${item.key}=${item.value}`).join(' 且 ') : '—' }
+function selectorSummary(values) { return values?.length ? values.map(item => `${item.key}`).join('、') : '—' }
 function validPage(currentPage, totalRows, currentPageSize) { return Math.min(currentPage, Math.max(1, Math.ceil(totalRows / currentPageSize))) }
 function paginate(rows, currentPage, currentPageSize) { const start = (validPage(currentPage, rows.length, currentPageSize) - 1) * currentPageSize; return rows.slice(start, start + currentPageSize) }
 </script>
 
 <style scoped>
+.grouping-match-mode{display:flex;width:100%}
+.grouping-match-mode + .label-conditions{margin-top:10px}
+.grouping-match-mode :deep(.el-radio-button){flex:1}
+.grouping-match-mode :deep(.el-radio-button__inner){width:100%}
 :global(.center-drawer.alert-detail-drawer .el-drawer__header) {
   box-sizing: border-box;
   height: var(--layout-header-height, 64px);
@@ -826,8 +784,9 @@ function paginate(rows, currentPage, currentPageSize) { const start = (validPage
   .strategy-toolbar{align-items:stretch;flex-direction:column}
   .strategy-toolbar>div,.strategy-toolbar .el-input,.strategy-toolbar .el-select{width:100%}
 }
-.grouping-form :deep(.el-form-item){margin-bottom:24px}
-.grouping-timing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grouping-form{display:flex;flex-direction:column;gap:24px}
+.grouping-form :deep(.el-form-item){margin-bottom:0}
+.grouping-timing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;row-gap:24px}
 .priority-input{width:100%}
 .inhibition-form :deep(.el-form-item){margin-bottom:24px}
 .form-label{display:inline-flex;align-items:center;gap:6px;color:var(--ops-text);font-weight:500}
@@ -837,26 +796,13 @@ function paginate(rows, currentPage, currentPageSize) { const start = (validPage
 .number-field :deep(.el-input-number){min-width:0;flex:1}
 .number-field>span{height:32px;flex:0 0 auto;padding:0 13px;color:var(--ops-muted);background:var(--ops-surface-soft);border:1px solid var(--ops-border);border-left:0;border-radius:0 4px 4px 0;font-size:12px;line-height:30px;white-space:nowrap}
 .number-field :deep(.el-input-number .el-input__wrapper){border-radius:4px 0 0 4px}
-@media(max-width:520px){.grouping-timing-grid{grid-template-columns:1fr;gap:0}}
+@media(max-width:380px){.grouping-timing-grid{grid-template-columns:1fr}}
 .silence-form :deep(.el-date-editor){width:100%}
 .silence-type-options{display:flex;width:100%}
 .silence-type-options :deep(.el-radio-button){flex:1}
 .silence-type-options :deep(.el-radio-button__inner){width:100%}
 .label-match-list{display:flex;width:100%;flex-direction:column;gap:10px}
-.label-match-item{position:relative;padding:12px;background:#f7f9fc;border-radius:4px}
-.label-match-remove{position:absolute;z-index:1;top:4px;right:5px;width:28px;height:28px}
-.label-source-control{display:flex;flex-direction:column;gap:6px}
-.label-source-control>span,.label-field-control>span{color:#8a95a5;font-size:11px}
-.label-source-options{display:flex;width:100%}
-.label-source-options :deep(.el-radio-button){flex:1}
-.label-source-options :deep(.el-radio-button__inner){width:100%;padding-inline:8px}
-.label-match-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:10px}
-.label-field-control{display:flex;min-width:0;flex-direction:column;gap:6px}
-.label-field-control .el-select,.label-field-control .el-input{width:100%}
 .add-match-condition{width:100%;border-style:dashed}
-@media(max-width:600px){.label-match-fields{grid-template-columns:1fr}}
-.equal-label-key{margin-top:10px}
-.grouping-label-key{margin-top:10px}
 .notification-section{min-height:440px;container-name:notification;container-type:inline-size}
 .notification-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}
 .notification-heading strong{display:flex;align-items:center;gap:8px;color:#263244;font-size:15px;line-height:1.5}
@@ -872,7 +818,7 @@ function paginate(rows, currentPage, currentPageSize) { const start = (validPage
 .notification-form :deep(.el-form-item:last-child){margin-bottom:0}
 .notification-form :deep(.el-select){width:100%}
 .notification-form small{margin-left:10px;color:#98a2b1}
-.route-table-head,.route-row{display:grid;grid-template-columns:minmax(0,.75fr) minmax(0,.7fr) minmax(0,.8fr) minmax(0,1.2fr) 42px;align-items:center;gap:8px}
+.route-table-head,.route-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.4fr) 42px;align-items:center;gap:8px}
 .route-table-head{padding:0 4px 9px;color:var(--ops-muted);font-size:12px;font-weight:500}
 .route-list{display:flex;flex-direction:column;gap:10px}
 .route-row{padding:10px;background:#f8fafc;border:1px solid var(--ops-border-soft);border-radius:6px}
@@ -933,5 +879,4 @@ function paginate(rows, currentPage, currentPageSize) { const start = (validPage
 .center-tabs :deep(.alert-time-pair){display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.4}
 .center-tabs :deep(.alert-time-pair .is-empty){color:#a8abb2}
 
-.grouping-timing-grid,.label-match-fields { grid-template-columns:minmax(0,1fr); }
 </style>

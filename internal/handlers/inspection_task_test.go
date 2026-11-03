@@ -401,3 +401,25 @@ func TestNormalizeSilenceSchedule(t *testing.T) {
 		t.Fatal("weekly schedule should reject identical start and end times")
 	}
 }
+
+func TestNotificationRouteUnifiedLabelsRespectPriority(t *testing.T) {
+	alert := namespacedAlert(`{"env":"prod"}`, `{"env":"test","region":"east"}`, `{"env":"extra","region":"west","team":"ops"}`)
+	routes := []models.AlertNotificationRoute{
+		{LabelNamespace: "all_labels", LabelKey: "env", LabelValue: "test", ChannelIDs: "1", Status: 1},
+		{LabelNamespace: "all_labels", LabelKey: "env", LabelValue: "prod", ChannelIDs: "2", Status: 1},
+	}
+	got := notificationRouteChannelIDs(alert, routes, []uint{3})
+	if len(got) != 1 || got[0] != 2 {
+		t.Fatalf("wrong conflict route: %v", got)
+	}
+	for _, key := range []string{"region", "team"} {
+		value := "east"
+		if key == "team" {
+			value = "ops"
+		}
+		got = notificationRouteChannelIDs(alert, []models.AlertNotificationRoute{{LabelNamespace: "all_labels", LabelKey: key, LabelValue: value, ChannelIDs: "4", Status: 1}}, []uint{3})
+		if len(got) != 1 || got[0] != 4 {
+			t.Fatalf("unified %s route failed: %v", key, got)
+		}
+	}
+}

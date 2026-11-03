@@ -262,6 +262,53 @@ button, input, select, textarea {
   font-weight: 500;
 }
 
+/* Compact, semantic badges for table data. Form select chips keep their own sizing. */
+.el-table .el-table__body .cell .el-tag:not(.el-select .el-tag),
+table td .el-tag:not(.el-select .el-tag) {
+  --el-tag-text-color: var(--table-tag-color, var(--ops-primary));
+  --el-tag-bg-color: color-mix(in srgb, var(--table-tag-color, var(--ops-primary)) 8%, var(--ops-surface));
+  --el-tag-border-color: color-mix(in srgb, var(--table-tag-color, var(--ops-primary)) 18%, var(--ops-surface));
+  --el-tag-hover-color: var(--table-tag-color, var(--ops-primary));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  max-width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--el-tag-border-color);
+  border-radius: 5px;
+  background: var(--el-tag-bg-color);
+  color: var(--el-tag-text-color);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 22px;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.el-table .el-table__body .cell .el-tag--success:not(.el-select .el-tag),
+table td .el-tag--success:not(.el-select .el-tag) { --table-tag-color: var(--ops-success); }
+.el-table .el-table__body .cell .el-tag--warning:not(.el-select .el-tag),
+table td .el-tag--warning:not(.el-select .el-tag) { --table-tag-color: var(--ops-warning); }
+.el-table .el-table__body .cell .el-tag--danger:not(.el-select .el-tag),
+table td .el-tag--danger:not(.el-select .el-tag) { --table-tag-color: var(--ops-danger); }
+.el-table .el-table__body .cell .el-tag--info:not(.el-select .el-tag),
+table td .el-tag--info:not(.el-select .el-tag) { --table-tag-color: var(--ops-muted); }
+.el-table .el-table__body .cell .el-tag__content,
+table td .el-tag__content {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.el-table .el-table__body .cell .el-tag.severity-tag:not(.el-select .el-tag),
+.el-table .el-table__body .cell .severity-list .el-tag:not(.el-select .el-tag) {
+  min-width: 36px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Element Plus 2.11 may collapse the pagination size selector to its arrow width. */
 .el-pagination .el-pagination__sizes,
 .el-pagination .el-pagination__sizes .el-select {

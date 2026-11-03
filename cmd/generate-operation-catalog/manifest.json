@@ -1836,6 +1836,41 @@
       "method": "GET",
       "path": "/query/traces/metadata",
       "reason": "统一查询工作台交互接口，AI 工具输出结构与结果裁剪另行设计。"
+    },
+    {
+      "method": "GET",
+      "path": "/fault-centers/:id/ai-analysis-rules",
+      "reason": "告警 AI 分析首版由故障中心页面配置和查看；后台诊断仅注册任务范围内的专用只读工具，不开放分析配置或报告给通用操作目录。"
+    },
+    {
+      "method": "POST",
+      "path": "/fault-centers/:id/ai-analysis-rules",
+      "reason": "告警 AI 分析首版由故障中心页面配置和查看；后台诊断仅注册任务范围内的专用只读工具，不开放分析配置或报告给通用操作目录。"
+    },
+    {
+      "method": "PUT",
+      "path": "/fault-centers/:id/ai-analysis-rules/:ruleId",
+      "reason": "告警 AI 分析首版由故障中心页面配置和查看；后台诊断仅注册任务范围内的专用只读工具，不开放分析配置或报告给通用操作目录。"
+    },
+    {
+      "method": "DELETE",
+      "path": "/fault-centers/:id/ai-analysis-rules/:ruleId",
+      "reason": "告警 AI 分析首版由故障中心页面配置和查看；后台诊断仅注册任务范围内的专用只读工具，不开放分析配置或报告给通用操作目录。"
+    },
+    {
+      "method": "POST",
+      "path": "/fault-centers/:id/ai-analysis-rules/match-preview",
+      "reason": "告警 AI 分析首版由故障中心页面配置和查看；后台诊断仅注册任务范围内的专用只读工具，不开放分析配置或报告给通用操作目录。"
+    },
+    {
+      "method": "GET",
+      "path": "/fault-centers/:id/ai-analysis-options",
+      "reason": "告警 AI 分析首版由故障中心页面配置和查看；后台诊断仅注册任务范围内的专用只读工具，不开放分析配置或报告给通用操作目录。"
+    },
+    {
+      "method": "GET",
+      "path": "/fault-centers/:id/alerts/:alertId/ai-analysis",
+      "reason": "告警 AI 分析首版由故障中心页面配置和查看；后台诊断仅注册任务范围内的专用只读工具，不开放分析配置或报告给通用操作目录。"
     }
   ]
 }

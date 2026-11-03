@@ -347,7 +347,7 @@ func executeAlertAction(rule models.AlertActionRule, alert models.AlertInstance,
 		}
 		return record.Output, nil
 	default:
-		return "", fmt.Errorf("旧处置方式已停用，请重新选择自动化任务")
+		return "", fmt.Errorf("不支持的处置方式，请选择自动化任务")
 	}
 }
 

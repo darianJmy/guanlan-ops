@@ -146,7 +146,7 @@ const fallback = {
   items: ['数据模型', 'API 接口', '管理页面', '权限控制', '执行记录', '审计追踪'],
   tasks: [
     { name: '需求拆解', deliverable: '明确模块边界和非目标', status: '待实现' },
-    { name: '数据建模', deliverable: '新增模型、迁移和种子数据', status: '待实现' },
+    { name: '数据建模', deliverable: '新增模型、建表和种子数据', status: '待实现' },
     { name: '页面实现', deliverable: '列表、详情、创建和编辑流程', status: '待实现' },
   ],
 }

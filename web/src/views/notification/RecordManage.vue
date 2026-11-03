@@ -122,8 +122,6 @@ const eventTypes = [
   { value: 'alert.group', label: '告警分组通知' },
   { value: 'probe.task.failure', label: '拨测任务失败' },
   { value: 'probe.task.recovery', label: '拨测任务恢复' },
-  { value: 'scheduled.task.firing', label: '历史定时任务告警' },
-  { value: 'scheduled.task.recovery', label: '历史定时任务恢复' },
   { value: 'certificate.domain.firing', label: '证书域名告警' },
   { value: 'certificate.domain.recovery', label: '证书域名恢复' },
   { value: 'certificate.domain.alert', label: '证书通知' },

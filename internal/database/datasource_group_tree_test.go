@@ -19,7 +19,7 @@ func TestPreviousSchemaRequiresRecreation(t *testing.T) {
 	if err := db.Exec("INSERT INTO datasource_groups VALUES (7, 'existing')").Error; err != nil {
 		t.Fatal(err)
 	}
-	for _, version := range []string{"2026102201", "2026102601"} {
+	for _, version := range []string{"2026102201", "2026102601", "2026102701"} {
 		if err := sqldb.RecordSchemaVersion(db, version); err != nil {
 			t.Fatal(err)
 		}

@@ -12,7 +12,7 @@ import (
 func loadProbeAutomationTask(req ProbeReq) (models.AutomationTask, error) {
 	var task models.AutomationTask
 	if req.AutomationTaskID == 0 {
-		return task, errors.New("请选择自动化任务；旧脚本拨测需重新绑定自动化任务")
+		return task, errors.New("请选择自动化任务")
 	}
 	if req.ScriptID != 0 || req.NodeType != "" || req.NodeID != 0 || req.TimeoutMS != 0 || len(req.ExecutionNodes) != 0 {
 		return task, errors.New("脚本、执行节点和超时由自动化任务统一管理，拨测只能引用任务")

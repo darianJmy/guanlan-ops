@@ -56,7 +56,7 @@
       <div v-if="filteredChannels.length > 0" class="task-pagination"><el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="filteredChannels.length" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next" /></div>
     </el-card>
 
-    <el-drawer v-model="drawerVisible" class="standard-config-drawer channel-drawer" :size="choosingType ? 'min(320px, 94vw)' : 'min(460px, 94vw)'" direction="rtl" :close-on-click-modal="choosingType">
+    <el-drawer v-model="drawerVisible" class="standard-config-drawer channel-drawer" :size="choosingType ? 'min(320px, 94vw)' : 'min(460px, 94vw)'" direction="rtl" :show-close="choosingType" :close-on-click-modal="choosingType">
       <template #header>
         <div class="drawer-header">
           <DrawerBackButton v-if="!choosingType" :disabled="saving" @click="handleDrawerBack" />

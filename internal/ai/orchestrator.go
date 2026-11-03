@@ -8,6 +8,9 @@ import (
 )
 
 type Orchestrator struct {
+	SystemPrompt   string
+	MaxToolCalls   int
+	MaxInputBytes  int
 	Registry       *Registry
 	Model          model.ToolCallingChatModel
 	MaxRounds      int
@@ -31,6 +34,9 @@ type RunResponse struct {
 }
 
 func (o *Orchestrator) systemPrompt() string {
+	if strings.TrimSpace(o.SystemPrompt) != "" {
+		return o.SystemPrompt
+	}
 	return `你是观澜运维平台的智能运维调度核心。
 你必须使用中文。
 使用提供的工具完成查询和已开放的业务操作，最终回答使用清晰的中文，可使用 Markdown。
