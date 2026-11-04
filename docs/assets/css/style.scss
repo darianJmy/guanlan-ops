@@ -1,0 +1,33 @@
+---
+---
+@import "jekyll-theme-minimal";
+
+body { margin: 0; padding: 0; color: #263449; font-size: 15px; line-height: 1.75; background: #fff; }
+a { color: #176b63; }
+a:hover, a:focus { color: #104a44; font-weight: inherit; }
+a:focus-visible { outline: 2px solid #176b63; outline-offset: 3px; }
+.docs-shell { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+.docs-sidebar { padding: 36px 24px; border-right: 1px solid #e4e9ec; background: #f7f9fa; position: sticky; top: 0; height: 100vh; box-sizing: border-box; overflow-y: auto; }
+.brand { font-size: 25px; font-weight: 700; color: #173d38; }
+.docs-sidebar > p { font-size: 13px; color: #596777; margin-top: 10px; }
+.nav-group h2 { margin: 24px 0 8px; font-size: 13px; color: #596777; }
+.nav-group ul { list-style: none; padding: 0; margin: 0; }
+.nav-group a { display: block; padding: 5px 10px; border-radius: 5px; color: #344154; }
+.nav-group a[aria-current="page"] { background: #dceee8; color: #114d43; font-weight: 600; }
+.docs-content { min-width: 0; padding: 42px 48px; }
+.docs-content h1 { font-size: 30px; line-height: 1.35; }
+.docs-content h2 { margin-top: 32px; padding-bottom: 8px; border-bottom: 1px solid #e4e9ec; }
+.docs-content h2, .docs-content h3 { scroll-margin-top: 20px; }
+.docs-content table { display: block; max-width: 100%; overflow-x: auto; }
+.docs-content pre { overflow-x: auto; padding: 16px; }
+.docs-content blockquote { border-left: 3px solid #389683; font-style: normal; color: #526172; }
+.docs-footer { position: static; width: auto; margin-top: 48px; border-top: 1px solid #e4e9ec; padding-top: 16px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; font-size: 12px; }
+.mermaid { overflow-x: auto; }
+.skip-link { position: absolute; top: -80px; left: 16px; background: #fff; padding: 8px; z-index: 2; }
+.skip-link:focus { top: 8px; }
+@media (max-width: 800px) {
+  .docs-shell { display: block; }
+  .docs-sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid #e4e9ec; padding: 24px; }
+  .docs-sidebar nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+  .docs-content { padding: 28px 20px; }
+}

@@ -11,7 +11,7 @@ import (
 func SetupRouter() *gin.Engine {
 	r := gin.New()
 	r.Use(ginmiddleware.Access(), ginmiddleware.Recovery())
-	r.Use(ginmiddleware.CORS("*", "GET,POST,PUT,DELETE,OPTIONS", "Content-Type,Accept,Authorization,X-Agent-Token,MCP-Protocol-Version,MCP-Session-Id"))
+	r.Use(ginmiddleware.CORS("*", "GET,POST,PUT,DELETE,OPTIONS", "Content-Type,Accept,Authorization,X-Agent-Token,MCP-Protocol-Version,MCP-Session-Id,traceparent,tracestate"))
 
 	api := r.Group("/api")
 	{

@@ -26,7 +26,8 @@
 - 其他 `internal` 包：API、业务模型、鉴权、AI、Agent 等私有实现。
 - `web`：Vue 项目；根目录 `main.go` 将 `web/dist` 嵌入 Go 二进制。
 - `configs`：外部配置示例，默认运行无需复制该目录。
-- `Dockerfile.agent`：Agent 容器构建定义；Docker 构建上下文为仓库根目录。
+- `Dockerfile`：主程序容器构建定义，构建前端并嵌入 Go 服务端；在仓库根目录执行 `make image-build`。
+- `build/agent/Dockerfile`：Agent 容器构建定义；Docker 构建上下文为仓库根目录。
 - `docs/database.md`：SQLite 数据库初始化与开发环境结构调整说明。
 - `web/src/assets`：前端图片和图标。
 - `docs`：设计与使用文档。
@@ -50,4 +51,4 @@ make test
 
 公共包不导入 `guanlan/internal/...`。业务层负责配置、数据库查询、权限、默认值与状态转换，再将独立参数传给公共包。已有密文格式、文本截断策略及接口返回保持兼容。
 
-Agent 的 Docker 构建只复制自身依赖的 `pkg/archiveutil` 和 `pkg/syncbuffer`，避免引入服务器的 Gin、数据库及云 SDK 依赖；增加 Agent 公共依赖时同步更新根目录 `Dockerfile.agent`。
+Agent 的 Docker 构建只复制自身依赖的 `pkg/archiveutil` 和 `pkg/syncbuffer`，避免引入服务器的 Gin、数据库及云 SDK 依赖；增加 Agent 公共依赖时同步更新 `build/agent/Dockerfile`。

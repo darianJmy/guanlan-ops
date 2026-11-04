@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guanlan
+  labels:
+    app: guanlan
+spec:
+  # SQLite 和进程内调度器要求单实例运行。
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: guanlan
+  template:
+    metadata:
+      labels:
+        app: guanlan
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: guanlan
+          # 部署前替换为自己构建并推送的镜像。
+          image: guanlan:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: APP_SERVER_ADDR
+              value: ":8080"
+            - name: APP_DATABASE_DSN
+              value: /app/data/aiops.db
+            - name: APP_LOG_FORMAT
+              value: json
+            - name: APP_AUTH_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: guanlan-auth
+                  key: jwt-secret
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          # 当前没有专用健康接口，使用实际监听端口。
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: guanlan-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guanlan
+spec:
+  type: ClusterIP
+  selector:
+    app: guanlan
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: guanlan-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # 使用集群默认 StorageClass；无默认值时显式填写 storageClassName。
+  resources:
+    requests:
+      storage: 10Gi

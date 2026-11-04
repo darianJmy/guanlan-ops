@@ -22,3 +22,7 @@ __pycache__/
 # Air local development build output
 /.air-tmp/
 nohup.out
+
+# GitHub Pages build output
+/_pages_source/
+/_site/

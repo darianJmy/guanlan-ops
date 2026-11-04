@@ -1,0 +1,40 @@
+- title: 开始使用
+  items:
+  - title: 文档首页
+    url: /
+  - title: 快速开始
+    url: /getting-started.html
+  - title: Agent 接入
+    url: /agent-connection.html
+- title: 功能指南
+  items:
+  - title: 指标数据源
+    url: /architecture/prometheus-monitoring.html
+  - title: 日志与链路查询
+    url: /log-query.html
+  - title: 告警生命周期
+    url: /alert-lifecycle-management.html
+  - title: 脚本拨测
+    url: /architecture/script-probes.html
+  - title: 自动化任务
+    url: /architecture/automation-task-execution.html
+  - title: 工作流编排
+    url: /architecture/workflow-dag-execution.html
+- title: AI 能力
+  items:
+  - title: AI 助手架构
+    url: /architecture/ai-assistant-integration.html
+  - title: 平台操作工具
+    url: /architecture/platform-operation-tools.html
+  - title: 故障中心 AI 分析
+    url: /architecture/alert-ai-analysis-design.html
+- title: 维护与开发
+  items:
+  - title: 数据库
+    url: /database.html
+  - title: 分布式链路追踪
+    url: /tracing.html
+  - title: 项目目录
+    url: /project-layout.html
+  - title: 文档站维护
+    url: /documentation.html

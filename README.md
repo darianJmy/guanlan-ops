@@ -1,6 +1,6 @@
 <div align="center">
 
-# 观澜运维平台 · Guanlan
+# 观澜运维平台 · guanlan-ops
 
 **把监控接入、告警治理、拨测和自动化，放进一个运维工作台。**
 
@@ -147,6 +147,14 @@ chmod +x guanlan
 
 服务端可以独立运行。需要远程执行时，再按 [Agent 接入说明](docs/agent-connection.md) 部署可选的远程 Agent；它不是启动平台的必需组件。
 
+### 4. Kubernetes 部署
+
+已提供服务端 [Dockerfile](Dockerfile) 和 [Kubernetes 部署清单](deploy/kubernetes/README.md)，包含 Deployment、Service 和持久化 PVC。按部署说明构建镜像、创建 JWT Secret 后应用清单即可。
+
+执行 `make image-build` 构建主程序镜像，默认标签为当前 Git 短 commit SHA（`guanlan:<commit>`）；可通过 `IMAGE_NAME` 指定仓库地址、`IMAGE_TAG` 覆盖标签。
+
+SQLite 模式使用单副本和 `Recreate` 更新策略，数据保存在 PVC 中。
+
 ## 配置说明
 
 默认配置位于 [internal/conf/conf/config.yaml](internal/conf/conf/config.yaml)，通过 `go:embed` 内置到程序。外部配置只需填写需要覆盖的字段。
@@ -194,7 +202,7 @@ log:
 APP_SERVER_ADDR=:8081 ./guanlan
 ```
 
-日志使用 `pkg/logger` 统一封装，支持 `debug / info / warn / error` 级别以及 `text / json` 格式。文件日志为追加写入，当前未内置日志轮转。
+日志使用 `pkg/logger` 统一封装，支持 `debug / info / warn / error` 级别以及 `text / json` 格式。文件日志为追加写入，当前未内置日志轮转。日志包含调用源文件及行号；每个 HTTP 请求自动生成 `trace_id`，在访问日志、panic 日志和响应头 `X-Trace-ID` 中保持一致。业务代码通过 `logger.LogContext(c.Request.Context(), level, message, ...)` 记录日志时也会携带该 ID。配置 OTLP 接收地址后可启用 OpenTelemetry 分布式链路追踪，此时日志关联真实 `trace_id` 和 `span_id`；启用方式和覆盖范围见 [链路追踪](docs/tracing.md)。
 
 邮件通知共用配置文件中的 `smtp` 发信服务，通知对象页面只填写收件人邮箱（支持多个）。在 `conf/config.yaml` 或 `--conf` 指定的文件中配置：
 
@@ -283,6 +291,12 @@ npm --prefix web audit
 
 前端测试统一放在 `web/tests/`；AI 调用链路的冒烟脚本位于 `test/smoke/`。可复用的测试源码随仓库提交，本地截图、验证产物与 Python 缓存已加入忽略规则。
 
+### GitHub Actions 自动构建
+
+[构建工作流](.github/workflows/build.yml) 会在推送、创建或更新 Pull Request 时执行 `make build`，也支持在 GitHub Actions 页面手动触发。运行环境为 Linux amd64，Go 版本从 `go.mod` 读取，Node.js 使用 22，并缓存 Go 和 npm 依赖。
+
+将工作流提交并推送到 GitHub 后，可在仓库的 **Actions → Build** 查看构建结果和失败日志。
+
 ### AI 操作目录生成
 
 `cmd/generate-operation-catalog` 是维护 AI / MCP 操作目录的开发工具。只有增减已登记操作、修改相关接口参数时，才需要在仓库根目录执行：
@@ -315,13 +329,14 @@ guanlan/
 │   ├── src/                Vue 页面、组件、样式与图片资源
 │   ├── tests/              前端单元与回归测试
 │   └── dist/               前端构建产物，不提交 Git
+├── build/agent/            Agent 的 Dockerfile
 ├── configs/                外部配置示例
 ├── docs/                   架构、开发与接入文档
 ├── test/
 │   ├── smoke/              可复用的冒烟测试脚本
 │   └── artifacts/          本地验证产物，不提交 Git
+├── Dockerfile              主程序容器构建定义（包含前端）
 ├── LICENSE                 Apache-2.0 许可证
-├── Dockerfile.agent        Agent 容器构建定义
 ├── .air.toml               后端热重载配置
 └── Makefile                构建、开发和测试命令
 ```
@@ -378,6 +393,8 @@ Go 主程序使用 `go:embed web/dist`，编译时要求这个目录存在。当
 AI 阶段规划见 [实施方案](docs/architecture/guanlan-ai-roadmap.md)，已交付能力与当前边界以 [AI 助手架构](docs/architecture/ai-assistant-integration.md) 和 [平台操作工具目录](docs/architecture/platform-operation-tools.md) 为准。
 
 ## 文档导航
+
+[文档首页](docs/index.md) · [快速开始](docs/getting-started.md) · [GitHub Pages 发布说明](docs/documentation.md)
 
 - [日志查询接入](docs/log-query.md)：Loki、Elasticsearch、ClickHouse 的连接和字段映射。
 - [Agent 接入](docs/agent-connection.md)：远程节点部署与连接。

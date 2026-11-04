@@ -2,11 +2,13 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -80,5 +82,32 @@ func TestInvalidLoggerDoesNotReplaceDefault(t *testing.T) {
 	}
 	if slog.Default() != previous {
 		t.Fatal("failed setup replaced default logger")
+	}
+}
+
+func TestCallerAndTraceContext(t *testing.T) {
+	output := capture(t, slog.LevelInfo)
+	_, file, line, _ := runtime.Caller(0)
+	Info("caller")
+	var record struct {
+		Source struct {
+			File string
+			Line int
+		}
+		TraceID string `json:"trace_id"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.Source.File != file || record.Source.Line != line+1 {
+		t.Fatalf("wrong caller: %+v", record.Source)
+	}
+	output.Reset()
+	LogContext(WithTraceID(context.Background(), "request-123"), slog.LevelInfo, "business event")
+	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.TraceID != "request-123" {
+		t.Fatalf("missing trace: %+v", record)
 	}
 }

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="{{ site.lang | default: 'zh-CN' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% seo %}
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+</head>
+<body>
+  <a class="skip-link" href="#content">跳转到正文</a>
+  <div class="docs-shell">
+    <aside class="docs-sidebar">
+      <a class="brand" href="{{ '/' | relative_url }}">{{ site.title }}</a>
+      <p>{{ site.description }}</p>
+      <nav aria-label="文档导航">
+        {% for group in site.data.navigation %}
+        <div class="nav-group">
+          <h2>{{ group.title }}</h2>
+          <ul>
+            {% for item in group.items %}
+            <li><a href="{{ item.url | relative_url }}" {% if page.url == item.url %}aria-current="page"{% endif %}>{{ item.title }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </nav>
+      <a href="{{ site.repository_url }}">GitHub 源码 ↗</a>
+    </aside>
+    <main id="content" class="docs-content">
+      {{ content }}
+      <footer class="docs-footer">
+        <a href="{{ site.repository_url }}/blob/{{ site.repository_branch }}/docs/{{ page.path }}">在 GitHub 上查看或编辑此页</a>
+        <span>guanlan-ops · Apache-2.0</span>
+      </footer>
+    </main>
+  </div>
+  <script type="module" src="{{ '/assets/js/diagrams.js' | relative_url }}"></script>
+</body>
+</html>

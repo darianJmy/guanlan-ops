@@ -1,6 +1,13 @@
 package httpclient
 
-import "net/http"
+import (
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+	"net/http"
+)
 
 type Auth struct{ Type, Username, Password, Token string }
 
@@ -36,5 +43,19 @@ func (t Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if base == nil {
 		base = http.DefaultTransport
 	}
-	return base.RoundTrip(cloned)
+	ctx, span := otel.Tracer("guanlan/httpclient").Start(cloned.Context(), cloned.Method+" "+cloned.URL.Hostname(), trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
+	cloned = cloned.WithContext(ctx)
+	span.SetAttributes(attribute.String("http.request.method", cloned.Method), attribute.String("server.address", cloned.URL.Hostname()))
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(cloned.Header))
+	response, err := base.RoundTrip(cloned)
+	if err != nil {
+		span.SetStatus(codes.Error, "HTTP transport error")
+	} else {
+		span.SetAttributes(attribute.Int("http.response.status_code", response.StatusCode))
+		if response.StatusCode >= 400 {
+			span.SetStatus(codes.Error, "HTTP error")
+		}
+	}
+	return response, err
 }

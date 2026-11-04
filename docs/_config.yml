@@ -1,0 +1,21 @@
+title: guanlan-ops
+description: 观澜运维平台 · 监控接入、告警治理、拨测与自动化
+lang: zh-CN
+theme: jekyll-theme-minimal
+markdown: kramdown
+highlighter: rouge
+plugins:
+  - jekyll-relative-links
+  - jekyll-seo-tag
+relative_links:
+  enabled: true
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+      # Preserve template examples in technical documentation.
+      render_with_liquid: false
+exclude:
+  - Gemfile
+  - Gemfile.lock

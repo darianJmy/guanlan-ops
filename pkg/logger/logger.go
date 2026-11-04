@@ -2,13 +2,17 @@
 package logger
 
 import (
+	"context"
 	"fmt"
+	"go.opentelemetry.io/otel/trace"
 	"io"
 	stdlog "log"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -57,14 +61,57 @@ func New(cfg Config) (*slog.Logger, func(), error) {
 }
 
 func newHandler(output io.Writer, format string, level slog.Level) slog.Handler {
-	options := &slog.HandlerOptions{Level: level}
+	options := &slog.HandlerOptions{Level: level, AddSource: true}
 	if format == "json" {
 		return slog.NewJSONHandler(output, options)
 	}
 	return slog.NewTextHandler(output, options)
 }
 
-func Debug(message string, args ...any) { slog.Debug(message, args...) }
-func Info(message string, args ...any)  { slog.Info(message, args...) }
-func Warn(message string, args ...any)  { slog.Warn(message, args...) }
-func Error(message string, args ...any) { slog.Error(message, args...) }
+type traceIDKey struct{}
+
+func WithTraceID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, traceIDKey{}, id)
+}
+
+// TraceID returns the active span trace ID or the request correlation fallback.
+func TraceID(ctx context.Context) string {
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		return sc.TraceID().String()
+	}
+	id, _ := ctx.Value(traceIDKey{}).(string)
+	return id
+}
+
+func Debug(message string, args ...any) {
+	write(context.Background(), slog.LevelDebug, message, args...)
+}
+func Info(message string, args ...any) { write(context.Background(), slog.LevelInfo, message, args...) }
+func Warn(message string, args ...any) { write(context.Background(), slog.LevelWarn, message, args...) }
+func Error(message string, args ...any) {
+	write(context.Background(), slog.LevelError, message, args...)
+}
+
+// LogContext includes the request trace ID when the context comes from HTTP middleware.
+func LogContext(ctx context.Context, level slog.Level, message string, args ...any) {
+	write(ctx, level, message, args...)
+}
+
+func write(ctx context.Context, level slog.Level, message string, args ...any) {
+	log := slog.Default()
+	if !log.Enabled(ctx, level) {
+		return
+	}
+	var pcs [1]uintptr
+	// Skip runtime.Callers, write and the public logging wrapper.
+	runtime.Callers(3, pcs[:])
+	record := slog.NewRecord(time.Now(), level, message, pcs[0])
+	record.Add(args...)
+	if id := TraceID(ctx); id != "" {
+		record.Add("trace_id", id)
+		if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+			record.Add("span_id", sc.SpanID().String())
+		}
+	}
+	_ = log.Handler().Handle(ctx, record)
+}
