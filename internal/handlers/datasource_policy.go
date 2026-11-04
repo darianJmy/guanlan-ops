@@ -18,6 +18,18 @@ func validateDatasourceConnection(ds models.Datasource) error {
 	if !isSupportedDatasourceType(ds.Type) {
 		return fmt.Errorf("暂不支持该数据源类型")
 	}
+	if ds.Type == "kafka" {
+		_, _, err := kafkaConnectionOptions(ds)
+		return err
+	}
+	if ds.Type == "redis" {
+		_, err := redisClientOptions(ds)
+		return err
+	}
+	if ds.Type == "mysql" {
+		_, err := mysqlDriverConfig(ds)
+		return err
+	}
 	endpoint, err := url.Parse(strings.TrimSpace(ds.URL))
 	if err != nil || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.Hostname() == "" || endpoint.User != nil || endpoint.Fragment != "" || endpoint.RawQuery != "" {
 		return fmt.Errorf("请填写有效的 数据源 HTTP/HTTPS 地址，认证信息请单独配置")
@@ -29,7 +41,7 @@ func validateDatasourceConnection(ds models.Datasource) error {
 	if authType == "" {
 		authType = "none"
 	}
-	if authType != "none" && authType != "basic" && authType != "bearer" && !(authType == "api_key" && ds.Type == "elasticsearch") {
+	if authType != "none" && authType != "basic" && authType != "bearer" && !(authType == "api_key" && ds.Type == "elasticsearch") && !(authType == "client_certificate" && ds.Type == "k8s") {
 		return fmt.Errorf("当前数据源不支持此认证方式")
 	}
 	var auth DatasourceAuthConfig
@@ -63,6 +75,9 @@ func validateDatasourceConnection(ds models.Datasource) error {
 				return fmt.Errorf("HTTP 头名称格式不正确")
 			}
 		}
+	}
+	if ds.Type == "k8s" {
+		return validateKubernetesConnection(ds)
 	}
 	if ds.Type == "clickhouse" {
 		var cfg struct {
@@ -111,6 +126,15 @@ func normalizeDatasourceReq(req *CreateDatasourceWithTunnelReq, existing *models
 		req.AuthConfig = ""
 	} else if existing != nil && strings.TrimSpace(req.AuthConfig) == "" && existing.AuthType == req.AuthType {
 		req.AuthConfig = existing.AuthConfig
+	}
+	if (req.Type == "mysql" || req.Type == "redis" || req.Type == "kafka") && existing != nil && existing.AuthType == req.AuthType && req.AuthConfig != "" {
+		var incoming, saved DatasourceAuthConfig
+		if json.Unmarshal([]byte(req.AuthConfig), &incoming) == nil && incoming.Password == "" {
+			_ = json.Unmarshal([]byte(existing.AuthConfig), &saved)
+			incoming.Password = saved.Password
+			raw, _ := json.Marshal(incoming)
+			req.AuthConfig = string(raw)
+		}
 	}
 	if err := validateDatasourceConnection(models.Datasource{Type: req.Type, URL: req.URL, AuthType: req.AuthType, AuthConfig: req.AuthConfig, Config: req.Config}); err != nil {
 		return err

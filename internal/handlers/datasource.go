@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,7 +74,7 @@ func TestDatasourceConnection(c *gin.Context) {
 		Config:     req.Config,
 		TunnelID:   req.TunnelID,
 	}
-	ok, msg := testConnectionForDatasource(ds)
+	ok, msg := testConnectionForDatasourceContext(c.Request.Context(), ds)
 	if ok {
 		resp.Success(c, http.StatusOK, msg)
 	} else {
@@ -107,10 +108,19 @@ func TestSavedDatasourceConnection(c *gin.Context) {
 		ds.AuthType = req.AuthType
 	}
 	if strings.TrimSpace(req.AuthConfig) != "" {
+		if (ds.Type == "mysql" || ds.Type == "redis" || ds.Type == "kafka") && ds.AuthType != "none" {
+			var incoming, saved DatasourceAuthConfig
+			if json.Unmarshal([]byte(req.AuthConfig), &incoming) == nil && incoming.Password == "" {
+				_ = json.Unmarshal([]byte(ds.AuthConfig), &saved)
+				incoming.Password = saved.Password
+				raw, _ := json.Marshal(incoming)
+				req.AuthConfig = string(raw)
+			}
+		}
 		ds.AuthConfig = req.AuthConfig
 	}
 
-	ok, msg := testConnectionForDatasource(ds)
+	ok, msg := testConnectionForDatasourceContext(c.Request.Context(), ds)
 	if ok {
 		resp.Success(c, http.StatusOK, msg)
 	} else {
@@ -129,8 +139,24 @@ func testConnection(dsType, url, authType, authConfig, config string) (bool, str
 }
 
 func testConnectionForDatasource(ds models.Datasource) (bool, string) {
+	return testConnectionForDatasourceContext(context.Background(), ds)
+}
+
+func testConnectionForDatasourceContext(ctx context.Context, ds models.Datasource) (bool, string) {
 	if err := validateDatasourceConnection(ds); err != nil {
 		return false, err.Error()
+	}
+	if ds.Type == "kafka" {
+		return testKafkaContext(ctx, ds)
+	}
+	if ds.Type == "redis" {
+		return testRedisContext(ctx, ds)
+	}
+	if ds.Type == "mysql" {
+		return testMySQLContext(ctx, ds)
+	}
+	if ds.Type == "k8s" {
+		return testKubernetesContext(ctx, ds)
 	}
 	definition, _ := datasourceDefinitionFor(ds.Type)
 	return definition.testConnection(ds)

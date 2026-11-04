@@ -25,6 +25,10 @@ permalink: /
 
 ## 功能与开发
 
+- [Kafka 接入](kafka.md)
+- [Redis 接入](redis.md)
+- [MySQL 数据库接入](mysql.md)
+- [Kubernetes 集群接入](kubernetes.md)
 - [日志与链路查询接入](log-query.md)
 - [自动化任务执行](architecture/automation-task-execution.md) · [工作流编排](architecture/workflow-dag-execution.md)
 - [AI 工具目录](architecture/platform-operation-tools.md) · [故障中心 AI 分析](architecture/alert-ai-analysis-design.md)

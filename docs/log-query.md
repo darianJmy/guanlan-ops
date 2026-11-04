@@ -94,3 +94,7 @@ Jaeger 接入 Query HTTP 服务（默认 16686），使用其 UI JSON 接口 `/a
 - Jaeger：`TraceQuery.vue`，独立调用链页面。
 
 先前的通用 `QueryWorkbench` 已从即时查询入口撤下，其分屏、分享、通用工具栏不再挂载。外层不对查询组件使用深度样式覆盖。各类型可复用 API 与数据处理逻辑，但页面样式不统一套用。
+
+## MySQL SQL 数据源
+
+即时查询也支持 MySQL 的只读 SQL，使用同一 `query:sql` 权限；MySQL 不启用日志模式，也不使用 ClickHouse 时间参数。配置和查询说明见 [MySQL 数据库接入](mysql.md)。

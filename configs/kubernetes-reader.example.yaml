@@ -1,0 +1,51 @@
+# 应用到待接入的 Kubernetes 集群；默认只允许读取 default 命名空间的 Pod 列表。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: guanlan-reader
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: guanlan-pod-reader
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: guanlan-pod-reader
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: guanlan-reader
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: guanlan-pod-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: guanlan-version-reader
+rules:
+  - nonResourceURLs: ["/version"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: guanlan-version-reader
+subjects:
+  - kind: ServiceAccount
+    name: guanlan-reader
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: guanlan-version-reader

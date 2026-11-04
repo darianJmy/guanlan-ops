@@ -41,6 +41,13 @@ func datasourceHTTPClient(ds models.Datasource, timeout time.Duration) (*http.Cl
 	cfg := datasourceHTTPConfig(ds)
 	cfg.Timeout = timeout
 	cfg.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	if ds.Type == "k8s" {
+		var err error
+		cfg.TLSConfig, err = kubernetesTLSConfig(ds)
+		if err != nil {
+			return nil, func() {}, err
+		}
+	}
 	cleanup := func() {}
 
 	if ds.TunnelID == 0 {

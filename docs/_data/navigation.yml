@@ -10,6 +10,14 @@
   items:
   - title: 指标数据源
     url: /architecture/prometheus-monitoring.html
+  - title: MySQL 接入
+    url: /mysql.html
+  - title: Redis 接入
+    url: /redis.html
+  - title: Kafka 接入
+    url: /kafka.html
+  - title: Kubernetes 接入
+    url: /kubernetes.html
   - title: 日志与链路查询
     url: /log-query.html
   - title: 告警生命周期

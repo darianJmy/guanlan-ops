@@ -39,7 +39,7 @@ Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 | 模块 | 当前能力 |
 | --- | --- |
 | 运维概览 | 4 项核心指标，告警与通知趋势，活跃告警分布、Prometheus 实例启用状态，今日 / 近 7 天 / 近 30 天切换 |
-| 接入中心 | Prometheus / VictoriaMetrics 多实例与分组管理，认证、自定义请求头、标签及连接测试 |
+| 接入中心 | Prometheus / VictoriaMetrics、MySQL、Redis、Kafka 等数据源及 Kubernetes 集群接入，分组、认证、标签与连接测试 |
 | 即时查询与仪表盘 | PromQL 即时与范围查询、日志查询、SQL 查询、查询历史，Grafana 及云日志仪表盘接入 |
 | 日志查询 | Loki、Elasticsearch、ClickHouse 日志查询，时间范围与条数限制、字段映射及详情展示 |
 | 告警治理 | 按实例分组绑定规则、子分组覆盖、周期评估、故障中心、告警生命周期、静默、抑制、通知路由及告警动作 |
@@ -392,6 +392,10 @@ AI 阶段规划见 [实施方案](docs/architecture/guanlan-ai-roadmap.md)，已
 
 [在线文档](https://darianjmy.github.io/guanlan-ops/) · [文档源码](docs/index.md) · [快速开始](docs/getting-started.md) · [GitHub Pages 发布说明](docs/documentation.md)
 
+- [Kafka 接入](docs/kafka.md)：多个 Broker、SASL / SCRAM、TLS 与元数据连接验证。
+- [Redis 接入](docs/redis.md)：密码 / ACL 认证、数据库编号、TLS 与连接验证。
+- [MySQL 接入](docs/mysql.md)：数据库连接、TLS 与只读 SQL 查询。
+- [Kubernetes 接入](docs/kubernetes.md)：API Server、Token / 客户端证书、CA 和命名空间权限验证。
 - [日志查询接入](docs/log-query.md)：Loki、Elasticsearch、ClickHouse 的连接和字段映射。
 - [Agent 接入](docs/agent-connection.md)：远程节点部署与连接。
 - [脚本拨测](docs/architecture/script-probes.md)：Shell / Python 检测与执行策略。

@@ -28,6 +28,10 @@ type datasourceDefinition struct {
 }
 
 var datasourceDefinitions = []datasourceDefinition{
+	{Type: "kafka", Name: "Apache Kafka", Category: "messaging", Capabilities: []string{"kafka"}, Protocol: "kafka", URLPlaceholder: "kafka://broker.example.com:9092", URLHelp: "填写首个引导 Broker，默认端口 9092；备用 Broker 和 TLS 在下方配置。", testConnection: testKafka},
+	{Type: "redis", Name: "Redis", Category: "database", Capabilities: []string{"redis"}, Protocol: "redis", URLPlaceholder: "redis://redis.example.com:6379", URLHelp: "填写 Redis 实例地址；TLS 使用 rediss://。数据库编号和认证信息在下方配置。", testConnection: testRedis},
+	{Type: "mysql", Name: "MySQL", Category: "database", Capabilities: []string{"sql"}, Protocol: "mysql", URLPlaceholder: "mysql://mysql.example.com:3306", URLHelp: "填写 MySQL 主机和端口；数据库、用户名和密码在下方配置。", testConnection: testMySQL},
+	{Type: "k8s", Name: "Kubernetes", Category: "container", Capabilities: []string{"k8s"}, Protocol: "kubernetes", URLPlaceholder: "https://kubernetes.example.com:6443", URLHelp: "填写 API Server 的 HTTPS 地址，支持集群代理路径；不要填写控制台页面地址。", testConnection: testKubernetes},
 	{Type: "prometheus", Name: "Prometheus", Category: "observability", Capabilities: []string{"metrics"}, Protocol: "promql", URLPlaceholder: "http://prometheus.example.com:9090", URLHelp: "填写 Prometheus 服务地址，不包含 /api/v1/query。", testConnection: testPrometheus},
 	{Type: "victoriametrics", Name: "VictoriaMetrics", Category: "observability", Capabilities: []string{"metrics"}, Protocol: "promql", URLPlaceholder: "http://victoriametrics.example.com:8428", URLHelp: "单机版：http://host:8428；集群版：http://vmselect:8481/select/0/prometheus（0 为租户 ID）。填写查询地址，不要填写 vminsert 写入地址。", testConnection: testVictoriaMetrics},
 	{Type: "loki", Name: "Loki", Category: "observability", Capabilities: []string{"logs"}, Protocol: "logql", URLPlaceholder: "http://loki.example.com:3100", URLHelp: "填写 Loki 查询服务地址，不包含 /loki/api/v1。多租户可在高级配置添加 X-Scope-OrgID。", testConnection: testLoki},

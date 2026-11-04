@@ -207,6 +207,8 @@ func ListDatasourcesWithTunnel(c *gin.Context) {
 		tunnelMap[t.ID] = t.Name
 	}
 	for i := range datasources {
+		maskKubernetesAuth(&datasources[i])
+		maskPasswordDatasourceAuth(&datasources[i])
 		if datasources[i].TunnelID > 0 {
 			datasources[i].TunnelName = tunnelMap[datasources[i].TunnelID]
 		}
@@ -488,9 +490,14 @@ func normalizeDatasourceLabels(raw string) (string, error) {
 
 // DatasourceAuthConfig exposes auth fields for test connection
 type DatasourceAuthConfig struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Token    string `json:"token"`
+	HasPassword          bool   `json:"has_password,omitempty"`
+	ClientCertificate    string `json:"client_certificate,omitempty"`
+	ClientKey            string `json:"client_key,omitempty"`
+	HasToken             bool   `json:"has_token,omitempty"`
+	HasClientCertificate bool   `json:"has_client_certificate,omitempty"`
+	Username             string `json:"username"`
+	Password             string `json:"password"`
+	Token                string `json:"token"`
 }
 
 func GetDatasourceAuth(c *gin.Context) {
@@ -500,6 +507,8 @@ func GetDatasourceAuth(c *gin.Context) {
 		resp.Error(c, http.StatusOK, resp.CodeNotFound, "数据源不存在")
 		return
 	}
+	maskKubernetesAuth(&ds)
+	maskPasswordDatasourceAuth(&ds)
 	var auth DatasourceAuthConfig
 	if ds.AuthConfig != "" {
 		json.Unmarshal([]byte(ds.AuthConfig), &auth)

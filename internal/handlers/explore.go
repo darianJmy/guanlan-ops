@@ -38,7 +38,7 @@ func ExploreDatasources(c *gin.Context) {
 		if isMetricDatasourceType(ds.Type) && permissions["datasource:list"] {
 			modes = append(modes, "metrics")
 		}
-		if ds.Type == "clickhouse" && permissions["query:sql"] {
+		if (ds.Type == "clickhouse" || ds.Type == "mysql") && permissions["query:sql"] {
 			modes = append(modes, "sql")
 		}
 		if ds.Type == "jaeger" && permissions["observability:traces"] {
@@ -59,8 +59,8 @@ func ExploreDatasources(c *gin.Context) {
 type SQLQueryRequest struct {
 	DatasourceID uint      `json:"datasource_id" binding:"required"`
 	Query        string    `json:"query" binding:"required"`
-	Start        time.Time `json:"start" binding:"required"`
-	End          time.Time `json:"end" binding:"required"`
+	Start        time.Time `json:"start"`
+	End          time.Time `json:"end"`
 	Limit        int       `json:"limit"`
 }
 type sqlResult struct {
@@ -69,9 +69,11 @@ type sqlResult struct {
 	Exception string              `json:"exception"`
 }
 
-// A small lexer validates the statement envelope, not SQL semantics. ClickHouse
-// enforces readonly independently. Comments/strings cannot bypass the envelope.
-func validateExploreSQL(sql string) error {
+// A small lexer validates the statement envelope, not SQL semantics. Adapters
+// also enforce read-only execution using database settings or transactions.
+func validateExploreSQL(sql string) error { return validateExploreSQLDialect(sql, false) }
+
+func validateExploreSQLDialect(sql string, mysql bool) error {
 	tokens := []string{}
 	for i := 0; i < len(sql); {
 		ch := sql[i]
@@ -100,13 +102,16 @@ func validateExploreSQL(sql string) error {
 			}
 			continue
 		}
-		if i+1 < len(sql) && sql[i:i+2] == "--" {
+		if (i+1 < len(sql) && sql[i:i+2] == "--") || (mysql && ch == '#') {
 			for i < len(sql) && sql[i] != '\n' {
 				i++
 			}
 			continue
 		}
 		if i+1 < len(sql) && sql[i:i+2] == "/*" {
+			if mysql && (strings.HasPrefix(sql[i:], "/*!") || strings.HasPrefix(sql[i:], "/*+") || strings.HasPrefix(sql[i:], "/*M!")) {
+				return fmt.Errorf("MySQL 查询不支持可执行注释或优化器提示")
+			}
 			end := strings.Index(sql[i+2:], "*/")
 			if end < 0 {
 				return fmt.Errorf("SQL 注释未闭合")
@@ -132,6 +137,12 @@ func validateExploreSQL(sql string) error {
 		return fmt.Errorf("仅支持只读 SELECT / WITH 查询")
 	}
 	for _, token := range tokens {
+		if mysql {
+			switch token {
+			case "SLEEP", "BENCHMARK", "GET_LOCK", "RELEASE_LOCK", "LOAD_FILE", "PROCEDURE", "LOCK", "SHARE", "DUMPFILE":
+				return fmt.Errorf("MySQL 查询不支持锁操作、文件访问或延时函数")
+			}
+		}
 		switch token {
 		case "INSERT", "UPDATE", "DELETE", "ALTER", "DROP", "CREATE", "TRUNCATE", "ATTACH", "DETACH", "RENAME", "GRANT", "REVOKE", "SYSTEM", "KILL", "SETTINGS", "FORMAT", "INTO", "OUTFILE":
 			return fmt.Errorf("查询不能包含写操作、SETTINGS、FORMAT 或文件输出")
@@ -170,26 +181,36 @@ func queryClickHouseSQL(ctx context.Context, ds models.Datasource, req SQLQueryR
 func QuerySQL(c *gin.Context) {
 	var req SQLQueryRequest
 	if c.ShouldBindJSON(&req) != nil {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请提供 SQL、数据源和时间范围")
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请提供 SQL 和数据源")
 		return
 	}
 	if req.Limit == 0 {
 		req.Limit = 500
 	}
-	if req.Limit < 1 || req.Limit > 5000 || len(req.Query) > 65536 || !req.End.After(req.Start) || req.Start.Year() < 1970 || req.End.Year() > 2261 {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "查询参数或时间范围无效，最多返回 5000 行")
-		return
-	}
-	if err := validateExploreSQL(req.Query); err != nil {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
+	if req.Limit < 1 || req.Limit > 5000 || len(req.Query) > 65536 {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "查询参数无效，最多返回 5000 行")
 		return
 	}
 	var ds models.Datasource
-	if database.DB.Where("id = ? AND type = ? AND status = 1", req.DatasourceID, "clickhouse").First(&ds).Error != nil {
-		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "ClickHouse 数据源不存在或已禁用")
+	if database.DB.Where("id = ? AND type IN ? AND status = 1", req.DatasourceID, []string{"clickhouse", "mysql"}).First(&ds).Error != nil {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "SQL 数据源不存在或已禁用")
 		return
 	}
-	result, err := queryClickHouseSQL(c.Request.Context(), ds, req)
+	if ds.Type == "clickhouse" && (!req.End.After(req.Start) || req.Start.Year() < 1970 || req.End.Year() > 2261) {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, "请提供有效的查询时间范围")
+		return
+	}
+	if err := validateExploreSQLDialect(req.Query, ds.Type == "mysql"); err != nil {
+		resp.Error(c, http.StatusBadRequest, resp.CodeBadRequest, err.Error())
+		return
+	}
+	var result sqlResult
+	var err error
+	if ds.Type == "mysql" {
+		result, err = queryMySQLSQL(c.Request.Context(), ds, req)
+	} else {
+		result, err = queryClickHouseSQL(c.Request.Context(), ds, req)
+	}
 	if err != nil {
 		resp.Error(c, http.StatusBadGateway, resp.CodeBadGateway, err.Error())
 		return

@@ -78,7 +78,7 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 		endpoint += "/select/42/prometheus"
 	}
 	valid := map[string]interface{}{"name": "prod", "type": kind, "url": endpoint, "auth_type": "bearer", "auth_config": `{"token":"secret"}`, "config": `{"custom_headers":{"X-Scope-OrgID":"prod"}}`, "labels": `{"env":"prod"}`, "status": 1}
-	for _, kind := range []string{"mysql", "postgresql", "redis", "k8s", "aliyun_ecs", "sls", "cls", "nacos", "kafka", "http", "unknown"} {
+	for _, kind := range []string{"postgresql", "aliyun_ecs", "sls", "cls", "nacos", "http", "unknown"} {
 		valid["type"] = kind
 		_, body := call(http.MethodPost, "/sources", valid)
 		if body["code"] == float64(0) {
@@ -113,7 +113,7 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 	if disabled.Status != 0 {
 		t.Fatal("disabled instance was enabled by default")
 	}
-	old := models.Datasource{Name: "legacy mysql", Type: "mysql", URL: server.URL, Status: 1}
+	old := models.Datasource{Name: "legacy nacos", Type: "nacos", URL: server.URL, Status: 1}
 	db.Create(&old)
 	_, body = call(http.MethodGet, "/sources", nil)
 	data := body["data"].(map[string]interface{})
@@ -142,7 +142,7 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 	if body["code"] != float64(0) || requests.Load() != 1 {
 		t.Fatalf("saved authentication/headers not used: %+v", body)
 	}
-	valid["type"] = "mysql"
+	valid["type"] = "nacos"
 	_, body = call(http.MethodPut, fmt.Sprintf("/sources/%d", prom.ID), valid)
 	if body["code"] == float64(0) {
 		t.Fatal("changed Prometheus to retired type")
@@ -175,7 +175,7 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 		t.Fatal("mixed batch partially modified Prometheus")
 	}
 	catalog := collectDatasourceCatalog(0)
-	if strings.Contains(catalog, "legacy mysql") || strings.Contains(catalog, "disabled") || !strings.Contains(catalog, "prod updated") || strings.Contains(catalog, "secret") {
+	if strings.Contains(catalog, "legacy nacos") || strings.Contains(catalog, "disabled") || !strings.Contains(catalog, "prod updated") || strings.Contains(catalog, "secret") {
 		t.Fatalf("invalid AI catalog: %s", catalog)
 	}
 	if loaded, err := loadDatasourceByToolParam(map[string]interface{}{"datasource_id": float64(prom.ID)}, "prometheus"); err != nil || loaded.ID != prom.ID {
@@ -188,7 +188,7 @@ func testSupportedMonitoringAPI(t *testing.T, kind string) {
 	if len(registry.Specs()) != 1 || registry.Specs()[0].DatasourceType != "prometheus" {
 		t.Fatalf("retired AI tools remain: %+v", registry.Specs())
 	}
-	if _, err := loadDatasourceByToolParam(map[string]interface{}{"datasource_id": float64(old.ID)}, "mysql"); err == nil {
+	if _, err := loadDatasourceByToolParam(map[string]interface{}{"datasource_id": float64(old.ID)}, "nacos"); err == nil {
 		t.Fatal("legacy tool datasource loaded")
 	}
 	group := models.DatasourceGroup{Name: "production"}

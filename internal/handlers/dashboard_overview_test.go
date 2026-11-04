@@ -57,7 +57,10 @@ func TestDashboardOverviewTimeBucketsAndCounts(t *testing.T) {
 		&models.InspectionRecord{ItemID: 1, Status: "error", CreatedAt: now},
 		&models.InspectionRecord{ItemID: 1, Status: "fail", CreatedAt: now.Add(-24 * time.Hour)},
 		&models.Datasource{Name: "vm", Type: "victoriametrics", Status: 1},
-		&models.Datasource{Name: "archived mysql", Type: "mysql", Status: 1},
+		&models.Datasource{Name: "mysql", Type: "mysql", Status: 1},
+		&models.Datasource{Name: "redis", Type: "redis", Status: 1},
+		&models.Datasource{Name: "kafka", Type: "kafka", Status: 1},
+		&models.Datasource{Name: "archived nacos", Type: "nacos", Status: 1},
 		&models.DatasourceGroup{Name: "华东"}, &models.Datasource{Name: "prom", Type: "prometheus"}, &models.FaultCenter{Name: "生产"},
 		&models.AlertInstance{Source: "test", Title: "active", Status: "firing", Severity: "P1", StartedAt: now, LastEventAt: now},
 		&models.AlertInstance{Source: "test", Title: "resolved", Status: "resolved", Severity: "P1", StartedAt: now, LastEventAt: now},
@@ -91,7 +94,7 @@ func TestDashboardOverviewTimeBucketsAndCounts(t *testing.T) {
 	if s.Prometheus != 1 || s.PrometheusEnabled != 1 || s.ProbeAgents != 3 || s.ProbeAgentsOnline != 1 || s.ProbeTasks != 2 || s.ProbeTasksEnabled != 1 || s.ProbeTasksUnhealthy != 1 || s.TodayProbeRuns != 3 || s.TodayProbeFailures != 2 {
 		t.Fatalf("bad operations counts: %#v", s)
 	}
-	if s.DataCenters != 1 || s.Datasources != 2 || s.DatasourcesEnabled != 2 || s.FaultCenters != 1 || s.ActiveAlerts != 1 || s.TodayAlerts != 2 || s.TodayNotificationsSuccess != 1 || s.TodayNotificationsFailed != 1 {
+	if s.DataCenters != 1 || s.Datasources != 5 || s.DatasourcesEnabled != 5 || s.FaultCenters != 1 || s.ActiveAlerts != 1 || s.TodayAlerts != 2 || s.TodayNotificationsSuccess != 1 || s.TodayNotificationsFailed != 1 {
 		t.Fatalf("bad totals: %#v", s)
 	}
 	if out.Points[0].Alerts != 1 || out.Points[11].Alerts != 1 || out.Points[11].NotificationsSuccess != 1 || out.Points[11].NotificationsFailed != 1 {
