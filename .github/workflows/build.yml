@@ -20,6 +20,7 @@ jobs:
     env:
       # GitHub runner 使用官方代理，覆盖 Makefile 的国内代理默认值。
       GOPROXY: https://proxy.golang.org,direct
+      NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - name: Checkout
         uses: actions/checkout@v7

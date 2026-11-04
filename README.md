@@ -8,7 +8,7 @@ Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-[在线预览](http://106.15.67.32:8080/) · [功能概览](#功能概览) · [快速开始](#快速开始) · [本地开发](#本地开发) · [文档导航](#文档导航)
+[在线预览](http://106.15.67.32:8080/) · [在线文档](https://darianjmy.github.io/guanlan-ops/) · [功能概览](#功能概览) · [快速开始](#快速开始) · [本地开发](#本地开发) · [文档导航](#文档导航)
 
 </div>
 
@@ -105,14 +105,10 @@ make build
 构建前端 → 嵌入 web/dist → 编译 Go 主程序 → guanlan
 ```
 
-`make web` 固定使用 1024 MiB 的 Node.js 堆上限。如果前端构建出现堆内存不足，可分步构建并提高上限：
+`make build` / `make web` 默认将 Node.js 堆上限设为 4096 MiB，GitHub Actions 使用相同配置。可以通过环境变量或 Make 参数覆盖；更高上限需要构建机器有足够可用内存，例如：
 
 ```bash
-cd web
-npm ci
-NODE_OPTIONS=--max-old-space-size=4096 npm run build
-cd ..
-CGO_ENABLED=0 go build -trimpath -o guanlan .
+make build NODE_OPTIONS=--max-old-space-size=6144
 ```
 
 ### 2. 启动
@@ -394,7 +390,7 @@ AI 阶段规划见 [实施方案](docs/architecture/guanlan-ai-roadmap.md)，已
 
 ## 文档导航
 
-[文档首页](docs/index.md) · [快速开始](docs/getting-started.md) · [GitHub Pages 发布说明](docs/documentation.md)
+[在线文档](https://darianjmy.github.io/guanlan-ops/) · [文档源码](docs/index.md) · [快速开始](docs/getting-started.md) · [GitHub Pages 发布说明](docs/documentation.md)
 
 - [日志查询接入](docs/log-query.md)：Loki、Elasticsearch、ClickHouse 的连接和字段映射。
 - [Agent 接入](docs/agent-connection.md)：远程节点部署与连接。

@@ -7,6 +7,8 @@ IMAGE ?= $(IMAGE_NAME):$(IMAGE_TAG)
 
 # 国内开发环境默认使用镜像；可通过环境变量或 make 参数覆盖。
 export GOPROXY ?= https://goproxy.cn,direct
+# 前端包含 Monaco 和 ECharts，构建需要更大的 Node.js 堆；允许环境变量或 make 参数覆盖。
+export NODE_OPTIONS ?= --max-old-space-size=4096
 
 test:
 	go test ./...
@@ -27,7 +29,7 @@ image-build:
 	docker build -t "$(IMAGE)" .
 
 web:
-	cd web && npm ci && NODE_OPTIONS="--max-old-space-size=1024" npm run build
+	cd web && npm ci && npm run build
 
 wire: dev-web
 	go run -mod=mod github.com/google/wire/cmd/wire@v0.7.0 ./internal/app
