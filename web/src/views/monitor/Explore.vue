@@ -3,10 +3,10 @@
     <div class="explore-toolbar">
       <el-select class="source-select" v-model="selectedId" filterable placeholder="选择数据源" aria-label="查询数据源" :loading="loading" @change="selectSource">
         <template #prefix>
-          <img v-if="selected && sourceLogos[selected.type]" :src="sourceLogos[selected.type]" class="source-logo" :class="{ 'vm-logo': selected.type === 'victoriametrics' }" alt="" />
+          <img v-if="selected && sourceLogos[selected.type]" :src="sourceLogos[selected.type]" class="source-logo" :class="{ 'vm-logo': selected.type === 'victoriametrics', 'mysql-logo': selected.type === 'mysql' }" alt="" />
         </template>
           <el-option v-for="item in sources" :key="item.id" :label="item.name" :value="item.id">
-            <span class="source-option"><img v-if="sourceLogos[item.type]" :src="sourceLogos[item.type]" class="source-logo" :class="{ 'vm-logo': item.type === 'victoriametrics' }" alt="" /><span>{{ item.name }}</span></span>
+            <span class="source-option"><img v-if="sourceLogos[item.type]" :src="sourceLogos[item.type]" class="source-logo" :class="{ 'vm-logo': item.type === 'victoriametrics', 'mysql-logo': item.type === 'mysql' }" alt="" /><span>{{ item.name }}</span></span>
           </el-option>
       </el-select>
       <el-select class="mode-select" v-if="selected?.modes.length > 1" v-model="mode" aria-label="查询模式" @change="saveLocation">
@@ -34,6 +34,7 @@
       <div v-else-if="mode === 'logs' && selected.type === 'elasticsearch'" class="elasticsearch-view">
         <ElasticsearchQuery ref="esView" :key="`es-${selected.id}`" :source="selected" />
       </div>
+      <SQLQuery v-else-if="mode === 'sql' && selected.type === 'mysql'" :key="`sql-${selected.id}`" :source="selected" />
       <div v-else-if="selected.type === 'clickhouse'" class="clickhouse-view">
         <SQLQuery v-if="mode === 'sql'" :key="`sql-${selected.id}`" :source="selected" />
         <ClickHouseLogQuery v-else :key="`ch-logs-${selected.id}`" :source="selected" />
@@ -59,9 +60,10 @@ import prometheusLogo from '../../assets/prometheus-logo.7aa022e5.svg'
 import victoriaMetricsLogo from '../../assets/victoriametrics-logo.svg'
 import lokiLogo from '../../assets/loki-logo.svg'
 import elasticsearchLogo from '../../assets/elasticsearch-logo.svg'
+import mysqlLogo from '../../assets/mysql.svg'
 import clickhouseLogo from '../../assets/clickhouse-logo.svg'
 import jaegerLogo from '../../assets/jaeger-logo.svg'
-const sourceLogos = { prometheus: prometheusLogo, victoriametrics: victoriaMetricsLogo, loki: lokiLogo, elasticsearch: elasticsearchLogo, clickhouse: clickhouseLogo, jaeger: jaegerLogo }
+const sourceLogos = { mysql: mysqlLogo, prometheus: prometheusLogo, victoriametrics: victoriaMetricsLogo, loki: lokiLogo, elasticsearch: elasticsearchLogo, clickhouse: clickhouseLogo, jaeger: jaegerLogo }
 const metricsView = ref(null), lokiView = ref(null), esView = ref(null)
 const historyView = computed(() => mode.value === 'metrics' ? metricsView.value : selected.value?.type === 'elasticsearch' ? esView.value : lokiView.value)
 const route = useRoute(), router = useRouter()
@@ -95,6 +97,7 @@ onMounted(fetchSources)
 .source-option { display: flex; align-items: center; gap: 9px; min-width: 0; height: 100%; }
 .source-option > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vm-logo { filter: invert(1); }
+:global(html.dark) .mysql-logo { filter: invert(1); }
 :global(html.dark) .vm-logo { filter: none; }
 .history-button { width: 32px; padding: 0; }
 .history-icon { width: 17px; height: 17px; fill: currentColor; }

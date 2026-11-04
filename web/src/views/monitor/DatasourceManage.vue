@@ -19,7 +19,7 @@
     <el-card class="datasource-table-card" shadow="never">
       <el-table :data="tableData" v-loading="loading" row-key="id" @selection-change="selectedRows = $event" @sort-change="handleSortChange">
         <el-table-column type="selection" width="48" />
-        <el-table-column prop="name" label="实例名称" min-width="180" sortable="custom"><template #default="{ row }"><span class="instance-name"><img v-if="row.type === 'prometheus'" :src="prometheusLogo" alt="" /><img v-else-if="row.type === 'victoriametrics'" :src="victoriaMetricsLogo" alt="" class="vm-logo" /><img v-else-if="row.type === 'loki'" :src="lokiLogo" alt="" class="loki-logo" /><img v-else-if="row.type === 'elasticsearch'" :src="elasticsearchLogo" alt="" class="log-source-logo" /><img v-else-if="row.type === 'clickhouse'" :src="clickhouseLogo" alt="" class="log-source-logo" /><img v-else-if="row.type === 'jaeger'" :src="jaegerLogo" alt="" class="jaeger-logo" /><el-icon v-else><Connection /></el-icon>{{ row.name }}</span></template></el-table-column>
+        <el-table-column prop="name" label="实例名称" min-width="180" sortable="custom"><template #default="{ row }"><span class="instance-name"><img v-if="row.type === 'prometheus'" :src="prometheusLogo" alt="" /><img v-else-if="row.type === 'victoriametrics'" :src="victoriaMetricsLogo" alt="" class="vm-logo" /><img v-else-if="row.type === 'loki'" :src="lokiLogo" alt="" class="loki-logo" /><img v-else-if="row.type === 'elasticsearch'" :src="elasticsearchLogo" alt="" class="log-source-logo" /><img v-else-if="row.type === 'kafka'" :src="kafkaLogo" alt="" class="kafka-logo" /><img v-else-if="row.type === 'redis'" :src="redisLogo" alt="" class="" /><img v-else-if="row.type === 'mysql'" :src="mysqlLogo" alt="" class="mysql-logo" /><img v-else-if="row.type === 'clickhouse'" :src="clickhouseLogo" alt="" class="log-source-logo" /><img v-else-if="row.type === 'k8s'" :src="kubernetesLogo" alt="" /><img v-else-if="row.type === 'jaeger'" :src="jaegerLogo" alt="" class="jaeger-logo" /><el-icon v-else><Connection /></el-icon>{{ row.name }}</span></template></el-table-column>
         <el-table-column prop="type" label="类型" min-width="160"><template #default="{ row }">{{ typeDefinition(row.type).name || row.type }}</template></el-table-column>
         <el-table-column prop="url" label="接入地址" min-width="230" show-overflow-tooltip />
         <el-table-column label="标签" min-width="180"><template #default="{ row }"><span class="scope-tags"><el-tag v-for="(value, key) in parseObject(row.labels)" :key="key" size="small" effect="plain">{{ key }}:{{ value }}</el-tag></span></template></el-table-column>
@@ -45,11 +45,11 @@
               <img v-else-if="item.type === 'victoriametrics'" :src="victoriaMetricsLogo" alt="" class="type-card-logo vm-logo" />
               <img v-else-if="item.type === 'loki'" :src="lokiLogo" alt="" class="type-card-logo loki-logo" />
               <img v-else-if="item.type === 'elasticsearch'" :src="elasticsearchLogo" alt="" class="type-card-logo log-source-logo" />
-              <img v-else-if="item.type === 'clickhouse'" :src="clickhouseLogo" alt="" class="type-card-logo log-source-logo" />
+              <img v-else-if="item.type === 'kafka'" :src="kafkaLogo" alt="" class="kafka-logo type-card-logo" /><img v-else-if="item.type === 'redis'" :src="redisLogo" alt="" class="type-card-logo" /><img v-else-if="item.type === 'mysql'" :src="mysqlLogo" alt="" class="mysql-logo type-card-logo" /><img v-else-if="item.type === 'clickhouse'" :src="clickhouseLogo" alt="" class="type-card-logo log-source-logo" />
+              <img v-else-if="item.type === 'k8s'" :src="kubernetesLogo" alt="" class="type-card-logo" />
               <img v-else-if="item.type === 'jaeger'" :src="jaegerLogo" alt="" class="type-card-logo jaeger-logo" />
               <el-icon v-else :size="26" color="#409eff"><Connection /></el-icon>
               <span class="type-card-name">{{ item.name }}</span>
-              <span class="type-card-desc">{{ sourceDescription(item) }}</span>
             </button>
           </div>
         </section>
@@ -71,7 +71,8 @@
             <img v-else-if="form.type === 'victoriametrics'" :src="victoriaMetricsLogo" alt="" class="selected-type-logo vm-logo" />
             <img v-else-if="form.type === 'loki'" :src="lokiLogo" alt="" class="selected-type-logo loki-logo" />
             <img v-else-if="form.type === 'elasticsearch'" :src="elasticsearchLogo" alt="" class="selected-type-logo log-source-logo" />
-            <img v-else-if="form.type === 'clickhouse'" :src="clickhouseLogo" alt="" class="selected-type-logo log-source-logo" />
+            <img v-else-if="form.type === 'kafka'" :src="kafkaLogo" alt="" class="kafka-logo selected-type-logo" /><img v-else-if="form.type === 'redis'" :src="redisLogo" alt="" class="selected-type-logo" /><img v-else-if="form.type === 'mysql'" :src="mysqlLogo" alt="" class="mysql-logo selected-type-logo" /><img v-else-if="form.type === 'clickhouse'" :src="clickhouseLogo" alt="" class="selected-type-logo log-source-logo" />
+            <img v-else-if="form.type === 'k8s'" :src="kubernetesLogo" alt="" class="selected-type-logo" />
             <img v-else-if="form.type === 'jaeger'" :src="jaegerLogo" alt="" class="selected-type-logo jaeger-logo" />
             <el-icon v-else :size="22" color="#409eff"><Connection /></el-icon>
           </div>
@@ -82,11 +83,35 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="config-form" size="large">
         <el-form-item label="实例名称" prop="name"><el-input v-model="form.name" maxlength="100" :placeholder="['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? '' : '例如：生产环境监控'" /></el-form-item>
         <el-form-item label="接入地址" prop="url"><el-input v-model="form.url" :placeholder="['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? '' : selectedType.url_placeholder" /><p v-if="!['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type)" class="field-help">{{ selectedType.url_help }}</p></el-form-item>
-        <el-form-item v-if="form.type !== 'clickhouse'" label="认证方式"><div class="auth-segmented" role="group" aria-label="认证方式"><button v-for="option in authOptions" :key="option.value" type="button" class="auth-seg" :class="{ active: form.auth_type === option.value }" :aria-pressed="form.auth_type === option.value" @click="form.auth_type = option.value">{{ option.label }}</button></div></el-form-item>
-        <template v-if="form.auth_type === 'basic'"><el-form-item label="用户名"><el-input v-model="authFields.username" autocomplete="off" /></el-form-item><el-form-item label="密码"><el-input v-model="authFields.password" type="password" show-password :placeholder="canReuseAuth ? '留空保留已保存的密码' : ''" /></el-form-item></template>
+        <el-form-item v-if="!['clickhouse', 'mysql', 'kafka'].includes(form.type)" label="认证方式"><div class="auth-segmented" role="group" aria-label="认证方式"><button v-for="option in authOptions" :key="option.value" type="button" class="auth-seg" :class="{ active: form.auth_type === option.value }" :aria-pressed="form.auth_type === option.value" @click="form.auth_type = option.value">{{ option.label }}</button></div></el-form-item>
+        <el-form-item v-if="form.type === 'kafka'" label="认证方式"><el-select v-model="form.auth_type" style="width:100%"><el-option v-for="option in authOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
+        <template v-if="passwordAuthTypes.includes(form.auth_type)"><el-form-item label="用户名"><el-input v-model="authFields.username" autocomplete="off" /></el-form-item><el-form-item label="密码"><el-input v-model="authFields.password" type="password" show-password :placeholder="canReuseAuth ? '留空保留已保存的密码' : ''" /></el-form-item></template>
+        <el-form-item v-if="form.auth_type === 'password'" label="密码"><el-input v-model="authFields.password" type="password" show-password :placeholder="canReuseAuth ? '留空保留已保存的密码' : ''" /></el-form-item>
         <el-form-item v-if="['bearer', 'api_key'].includes(form.auth_type)" :label="form.auth_type === 'api_key' ? 'API Key' : 'Token'"><el-input v-model="authFields.token" type="password" show-password :placeholder="canReuseAuth ? (form.auth_type === 'api_key' ? '留空保留已保存的 API Key' : '留空保留已保存的 Token') : ''" /></el-form-item>
-        <el-form-item v-if="form.type === 'clickhouse'" label="数据库" required><el-input v-model="logConfig.database" maxlength="128" /></el-form-item>
+        <template v-if="form.auth_type === 'client_certificate'">
+          <el-form-item label="客户端证书（PEM）"><el-input v-model="authFields.client_certificate" type="textarea" :rows="4" :maxlength="65536" :placeholder="canReuseAuth && originalAuth.has_client_certificate ? '证书和私钥均留空时保留原认证' : '粘贴 PEM 格式的客户端证书'" /></el-form-item>
+          <el-form-item label="客户端私钥（PEM）"><el-input v-model="authFields.client_key" type="textarea" :rows="4" :maxlength="65536" autocomplete="off" :placeholder="canReuseAuth && originalAuth.has_client_certificate ? '更新认证时请同时填写证书和私钥' : '粘贴与客户端证书匹配的 PEM 私钥'" /></el-form-item>
+        </template>
+        <template v-if="form.type === 'k8s'">
+          <el-form-item label="命名空间"><el-input v-model="kubernetesConfig.namespace" maxlength="63" placeholder="例如 default；留空表示所有命名空间" /><p class="field-help">测试连接会验证所选范围的 Pod 列表读取权限；留空需要集群范围的读取权限。</p></el-form-item>
+          <el-form-item label="CA 证书（PEM）"><el-input v-model="kubernetesConfig.ca_certificate" type="textarea" :rows="4" :maxlength="65536" placeholder="粘贴集群 CA 证书；留空使用系统信任证书" /></el-form-item>
+          <el-form-item label="跳过服务端证书校验"><el-switch v-model="kubernetesConfig.insecure_skip_verify" /><p class="field-help">默认校验服务端证书。开启后无法验证 API Server 身份，仅用于临时排查证书问题。</p></el-form-item>
+        </template>
+        <el-form-item v-if="['clickhouse', 'mysql'].includes(form.type)" label="数据库" required><el-input v-model="logConfig.database" maxlength="128" /></el-form-item>
         <el-form-item v-if="form.type === 'clickhouse'" label="启用日志字段映射"><el-switch v-model="logMappingEnabled" /></el-form-item>
+        <template v-if="form.type === 'kafka'">
+          <el-form-item label="备用 Broker"><el-input v-model="kafkaConfig.bootstrap_servers" type="textarea" :rows="3" maxlength="2000" placeholder="每行一个 host:port，最多 9 个" /></el-form-item>
+          <el-form-item label="启用 TLS"><el-switch v-model="kafkaConfig.tls_enabled" /><p class="field-help">与 Broker 监听器保持一致，开启后校验证书及主机名。</p></el-form-item>
+          <el-form-item v-if="kafkaConfig.tls_enabled" label="CA 证书（PEM）"><el-input v-model="kafkaConfig.ca_certificate" type="textarea" :rows="4" :maxlength="65536" placeholder="留空使用系统信任证书" /></el-form-item>
+        </template>
+        <template v-if="form.type === 'redis'">
+          <el-form-item label="数据库编号"><el-input-number v-model="redisConfig.database" :min="0" :max="65535" :precision="0" controls-position="right" /><p class="field-help">默认使用 DB 0，实际可用范围由 Redis 服务端配置决定。</p></el-form-item>
+          <el-form-item v-if="form.url.trim().startsWith('rediss://')" label="CA 证书（PEM）"><el-input v-model="redisConfig.ca_certificate" type="textarea" :rows="4" :maxlength="65536" placeholder="留空使用系统信任证书" /></el-form-item>
+        </template>
+        <template v-if="form.type === 'mysql'">
+          <el-form-item label="启用 TLS"><el-switch v-model="mysqlTLS.enabled" /><p class="field-help">开启后校验数据库服务端证书及主机名。</p></el-form-item>
+          <el-form-item v-if="mysqlTLS.enabled" label="CA 证书（PEM）"><el-input v-model="mysqlTLS.ca_certificate" type="textarea" :rows="4" :maxlength="65536" placeholder="留空使用系统信任证书" /></el-form-item>
+        </template>
         <template v-if="hasLogMapping">
           <el-divider content-position="left">日志查询配置</el-divider>
           <el-form-item v-if="form.type === 'elasticsearch'" label="索引 / 索引模式" required><el-input v-model="logConfig.index" maxlength="512" /></el-form-item>
@@ -98,7 +123,7 @@
 
         </template>
         <el-form-item label="标签"><div class="kv-editor"><el-button :icon="Plus" plain :disabled="form.labels.length >= 20" @click="form.labels.push({ key: '', value: '' })">添加标签</el-button><div v-for="(row, index) in form.labels" :key="index" class="kv-row"><el-input v-model="row.key" placeholder="Key" maxlength="64" /><el-input v-model="row.value" placeholder="Value" maxlength="200" /><el-button :icon="Minus" circle aria-label="删除标签" @click="form.labels.splice(index, 1)" /></div></div></el-form-item>
-        <el-collapse class="advanced-config"><el-collapse-item title="高级配置" name="advanced"><template v-if="hasLogMapping">          <el-form-item label="服务字段"><el-input v-model="logConfig.service_field" maxlength="128" /></el-form-item>
+        <el-collapse v-if="!['mysql', 'redis', 'kafka'].includes(form.type)" class="advanced-config"><el-collapse-item title="高级配置" name="advanced"><template v-if="hasLogMapping">          <el-form-item label="服务字段"><el-input v-model="logConfig.service_field" maxlength="128" /></el-form-item>
           <el-form-item label="级别字段"><el-input v-model="logConfig.level_field" maxlength="128" /></el-form-item>
           <el-form-item label="Trace ID 字段"><el-input v-model="logConfig.trace_id_field" maxlength="128" /></el-form-item></template><el-form-item label="自定义 HTTP 头"><div class="kv-editor"><el-button :icon="Plus" plain :disabled="headers.length >= 20" @click="headers.push({ key: '', value: '' })">添加 HTTP 头</el-button><div v-for="(row, index) in headers" :key="index" class="kv-row"><el-input v-model="row.key" placeholder="Header 名称" maxlength="128" /><el-input v-model="row.value" placeholder="Header 值" maxlength="1000" /><el-button :icon="Minus" circle aria-label="删除 HTTP 头" @click="headers.splice(index, 1)" /></div></div></el-form-item></el-collapse-item></el-collapse>
         <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" /></el-form-item>
@@ -117,6 +142,10 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, ArrowLeft, Connection, Delete, Edit, Minus, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { getDatasourceTypes, getDatasources, createDatasource, updateDatasource, deleteDatasource, batchUpdateDatasourceStatus, batchDeleteDatasources, testConnection, testSavedConnection } from '../../api/datasource'
+import kafkaLogo from '../../assets/kafka.svg'
+import redisLogo from '../../assets/redis.svg'
+import mysqlLogo from '../../assets/mysql.svg'
+import kubernetesLogo from '../../assets/kubernetes.svg'
 import jaegerLogo from '../../assets/jaeger-logo.svg'
 import elasticsearchLogo from '../../assets/elasticsearch-logo.svg'
 import clickhouseLogo from '../../assets/clickhouse-logo.svg'
@@ -135,7 +164,6 @@ const page = ref(1), pageSize = ref(10), total = ref(0), sortBy = ref('id'), sor
 const testVisible = ref(false), testResult = ref(null), headers = ref([])
 const datasourceTypes = ref([])
 const pickerVisible = ref(false)
-const sourceDescription = item => ({ jaeger: 'Trace 链路追踪', loki: '日志查询', elasticsearch: '全文日志检索', clickhouse: '列式分析数据库', prometheus: '指标监控', victoriametrics: '时序数据库' }[item.type] || capabilityLabel(item.capabilities))
 const baseAuthOptions = [{ value: 'none', label: '无认证' }, { value: 'basic', label: 'Basic Auth' }, { value: 'bearer', label: 'Bearer Token' }]
 
 const sourceGroup = item => {
@@ -144,8 +172,8 @@ const sourceGroup = item => {
   if (item.capabilities?.includes('traces')) return 'traces'
   return item.category || 'observability'
 }
-const sourceGroupLabel = value => ({ observability: '监控', logs: '日志', database: '数据库', traces: '链路' }[value] || value)
-const sourceGroupOrder = ['observability', 'logs', 'database', 'traces']
+const sourceGroupLabel = value => ({ observability: '监控', logs: '日志', database: '数据库', traces: '链路', container: '容器', messaging: '消息队列' }[value] || value)
+const sourceGroupOrder = ['observability', 'logs', 'database', 'traces', 'container', 'messaging']
 const groupedTypeOptions = computed(() => {
   const groups = new Map()
   for (const item of datasourceTypes.value) {
@@ -164,15 +192,23 @@ function handleDrawerBack() {
 }
 const typeDefinition = type => datasourceTypes.value.find(item => item.type === type) || {}
 const selectedType = computed(() => typeDefinition(form.type))
-const capabilityLabel = capabilities => (capabilities || []).map(value => ({ metrics: '指标查询与告警规则评估', logs: '日志查询', traces: '链路查询', sql: 'SQL 查询' }[value] || value)).join('、')
 const blankForm = () => ({ id: null, name: '', type: '', category: 'observability', capabilities: 'metrics', url: '', auth_type: 'none', labels: [], config: '', tunnel_id: 0, priority: 100, region: '', env: '', domain: '', remark: '', status: 1 })
-const defaultLogConfig = type => ({ index: type === 'elasticsearch' ? 'logs-*' : '', database: 'default', table: 'otel_logs', timestamp_field: type === 'clickhouse' ? 'Timestamp' : '@timestamp', message_field: type === 'clickhouse' ? 'Body' : 'message', service_field: '', level_field: '', trace_id_field: '' })
+const defaultLogConfig = type => ({ index: type === 'elasticsearch' ? 'logs-*' : '', database: type === 'mysql' ? '' : 'default', table: 'otel_logs', timestamp_field: type === 'clickhouse' ? 'Timestamp' : '@timestamp', message_field: type === 'clickhouse' ? 'Body' : 'message', service_field: '', level_field: '', trace_id_field: '' })
 const logConfig = reactive(defaultLogConfig(''))
+const kafkaConfig = reactive({ bootstrap_servers: '', tls_enabled: false, ca_certificate: '' })
+const passwordAuthTypes = ['basic', 'sasl_plain', 'scram_sha256', 'scram_sha512']
+const redisConfig = reactive({ database: 0, ca_certificate: '' })
+const mysqlTLS = reactive({ enabled: false, ca_certificate: '' })
+const kubernetesConfig = reactive({ namespace: 'default', ca_certificate: '', insecure_skip_verify: false })
 const logMappingEnabled = ref(false)
 const hasLogMapping = computed(() => form.type === 'elasticsearch' || (form.type === 'clickhouse' && logMappingEnabled.value))
-const form = reactive(blankForm()), authFields = reactive({ username: '', password: '', token: '' })
+const form = reactive(blankForm()), authFields = reactive({ username: '', password: '', token: '', client_certificate: '', client_key: '' })
 let originalAuth = {}, originalAuthType = 'none', originalConfig = {}, keywordTimer, requestID = 0
 const authOptions = computed(() => {
+  if (form.type === 'kafka') return [{ value: 'none', label: '无认证' }, { value: 'sasl_plain', label: 'SASL/PLAIN' }, { value: 'scram_sha256', label: 'SCRAM-SHA-256' }, { value: 'scram_sha512', label: 'SCRAM-SHA-512' }]
+  if (form.type === 'redis') return [{ value: 'none', label: '无认证' }, { value: 'password', label: '密码' }, { value: 'basic', label: 'ACL 用户名' }]
+  if (form.type === 'mysql') return [{ value: 'basic', label: '用户名 / 密码' }]
+  if (form.type === 'k8s') return [{ value: 'bearer', label: 'Bearer Token' }, { value: 'client_certificate', label: '客户端证书' }]
   if (form.type === 'clickhouse') return baseAuthOptions.filter(option => option.value !== 'bearer')
   if (form.type === 'elasticsearch') return [...baseAuthOptions, { value: 'api_key', label: 'API Key' }]
   return baseAuthOptions
@@ -181,7 +217,19 @@ const canReuseAuth = computed(() => Boolean(form.id && form.auth_type === origin
 const rules = {
   type: [{ required: true, message: '请选择数据源类型', trigger: 'change' }],
   name: [{ required: true, whitespace: true, message: '请输入实例名称', trigger: 'blur' }],
-  url: [{ validator: (_r, value, done) => { try { const url = new URL(value); if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password || url.search || url.hash || /\s/.test(value)) throw new Error(); done() } catch { done(new Error('请输入完整的 HTTP/HTTPS 地址，认证信息请单独配置')) } }, trigger: 'blur' }],
+  url: [{ validator: (_r, value, done) => {
+    const isRedis = form.type === 'redis'
+    const isDatabase = isRedis || ['mysql', 'kafka'].includes(form.type)
+    try {
+      const url = new URL(value)
+      const schemes = form.type === 'kafka' ? ['kafka:'] : isRedis ? ['redis:', 'rediss:'] : form.type === 'mysql' ? ['mysql:'] : ['http:', 'https:']
+      if (!schemes.includes(url.protocol) || !url.hostname || url.username || url.password || url.search || url.hash || /\s/.test(value)) throw new Error()
+      if (isDatabase && ((url.pathname && url.pathname !== '/') || (url.port && (Number(url.port) < 1 || Number(url.port) > 65535)))) throw new Error()
+      done()
+    } catch {
+      done(new Error(form.type === 'kafka' ? '请输入 kafka://主机:端口' : isRedis ? '请输入 redis://主机:端口 或 rediss://主机:端口' : form.type === 'mysql' ? '请输入 mysql://主机:端口，数据库和认证信息请单独配置' : '请输入完整的 HTTP/HTTPS 地址，认证信息请单独配置'))
+    }
+  }, trigger: 'blur' }],
 }
 onMounted(async () => {
   const response = await getDatasourceTypes()
@@ -215,16 +263,20 @@ function handleAdd() {
   if (props.requireGroup && !props.groupId) return
   creationGroupId.value = props.groupId
   pickerVisible.value = true
-  Object.assign(form, blankForm()); Object.assign(authFields, { username: '', password: '', token: '' }); headers.value = []
+  Object.assign(form, blankForm()); Object.assign(authFields, { username: '', password: '', token: '', client_certificate: '', client_key: '' }); headers.value = []
   originalAuth = {}; originalAuthType = 'none'; originalConfig = {}; formRef.value?.clearValidate(); drawerVisible.value = false
 }
 function selectDatasourceType(item) {
   if (form.type !== item.type) {
-    Object.assign(form, blankForm(), { type: item.type, auth_type: item.type === 'clickhouse' ? 'basic' : 'none' })
+    Object.assign(form, blankForm(), { type: item.type, auth_type: item.type === 'redis' ? 'password' : item.type === 'k8s' ? 'bearer' : ['clickhouse', 'mysql'].includes(item.type) ? 'basic' : 'none' })
     Object.assign(logConfig, defaultLogConfig(item.type))
+    Object.assign(mysqlTLS, { enabled: false, ca_certificate: '' })
+    Object.assign(redisConfig, { database: 0, ca_certificate: '' })
+    Object.assign(kafkaConfig, { bootstrap_servers: '', tls_enabled: false, ca_certificate: '' })
+    Object.assign(kubernetesConfig, { namespace: 'default', ca_certificate: '', insecure_skip_verify: false })
     logMappingEnabled.value = false
     originalConfig = {}
-    Object.assign(authFields, { username: item.type === 'clickhouse' ? 'default' : '', password: '', token: '' })
+    Object.assign(authFields, { username: item.type === 'clickhouse' ? 'default' : '', password: '', token: '', client_certificate: '', client_key: '' })
     headers.value = []
   }
   pickerVisible.value = false
@@ -236,16 +288,28 @@ function handleEdit(row) {
   drawerVisible.value = true
   Object.assign(form, blankForm(), row, { labels: objectToRows(parseObject(row.labels)) })
   originalAuth = parseObject(row.auth_config); originalAuthType = row.auth_type || 'none'; originalConfig = parseObject(row.config)
-  if (form.type === 'clickhouse') form.auth_type = 'basic'
+  if (['clickhouse', 'mysql'].includes(form.type)) form.auth_type = 'basic'
   Object.assign(logConfig, defaultLogConfig(row.type), originalConfig.log_query || {})
-  if (form.type === 'clickhouse') logConfig.database = originalConfig.database || originalConfig.log_query?.database || 'default'
+  Object.assign(mysqlTLS, { enabled: false, ca_certificate: '' }, originalConfig.tls || {})
+  Object.assign(kafkaConfig, { bootstrap_servers: (Array.isArray(originalConfig.bootstrap_servers) ? originalConfig.bootstrap_servers : []).join('\n'), tls_enabled: originalConfig.tls?.enabled || false, ca_certificate: originalConfig.tls?.ca_certificate || '' })
+  Object.assign(redisConfig, { database: form.type === 'redis' ? (originalConfig.database ?? 0) : 0, ca_certificate: originalConfig.tls?.ca_certificate || '' })
+  Object.assign(kubernetesConfig, { namespace: 'default', ca_certificate: '', insecure_skip_verify: false }, originalConfig.kubernetes || {})
+  if (['clickhouse', 'mysql'].includes(form.type)) logConfig.database = originalConfig.database || originalConfig.log_query?.database || (form.type === 'mysql' ? '' : 'default')
   logMappingEnabled.value = Boolean(originalConfig.log_query)
-  Object.assign(authFields, { username: originalAuth.username || (form.type === 'clickhouse' ? 'default' : ''), password: '', token: '' }); headers.value = objectToRows(originalConfig.custom_headers || {})
+  Object.assign(authFields, { username: originalAuth.username || (form.type === 'clickhouse' ? 'default' : ''), password: '', token: '', client_certificate: '', client_key: '' }); headers.value = objectToRows(originalConfig.custom_headers || {})
   formRef.value?.clearValidate(); drawerVisible.value = true
 }
 function buildAuthConfig() {
+  if (form.auth_type === 'password') {
+    if (canReuseAuth.value && !authFields.password) return ''
+    return JSON.stringify({ password: authFields.password })
+  }
+  if (form.auth_type === 'client_certificate') {
+    if (canReuseAuth.value && originalAuth.has_client_certificate && !authFields.client_certificate.trim() && !authFields.client_key.trim()) return ''
+    return JSON.stringify({ client_certificate: authFields.client_certificate.trim(), client_key: authFields.client_key.trim() })
+  }
   if (form.auth_type === 'none') return ''
-  if (form.auth_type === 'basic') {
+  if (passwordAuthTypes.includes(form.auth_type)) {
     if (canReuseAuth.value && !authFields.password && authFields.username === originalAuth.username) return ''
     return JSON.stringify({ username: authFields.username.trim(), password: authFields.password || (canReuseAuth.value ? (originalAuth.password || '') : '') })
   }
@@ -254,8 +318,15 @@ function buildAuthConfig() {
 }
 async function payload() {
   if (!await formRef.value.validate().catch(() => false)) return null
-  if (form.auth_type === 'basic' && (!authFields.username.trim() || (form.type !== 'clickhouse' && !authFields.password && !(canReuseAuth.value && originalAuth.password)))) { ElMessage.warning('请填写用户名和密码'); return null }
-  if (['bearer', 'api_key'].includes(form.auth_type) && !authFields.token.trim() && !(canReuseAuth.value && originalAuth.token)) { ElMessage.warning(form.auth_type === 'api_key' ? '请填写 API Key' : '请填写 Bearer Token'); return null }
+  if (form.auth_type === 'password' && !authFields.password && !(canReuseAuth.value && originalAuth.has_password)) { ElMessage.warning('请填写 Redis 密码'); return null }
+  if (passwordAuthTypes.includes(form.auth_type) && (!authFields.username.trim() || (form.type !== 'clickhouse' && !authFields.password && !(canReuseAuth.value && (originalAuth.password || originalAuth.has_password))))) { ElMessage.warning('请填写用户名和密码'); return null }
+  if (['bearer', 'api_key'].includes(form.auth_type) && !authFields.token.trim() && !(canReuseAuth.value && (originalAuth.token || originalAuth.has_token))) { ElMessage.warning(form.auth_type === 'api_key' ? '请填写 API Key' : '请填写 Bearer Token'); return null }
+  if (form.type === 'k8s') {
+    if (!form.url.trim().startsWith('https://')) { ElMessage.warning('Kubernetes API Server 请使用 HTTPS 地址'); return null }
+    if (form.auth_type === 'client_certificate' && !(canReuseAuth.value && originalAuth.has_client_certificate && !authFields.client_certificate.trim() && !authFields.client_key.trim()) && (!authFields.client_certificate.trim() || !authFields.client_key.trim())) { ElMessage.warning('请同时填写客户端证书和私钥'); return null }
+    const namespace = kubernetesConfig.namespace.trim()
+    if (namespace && (namespace.length > 63 || !/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(namespace))) { ElMessage.warning('命名空间格式不正确'); return null }
+  }
   for (const [rows, label] of [[form.labels, '标签'], [headers.value, 'HTTP 头']]) {
     const keys = new Set()
     for (const row of rows) {
@@ -266,7 +337,26 @@ async function payload() {
     }
   }
   const config = { ...originalConfig, custom_headers: rowsToObject(headers.value) }
-  if (form.type === 'clickhouse') {
+  if (form.type === 'k8s') config.kubernetes = { ...kubernetesConfig, namespace: kubernetesConfig.namespace.trim(), ca_certificate: kubernetesConfig.ca_certificate.trim() }
+  if (form.type === 'kafka') {
+    const brokers = kafkaConfig.bootstrap_servers.split(/[\n,]+/).map(value => value.trim()).filter(Boolean)
+    if (brokers.length > 9) { ElMessage.warning('备用 Broker 最多 9 个'); return null }
+    for (const broker of brokers) {
+      try {
+        const endpoint = new URL(`kafka://${broker}`)
+        if (!endpoint.hostname || !endpoint.port || Number(endpoint.port) < 1 || Number(endpoint.port) > 65535 || endpoint.username || endpoint.password || endpoint.pathname || endpoint.search || endpoint.hash || /\s/.test(broker)) throw new Error()
+      } catch { ElMessage.warning('备用 Broker 请填写 host:port，IPv6 使用 [地址]:端口'); return null }
+    }
+    config.bootstrap_servers = brokers
+    config.tls = { enabled: kafkaConfig.tls_enabled, ca_certificate: kafkaConfig.tls_enabled ? kafkaConfig.ca_certificate.trim() : '' }
+  }
+  if (form.type === 'redis') {
+    if (!Number.isInteger(redisConfig.database) || redisConfig.database < 0 || redisConfig.database > 65535) { ElMessage.warning('数据库编号必须是 0–65535 之间的整数'); return null }
+    config.database = redisConfig.database
+    config.tls = { ca_certificate: form.url.trim().startsWith('rediss://') ? redisConfig.ca_certificate.trim() : '' }
+  }
+  if (form.type === 'mysql') config.tls = { enabled: mysqlTLS.enabled, ca_certificate: mysqlTLS.enabled ? mysqlTLS.ca_certificate.trim() : '' }
+  if (['clickhouse', 'mysql'].includes(form.type)) {
     if (!logConfig.database.trim()) { ElMessage.warning('请填写数据库'); return null }
     config.database = logConfig.database.trim()
   }
@@ -354,11 +444,6 @@ async function handleBatchCommand(command) {
   overflow-wrap: anywhere;
   font-weight: 500;
   margin-top: 8px;
-}
-.type-card-desc {
-  font-size: 11px;
-  color: var(--ops-muted);
-  margin-top: 4px;
 }
 .type-card-logo {
   width: 26px;
@@ -559,6 +644,8 @@ async function handleBatchCommand(command) {
 @media(prefers-reduced-motion:reduce) { .type-card { transition:none; } }
 .log-source-logo { object-fit: contain; }
 .jaeger-logo { object-fit: contain; }
+.mysql-logo { object-fit: contain; }
+:global(html.dark) .mysql-logo, :global(html.dark) .kafka-logo { filter: invert(1); }
 .loki-logo { object-fit: contain; }
 .vm-logo { object-fit:contain; filter:invert(1); }
 html.dark .vm-logo { filter:none; }
