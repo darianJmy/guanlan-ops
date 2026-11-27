@@ -126,5 +126,8 @@ func seedInitialData(db *gorm.DB) error {
 	if err := db.Model(&user).Association("Roles").Append(&role); err != nil {
 		return err
 	}
+	if err := seedServiceDashboard(db); err != nil {
+		return err
+	}
 	return db.Create(&models.FaultCenter{Name: "默认故障中心", Status: 1, IsDefault: true}).Error
 }

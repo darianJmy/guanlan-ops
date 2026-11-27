@@ -86,3 +86,27 @@ export function getDashboardCards() {
 export function reorderDashboardCards(items) {
   return request({ url: '/dashboard-cards/order', method: 'put', data: { items } })
 }
+
+export function getDashboardFolders(scope) {
+  return request({ url: '/dashboard-folders', method: 'get', params: { scope } })
+}
+
+export function createDashboardFolder(data) {
+  return request({ url: '/dashboard-folders', method: 'post', data })
+}
+
+export function updateDashboardFolder(id, data) {
+  return request({ url: `/dashboard-folders/${id}`, method: 'put', data })
+}
+
+export function deleteDashboardFolder(id) {
+  return request({ url: `/dashboard-folders/${id}`, method: 'delete' })
+}
+
+export function getDashboardFolderPermissions(id) {
+  return request({ url: `/dashboard-folders/${id}/permissions`, method: 'get' })
+}
+
+export function updateDashboardFolderPermissions(id, data) {
+  return request({ url: `/dashboard-folders/${id}/permissions`, method: 'put', data })
+}

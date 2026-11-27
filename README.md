@@ -40,6 +40,7 @@ Go + Vue 3 · SQLite · 单二进制部署 · AI 辅助排障
 | --- | --- |
 | 运维概览 | 4 项核心指标，告警与通知趋势，活跃告警分布、Prometheus 实例启用状态，今日 / 近 7 天 / 近 30 天切换 |
 | 接入中心 | Prometheus / VictoriaMetrics、MySQL、Redis、Kafka 等数据源及 Kubernetes 集群接入，分组、认证、标签与连接测试 |
+| [服务仪表盘](docs/service-dashboard.md) | 服务目录与角色权限、HTTP URL 直连及代理、Kubernetes Service HTTP/WebSocket 与 TCP 转发 |
 | 即时查询与仪表盘 | PromQL 即时与范围查询、日志查询、SQL 查询、查询历史，Grafana 及云日志仪表盘接入 |
 | 日志查询 | Loki、Elasticsearch、ClickHouse 日志查询，时间范围与条数限制、字段映射及详情展示 |
 | 告警治理 | 按实例分组绑定规则、子分组覆盖、周期评估、故障中心、告警生命周期、静默、抑制、通知路由及告警动作 |
@@ -239,9 +240,21 @@ make dev
 make dev CONF=./configs/config.example.yaml
 ```
 
-`make dev` 使用 `0.0.0.0:8081` 启动后端，该地址由 `.air.toml` 的 `full_bin` 设置，会覆盖 YAML 中的监听地址。首次启动会自动构建缺失的前端资源。Air 使用固定版本，不要求全局安装；监听后端源码、生成的 Wire 文件和配置目录。仓库外的配置文件修改后需要手动重启。
+`make dev` 使用 `0.0.0.0:8081` 启动后端，该地址由 Makefile 中的 `APP_SERVER_ADDR` 设置，会覆盖 YAML 中的监听地址。首次启动会自动构建缺失的前端资源。Air 使用固定版本，不要求全局安装；监听后端源码、生成的 Wire 文件和配置目录。仓库外的配置文件修改后需要手动重启。
 
 项目要求 Go 1.25.0 或更高版本；较旧的 Go 会自动下载所需工具链。Makefile 和 Air 构建默认使用 `https://goproxy.cn,direct`，避免默认代理连接超时；可通过 `GOPROXY` 环境变量覆盖。直接运行 Go 命令时可使用 `GOPROXY=https://goproxy.cn,direct go build .`。
+
+Windows PowerShell 可以直接启动 Air。先确保 `go` 已加入 `PATH`，并在仓库根目录执行以下命令。已有 `web/dist/index.html` 时可以直接编译。
+
+```powershell
+$env:APP_WEB_DEV = '1'
+$env:APP_SERVER_ADDR = '127.0.0.1:8081'
+$env:CGO_ENABLED = '0'
+go run github.com/air-verse/air@v1.63.0 -c .air.toml `
+  --build.cmd 'go build -p 2 -o ./.air-tmp/guanlan.exe .' `
+  --build.bin './.air-tmp/guanlan.exe' `
+  --build.send_interrupt=false
+```
 
 ### 前端：Vite 热更新
 
@@ -253,7 +266,7 @@ npm ci
 npm run dev
 ```
 
-访问 **http://127.0.0.1:8080**，Vite 将 `/api`（包括 WebSocket）代理到 `http://127.0.0.1:8081`。端口被占用时 Vite 会直接退出，不会自动换端口。
+访问 **http://127.0.0.1:8080**，Vite 将 `/api`（包括 WebSocket）代理到 `http://127.0.0.1:8081`。前端端口被占用时 Vite 会直接退出。后端端口被占用时，可为 Air 设置其他 `APP_SERVER_ADDR`，并在启动 Vite 前通过 `VITE_API_TARGET` 指定对应的后端地址。
 
 源码开发与单二进制运行都使用浏览器端口 8080；开始开发前先停止占用该端口的独立服务。
 

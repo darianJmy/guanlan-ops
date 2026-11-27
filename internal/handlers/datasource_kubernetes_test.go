@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"guanlan/internal/config"
 	"guanlan/internal/database"
 	"guanlan/internal/models"
+	"guanlan/internal/serviceportal/kube"
 )
 
 func k8sTestJSON(value any) string { data, _ := json.Marshal(value); return string(data) }
@@ -259,5 +261,66 @@ func TestKubernetesDatasourceLifecycle(t *testing.T) {
 	db.Model(&models.Datasource{}).Count(&count)
 	if count != 0 {
 		t.Fatal("datasource not deleted")
+	}
+}
+
+func TestKubernetesKubeconfigImport(t *testing.T) {
+	var server *httptest.Server
+	server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer fixture-token" {
+			t.Error("Kubernetes request missing imported token")
+		}
+		switch r.URL.Path {
+		case "/version":
+			fmt.Fprint(w, `{"gitVersion":"v1.34.0"}`)
+		case "/api/v1/namespaces/team/pods":
+			fmt.Fprint(w, `{"kind":"PodList","apiVersion":"v1","items":[]}`)
+		case "/api/v1/namespaces/team/services":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"kind":"ServiceList","apiVersion":"v1","items":[{"metadata":{"name":"demo"}}]}`)
+		default:
+			t.Errorf("unexpected Kubernetes request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	yaml := fmt.Sprintf("apiVersion: v1\nkind: Config\ncurrent-context: current\nclusters:\n- name: cluster\n  cluster:\n    server: %s\n    certificate-authority-data: %s\ncontexts:\n- name: current\n  context:\n    cluster: cluster\n    user: viewer\n    namespace: team\nusers:\n- name: viewer\n  user:\n    token: fixture-token\n", server.URL, base64.StdEncoding.EncodeToString(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})))
+	req := CreateDatasourceWithTunnelReq{Name: "Example", Type: "k8s", AuthType: "kubeconfig", AuthConfig: k8sTestJSON(map[string]string{"kubeconfig": yaml})}
+	ds := models.Datasource{Type: req.Type, AuthType: req.AuthType, AuthConfig: req.AuthConfig}
+	if ok, msg := testConnectionForDatasource(ds); !ok {
+		t.Fatal(msg)
+	}
+	if err := normalizeDatasourceReq(&req, nil); err != nil {
+		t.Fatal(err)
+	}
+	ds.URL, ds.AuthType, ds.AuthConfig, ds.Config = req.URL, req.AuthType, req.AuthConfig, req.Config
+	cluster, err := portalCluster(ds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := kube.New([]byte(cluster.Kubeconfig), cluster.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespaces, err := client.Namespaces(context.Background())
+	if err != nil || len(namespaces) != 1 || namespaces[0] != "team" {
+		t.Fatalf("unexpected namespace discovery: %v (%v)", namespaces, err)
+	}
+	services, err := client.Services(context.Background(), "team")
+	if err != nil || len(services) != 1 || services[0].Name != "demo" {
+		t.Fatalf("unexpected service discovery: %v (%v)", services, err)
+	}
+	if _, err := client.Services(context.Background(), "other"); err == nil {
+		t.Fatal("discovery escaped the configured namespace")
+	}
+	maskKubernetesAuth(&ds)
+	if strings.Contains(ds.AuthConfig, "fixture-token") || !strings.Contains(ds.AuthConfig, `"has_token":true`) {
+		t.Fatal("imported credential not masked")
+	}
+
+	req.AuthType = "kubeconfig"
+	req.AuthConfig = k8sTestJSON(map[string]string{"kubeconfig": strings.Replace(yaml, "token: fixture-token", "tokenFile: /tmp/token", 1)})
+	if err := normalizeDatasourceReq(&req, nil); err == nil {
+		t.Fatal("kubeconfig referencing a token file was accepted")
 	}
 }

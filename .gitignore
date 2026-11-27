@@ -1,6 +1,8 @@
 /data/
 guanlan
 /.cache/
+/service-portal
+/service-portal.exe
 .env
 .env.*
 /web/node_modules/

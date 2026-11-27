@@ -13,6 +13,7 @@ RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/guanlan .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/service-portal ./cmd/service-portal
 
 FROM debian:bookworm-slim
 RUN apt-get update \
@@ -24,6 +25,7 @@ RUN apt-get update \
     && chown -R 10001:10001 /app
 WORKDIR /app
 COPY --from=builder /out/guanlan /usr/local/bin/guanlan
+COPY --from=builder /out/service-portal /usr/local/bin/service-portal
 USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/guanlan"]

@@ -17,6 +17,7 @@ import (
 )
 
 type kubernetesConnectionConfig struct {
+	TLSServerName      string `json:"tls_server_name,omitempty"`
 	Namespace          string `json:"namespace"`
 	CACertificate      string `json:"ca_certificate"`
 	InsecureSkipVerify bool   `json:"insecure_skip_verify"`
@@ -43,7 +44,7 @@ func kubernetesTLSConfig(ds models.Datasource) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: cfg.InsecureSkipVerify}
+	result := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: cfg.InsecureSkipVerify, ServerName: cfg.TLSServerName}
 	if len(cfg.CACertificate) > 64<<10 {
 		return nil, fmt.Errorf("CA 证书不能超过 64 KiB")
 	}

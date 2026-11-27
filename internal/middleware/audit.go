@@ -161,6 +161,7 @@ func auditResource(path string) (string, string) {
 	items := map[string][2]string{
 		"users": {"用户管理", "user"}, "roles": {"角色管理", "role"}, "menus": {"菜单管理", "menu"},
 		"datasources": {"接入中心", "datasource"}, "datasource-groups": {"数据源分组", "workspace"}, "prometheus": {"指标查询", "prometheus_query"}, "query": {"查询中心", "log_query"},
+		"service-portal": {"服务仪表盘", "service"}, "dashboard-folders": {"服务仪表盘", "service_folder"},
 		"dashboards": {"仪表盘", "dashboard"}, "cloud-monitor-workspaces": {"云监控2.0", "cloud_monitor_workspace"}, "inspection-items": {"拨测中心", "inspection_task"},
 		"instant-probe": {"拨测中心", "instant_probe"}, "scripts": {"自动化脚本库", "script"},
 		"workflows":       {"工作流", "workflow"},
@@ -249,6 +250,14 @@ func auditRequestSummary(c *gin.Context, body map[string]interface{}) string {
 			}
 		}
 		value["query"] = query
+	}
+	if strings.HasPrefix(c.FullPath(), "/api/service-portal/") {
+		// Service URLs and paths may contain sensitive query parameters.
+		for key := range body {
+			if strings.EqualFold(key, "targetURL") || strings.EqualFold(key, "path") {
+				delete(body, key)
+			}
+		}
 	}
 	if len(body) > 0 {
 		value["body"] = body

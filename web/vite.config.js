@@ -10,7 +10,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8081',
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8081',
         // Reuse API connections instead of forwarding Connection: close to browsers.
         agent: new Agent({ keepAlive: true }),
         changeOrigin: true,

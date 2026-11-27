@@ -1,0 +1,108 @@
+.dashboard-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.dashboard-entry-card {
+  display: flex;
+  min-width: 0;
+  min-height: 124px;
+  overflow: hidden;
+  flex-direction: column;
+  background: var(--ops-surface);
+  border: 1px solid var(--ops-border-soft);
+  border-radius: 10px;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.dashboard-entry-card:hover {
+  border-color: var(--ops-primary, #409eff);
+  box-shadow: 0 4px 16px rgba(64, 158, 255, .12);
+  transform: translateY(-2px);
+}
+
+.dashboard-entry-card.dragging {
+  opacity: .4;
+  transform: scale(.95);
+}
+
+.dashboard-entry-card.over,
+.dashboard-entry-card.drop-target {
+  background: var(--ops-primary-soft);
+  border-color: var(--ops-primary, #409eff);
+  border-style: dashed;
+}
+
+.dashboard-entry-main {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 85px;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 20px 14px;
+  box-sizing: border-box;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+}
+
+.dashboard-entry-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  place-items: center;
+  background: #fff3e8;
+  border-radius: 12px;
+}
+
+.dashboard-entry-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.dashboard-entry-name {
+  overflow: hidden;
+  color: var(--ops-text, #303133);
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-entry-description {
+  display: -webkit-box;
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--ops-muted, #909399);
+  font-size: 12px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.dashboard-entry-footer {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px 20px;
+  box-sizing: border-box;
+  background: var(--ops-surface-soft);
+  border-top: 1px solid var(--ops-border-soft);
+}
+
+@media (max-width: 900px) {
+  .dashboard-entry-grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-entry-card { transition: none; }
+  .dashboard-entry-card:hover { transform: none; }
+}
