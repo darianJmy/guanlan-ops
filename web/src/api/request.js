@@ -26,7 +26,7 @@ request.interceptors.response.use(
     }
     const { data } = response
     if (data.code !== 0) {
-      ElMessage.error(data.message || '请求失败')
+      if (!response.config.silentError) ElMessage.error(data.message || '请求失败')
       if (data.code === 401) {
         removeToken()
         window.location.href = '/login'
@@ -57,7 +57,7 @@ request.interceptors.response.use(
       })
     }
     const message = error.response?.data?.message || statusMessage(error.response?.status) || error.message || '网络错误'
-    ElMessage.error(message)
+    if (!error.config?.silentError) ElMessage.error(message)
     return Promise.reject(error)
   }
 )

@@ -122,6 +122,13 @@ func normalizeDatasourceReq(req *CreateDatasourceWithTunnelReq, existing *models
 			return err
 		}
 	}
+	if req.Type == "k8s" && req.AuthType == "kubeconfig" {
+		ds := models.Datasource{AuthConfig: req.AuthConfig, Config: req.Config}
+		if err := importKubeconfig(&ds); err != nil {
+			return err
+		}
+		req.URL, req.AuthType, req.AuthConfig, req.Config = ds.URL, ds.AuthType, ds.AuthConfig, ds.Config
+	}
 	if req.AuthType == "none" {
 		req.AuthConfig = ""
 	} else if existing != nil && strings.TrimSpace(req.AuthConfig) == "" && existing.AuthType == req.AuthType {

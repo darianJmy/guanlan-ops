@@ -22,6 +22,10 @@ const staticRoutes = [
         meta: { title: '仪表盘' },
       },
       {
+        path: 'dashboards/services',
+        redirect: to => ({ path: '/dashboards', query: { ...to.query, tab: 'services' }, hash: to.hash }),
+      },
+      {
         path: 'inspection/items/groups/:groupId',
         name: 'InspectionRuleGroupTasks',
         component: () => import('../views/inspection/InspectionManage.vue'),
@@ -118,7 +122,7 @@ const componentMap = {
   'system/AuthSetting': () => import('../views/system/AuthSetting.vue'),
   'monitor/IntegrationManage': () => import('../views/monitor/IntegrationManage.vue'),
   'monitor/DashboardManage': () => import('../views/monitor/DashboardManage.vue'),
-  'monitor/DashboardHub': () => import('../views/monitor/DashboardHub.vue'),
+  'monitor/DashboardHub': () => import('../views/monitor/DashboardWorkspace.vue'),
   'monitor/GrafanaDashboardManage': () => import('../views/monitor/GrafanaDashboardManage.vue'),
   'monitor/SLSDashboardManage': () => import('../views/monitor/SLSDashboardManage.vue'),
   'monitor/CloudMonitorDashboardManage': () => import('../views/monitor/CloudMonitorDashboardManage.vue'),

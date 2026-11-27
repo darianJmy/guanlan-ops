@@ -23,6 +23,13 @@ function session() {
     getUserInfo: async () => {
       calls++
       if (failProfile) throw new Error('Profile unavailable')
+      if (token === 'services') {
+        return { data: {
+          user: { username: token },
+          permissions: ['service-dashboard:list'],
+          menus: [{ type: 2, path: '/dashboards', name: '仪表盘', component: 'monitor/DashboardHub' }],
+        } }
+      }
       const admin = token === 'admin'
       return { data: {
         user: { username: token },
@@ -31,7 +38,7 @@ function session() {
       } }
     },
   })
-  const stripImports = source => source.replace(/^import .* from .*\n/gm, '')
+  const stripImports = source => source.replace(/^import .* from .*\r?\n/gm, '')
   const storeSource = stripImports(readFileSync(new URL('../src/stores/user.js', import.meta.url), 'utf8'))
     .replace('export const useUserStore', 'const useUserStore')
   const useStore = vm.runInContext(storeSource + '\nuseUserStore', context)
@@ -143,4 +150,17 @@ test('unknown URLs still require authentication', async () => {
   const { router } = session()
   await router.push('/alert-rulessss3')
   assert.equal(router.currentRoute.value.name, 'Login')
+})
+
+test('old service dashboard bookmarks open the services section in the unified menu', async () => {
+  const { store, router } = session()
+  await store.loginAction({ username: 'services' })
+  await router.push('/dashboards/services?folder=12#summary')
+  assert.equal(router.currentRoute.value.name, '仪表盘')
+  assert.equal(router.currentRoute.value.path, '/dashboards')
+  assert.equal(router.currentRoute.value.query.tab, 'services')
+  assert.equal(router.currentRoute.value.query.folder, '12')
+  assert.equal(router.currentRoute.value.hash, '#summary')
+  assert.equal(store.hasPermission('dashboard:list'), false)
+  assert.equal(store.hasPermission('service-dashboard:list'), true)
 })

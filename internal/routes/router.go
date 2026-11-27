@@ -23,8 +23,10 @@ func SetupRouter() *gin.Engine {
 		api.GET("/agent/connect", handlers.AgentConnect)
 		api.GET("/agent/install.sh", handlers.AgentInstallScript)
 		api.GET("/agent/bin", handlers.AgentBinary)
+		api.GET("/service-access/portal/runtime-state", handlers.ServicePortalRuntimeState)
 
-		auth := api.Group("").Use(middleware.Auth(), middleware.Audit())
+		auth := api.Group("")
+		auth.Use(middleware.Auth(), middleware.Audit())
 		{
 			auth.GET("/user/info", handlers.GetUserInfo)
 			auth.PUT("/user/password", handlers.ChangePassword)
@@ -109,6 +111,17 @@ func SetupRouter() *gin.Engine {
 			auth.PUT("/tunnels/:id", handlers.UpdateTunnel)
 			auth.DELETE("/tunnels/:id", handlers.DeleteTunnel)
 			auth.POST("/tunnels/:id/test", handlers.TestTunnelConnection)
+
+			servicePortal := auth.Group("").Use(middleware.RequirePermission("service-dashboard:list"), handlers.LockServiceDashboardWrites)
+			servicePortal.GET("/service-access/identity", handlers.ServiceAccessIdentity)
+			servicePortal.GET("/service-access/portal/state", handlers.ServicePortalState)
+			servicePortal.Any("/service-portal/*path", handlers.ServicePortalProxy)
+			servicePortal.GET("/dashboard-folders", handlers.ListDashboardFolders)
+			servicePortal.POST("/dashboard-folders", handlers.CreateDashboardFolder)
+			servicePortal.PUT("/dashboard-folders/:id", handlers.UpdateDashboardFolder)
+			servicePortal.DELETE("/dashboard-folders/:id", handlers.DeleteDashboardFolder)
+			servicePortal.GET("/dashboard-folders/:id/permissions", handlers.GetDashboardFolderPermissions)
+			servicePortal.PUT("/dashboard-folders/:id/permissions", handlers.UpdateDashboardFolderPermissions)
 
 			auth.GET("/dashboard/overview", middleware.RequirePermission("dashboard:list"), handlers.GetDashboardOverview)
 			auth.GET("/dashboard-cards", middleware.RequirePermission("dashboard:list"), handlers.ListDashboardCards)

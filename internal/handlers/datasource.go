@@ -143,6 +143,11 @@ func testConnectionForDatasource(ds models.Datasource) (bool, string) {
 }
 
 func testConnectionForDatasourceContext(ctx context.Context, ds models.Datasource) (bool, string) {
+	if ds.Type == "k8s" && ds.AuthType == "kubeconfig" {
+		if err := importKubeconfig(&ds); err != nil {
+			return false, err.Error()
+		}
+	}
 	if err := validateDatasourceConnection(ds); err != nil {
 		return false, err.Error()
 	}

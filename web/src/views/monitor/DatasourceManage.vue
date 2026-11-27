@@ -82,7 +82,7 @@
         </div>
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" class="config-form" size="large">
         <el-form-item label="实例名称" prop="name"><el-input v-model="form.name" maxlength="100" :placeholder="['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? '' : '例如：生产环境监控'" /></el-form-item>
-        <el-form-item label="接入地址" prop="url"><el-input v-model="form.url" :placeholder="['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? '' : selectedType.url_placeholder" /><p v-if="!['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type)" class="field-help">{{ selectedType.url_help }}</p></el-form-item>
+        <el-form-item v-if="form.auth_type !== 'kubeconfig'" label="接入地址" prop="url"><el-input v-model="form.url" :placeholder="['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type) ? '' : selectedType.url_placeholder" /><p v-if="!['prometheus', 'victoriametrics', 'loki', 'elasticsearch', 'clickhouse', 'jaeger'].includes(form.type)" class="field-help">{{ selectedType.url_help }}</p></el-form-item>
         <el-form-item v-if="!['clickhouse', 'mysql', 'kafka'].includes(form.type)" label="认证方式"><div class="auth-segmented" role="group" aria-label="认证方式"><button v-for="option in authOptions" :key="option.value" type="button" class="auth-seg" :class="{ active: form.auth_type === option.value }" :aria-pressed="form.auth_type === option.value" @click="form.auth_type = option.value">{{ option.label }}</button></div></el-form-item>
         <el-form-item v-if="form.type === 'kafka'" label="认证方式"><el-select v-model="form.auth_type" style="width:100%"><el-option v-for="option in authOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item>
         <template v-if="passwordAuthTypes.includes(form.auth_type)"><el-form-item label="用户名"><el-input v-model="authFields.username" autocomplete="off" /></el-form-item><el-form-item label="密码"><el-input v-model="authFields.password" type="password" show-password :placeholder="canReuseAuth ? '留空保留已保存的密码' : ''" /></el-form-item></template>
@@ -92,7 +92,11 @@
           <el-form-item label="客户端证书（PEM）"><el-input v-model="authFields.client_certificate" type="textarea" :rows="4" :maxlength="65536" :placeholder="canReuseAuth && originalAuth.has_client_certificate ? '证书和私钥均留空时保留原认证' : '粘贴 PEM 格式的客户端证书'" /></el-form-item>
           <el-form-item label="客户端私钥（PEM）"><el-input v-model="authFields.client_key" type="textarea" :rows="4" :maxlength="65536" autocomplete="off" :placeholder="canReuseAuth && originalAuth.has_client_certificate ? '更新认证时请同时填写证书和私钥' : '粘贴与客户端证书匹配的 PEM 私钥'" /></el-form-item>
         </template>
-        <template v-if="form.type === 'k8s'">
+        <template v-if="form.auth_type === 'kubeconfig'">
+          <el-form-item label="Kubeconfig" required><el-input v-model="kubeconfig.content" type="textarea" :rows="8" :maxlength="262144" autocomplete="off" spellcheck="false" placeholder="粘贴 kubeconfig 的 YAML 或 JSON 内容" /></el-form-item>
+          <el-form-item label="Context"><el-input v-model="kubeconfig.context" autocomplete="off" placeholder="留空使用 current-context" /></el-form-item>
+        </template>
+        <template v-if="form.type === 'k8s' && form.auth_type !== 'kubeconfig'">
           <el-form-item label="命名空间"><el-input v-model="kubernetesConfig.namespace" maxlength="63" placeholder="例如 default；留空表示所有命名空间" /><p class="field-help">测试连接会验证所选范围的 Pod 列表读取权限；留空需要集群范围的读取权限。</p></el-form-item>
           <el-form-item label="CA 证书（PEM）"><el-input v-model="kubernetesConfig.ca_certificate" type="textarea" :rows="4" :maxlength="65536" placeholder="粘贴集群 CA 证书；留空使用系统信任证书" /></el-form-item>
           <el-form-item label="跳过服务端证书校验"><el-switch v-model="kubernetesConfig.insecure_skip_verify" /><p class="field-help">默认校验服务端证书。开启后无法验证 API Server 身份，仅用于临时排查证书问题。</p></el-form-item>
@@ -199,7 +203,9 @@ const kafkaConfig = reactive({ bootstrap_servers: '', tls_enabled: false, ca_cer
 const passwordAuthTypes = ['basic', 'sasl_plain', 'scram_sha256', 'scram_sha512']
 const redisConfig = reactive({ database: 0, ca_certificate: '' })
 const mysqlTLS = reactive({ enabled: false, ca_certificate: '' })
-const kubernetesConfig = reactive({ namespace: 'default', ca_certificate: '', insecure_skip_verify: false })
+const kubeconfig = reactive({ content: '', context: '' })
+watch(drawerVisible, visible => { if (!visible) Object.assign(kubeconfig, { content: '', context: '' }) })
+const kubernetesConfig = reactive({ tls_server_name: '', namespace: 'default', ca_certificate: '', insecure_skip_verify: false })
 const logMappingEnabled = ref(false)
 const hasLogMapping = computed(() => form.type === 'elasticsearch' || (form.type === 'clickhouse' && logMappingEnabled.value))
 const form = reactive(blankForm()), authFields = reactive({ username: '', password: '', token: '', client_certificate: '', client_key: '' })
@@ -208,7 +214,7 @@ const authOptions = computed(() => {
   if (form.type === 'kafka') return [{ value: 'none', label: '无认证' }, { value: 'sasl_plain', label: 'SASL/PLAIN' }, { value: 'scram_sha256', label: 'SCRAM-SHA-256' }, { value: 'scram_sha512', label: 'SCRAM-SHA-512' }]
   if (form.type === 'redis') return [{ value: 'none', label: '无认证' }, { value: 'password', label: '密码' }, { value: 'basic', label: 'ACL 用户名' }]
   if (form.type === 'mysql') return [{ value: 'basic', label: '用户名 / 密码' }]
-  if (form.type === 'k8s') return [{ value: 'bearer', label: 'Bearer Token' }, { value: 'client_certificate', label: '客户端证书' }]
+  if (form.type === 'k8s') return [{ value: 'kubeconfig', label: 'Kubeconfig' }, { value: 'bearer', label: 'Bearer Token' }, { value: 'client_certificate', label: '客户端证书' }]
   if (form.type === 'clickhouse') return baseAuthOptions.filter(option => option.value !== 'bearer')
   if (form.type === 'elasticsearch') return [...baseAuthOptions, { value: 'api_key', label: 'API Key' }]
   return baseAuthOptions
@@ -268,12 +274,12 @@ function handleAdd() {
 }
 function selectDatasourceType(item) {
   if (form.type !== item.type) {
-    Object.assign(form, blankForm(), { type: item.type, auth_type: item.type === 'redis' ? 'password' : item.type === 'k8s' ? 'bearer' : ['clickhouse', 'mysql'].includes(item.type) ? 'basic' : 'none' })
+    Object.assign(form, blankForm(), { type: item.type, auth_type: item.type === 'redis' ? 'password' : item.type === 'k8s' ? 'kubeconfig' : ['clickhouse', 'mysql'].includes(item.type) ? 'basic' : 'none' })
     Object.assign(logConfig, defaultLogConfig(item.type))
     Object.assign(mysqlTLS, { enabled: false, ca_certificate: '' })
     Object.assign(redisConfig, { database: 0, ca_certificate: '' })
     Object.assign(kafkaConfig, { bootstrap_servers: '', tls_enabled: false, ca_certificate: '' })
-    Object.assign(kubernetesConfig, { namespace: 'default', ca_certificate: '', insecure_skip_verify: false })
+    Object.assign(kubernetesConfig, { tls_server_name: '', namespace: 'default', ca_certificate: '', insecure_skip_verify: false })
     logMappingEnabled.value = false
     originalConfig = {}
     Object.assign(authFields, { username: item.type === 'clickhouse' ? 'default' : '', password: '', token: '', client_certificate: '', client_key: '' })
@@ -300,6 +306,7 @@ function handleEdit(row) {
   formRef.value?.clearValidate(); drawerVisible.value = true
 }
 function buildAuthConfig() {
+  if (form.auth_type === 'kubeconfig') return JSON.stringify({ kubeconfig: kubeconfig.content, context: kubeconfig.context.trim() })
   if (form.auth_type === 'password') {
     if (canReuseAuth.value && !authFields.password) return ''
     return JSON.stringify({ password: authFields.password })
@@ -321,7 +328,8 @@ async function payload() {
   if (form.auth_type === 'password' && !authFields.password && !(canReuseAuth.value && originalAuth.has_password)) { ElMessage.warning('请填写 Redis 密码'); return null }
   if (passwordAuthTypes.includes(form.auth_type) && (!authFields.username.trim() || (form.type !== 'clickhouse' && !authFields.password && !(canReuseAuth.value && (originalAuth.password || originalAuth.has_password))))) { ElMessage.warning('请填写用户名和密码'); return null }
   if (['bearer', 'api_key'].includes(form.auth_type) && !authFields.token.trim() && !(canReuseAuth.value && (originalAuth.token || originalAuth.has_token))) { ElMessage.warning(form.auth_type === 'api_key' ? '请填写 API Key' : '请填写 Bearer Token'); return null }
-  if (form.type === 'k8s') {
+  if (form.auth_type === 'kubeconfig' && !kubeconfig.content.trim()) { ElMessage.warning('请粘贴 kubeconfig'); return null }
+  if (form.type === 'k8s' && form.auth_type !== 'kubeconfig') {
     if (!form.url.trim().startsWith('https://')) { ElMessage.warning('Kubernetes API Server 请使用 HTTPS 地址'); return null }
     if (form.auth_type === 'client_certificate' && !(canReuseAuth.value && originalAuth.has_client_certificate && !authFields.client_certificate.trim() && !authFields.client_key.trim()) && (!authFields.client_certificate.trim() || !authFields.client_key.trim())) { ElMessage.warning('请同时填写客户端证书和私钥'); return null }
     const namespace = kubernetesConfig.namespace.trim()

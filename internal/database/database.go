@@ -14,7 +14,11 @@ import (
 
 var DB *gorm.DB
 
-const CurrentSchemaVersion = "2026110301"
+const (
+	CurrentSchemaVersion        = "2026112702"
+	serviceDashboardMenuVersion = "2026112701"
+	previousSchemaVersion       = "2026110301"
+)
 
 // New opens SQLite and atomically initializes a fresh database on first startup.
 // DB is the shared connection used by the HTTP and tool handlers.
@@ -38,7 +42,30 @@ func New(cfg config.Config) (*gorm.DB, func(), error) {
 }
 
 func prepareDatabase(db *gorm.DB) error {
-	return sqldb.Initialize(db, CurrentSchemaVersion, createCurrentSchema, seedInitialData)
+	if !db.Migrator().HasTable("schema_migrations") {
+		return sqldb.Initialize(db, CurrentSchemaVersion, createCurrentSchema, seedInitialData)
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := sqldb.RequireSchemaVersion(tx, CurrentSchemaVersion); err == nil {
+			return nil
+		}
+		if err := sqldb.RequireSchemaVersion(tx, serviceDashboardMenuVersion); err == nil {
+			if err := mergeServiceDashboardMenu(tx); err != nil {
+				return err
+			}
+		} else {
+			if err := sqldb.RequireSchemaVersion(tx, previousSchemaVersion); err != nil {
+				return err
+			}
+			if err := createServiceDashboardSchema(tx); err != nil {
+				return err
+			}
+			if err := seedServiceDashboard(tx); err != nil {
+				return err
+			}
+		}
+		return sqldb.RecordSchemaVersion(tx, CurrentSchemaVersion)
+	})
 }
 
 func openDatabaseDSN(dsn string) (*gorm.DB, error) {
@@ -107,6 +134,9 @@ func createCurrentSchema(db *gorm.DB) error {
 		&models.AuditLog{},
 	); err != nil {
 		return fmt.Errorf("create database schema: %w", err)
+	}
+	if err := createServiceDashboardSchema(db); err != nil {
+		return err
 	}
 	return db.Exec("CREATE UNIQUE INDEX idx_ai_running_center ON alert_ai_analysis_jobs(fault_center_id) WHERE status = 'running'").Error
 }

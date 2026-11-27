@@ -13,7 +13,7 @@
 | CA 证书 | PEM 格式的集群 CA；留空使用服务端系统信任证书 |
 | 跳过服务端证书校验 | 默认关闭，只用于临时诊断证书问题 |
 
-这里接入的是 Kubernetes API Server，不是 Dashboard、Rancher 等控制台页面。证书字段接收 PEM 内容，不接受文件路径或 base64 字符串；从 kubeconfig 提取 `certificate-authority-data`、`client-certificate-data`、`client-key-data` 后，需要先 base64 解码。目前不直接导入 kubeconfig，也不执行其中的 exec 认证插件。
+选择 Kubeconfig 可直接粘贴 YAML 或 JSON。填写 Context 可覆盖 current-context。导入会提取 API Server、命名空间、TLS 设置，以及内嵌的 Token 或客户端证书。保存后的实例可在表单里继续通过对应认证方式编辑。手动填写证书时使用 PEM 内容。带有 exec 插件或外部凭据文件的 Context 需要先转换为内嵌凭据。
 
 编辑时，Token 留空可保留原值；证书与私钥均留空保留原认证，更新时需同时填写两者。列表和详情接口不返回已保存的 Kubernetes Token 或客户端私钥。
 
